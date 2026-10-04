@@ -1,65 +1,106 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * The Index design tokens.
+ * Green is BFI's own site color (#007640). Every screen reads colors from here,
+ * so light, dark and high-contrast modes stay consistent.
  */
 
-import '@/global.css';
+export type Palette = {
+  background: string;
+  surface: string;
+  sunk: string;
+  text: string;
+  muted: string;
+  line: string;
+  leaf: string;
+  onLeaf: string;
+  leafSoft: string;
+  sun: string;
+  sunSoft: string;
+  onSun: string;
+  real: string;
+  realSoft: string;
+  danger: string;
+};
 
-import { Platform } from 'react-native';
+const light: Palette = {
+  background: '#edf1ec',
+  surface: '#fdfdfb',
+  sunk: '#f3f6f2',
+  text: '#122019',
+  muted: '#506157',
+  line: '#d3dcd5',
+  leaf: '#007640',
+  onLeaf: '#ffffff',
+  leafSoft: '#dcede2',
+  sun: '#e9a91f',
+  sunSoft: '#fbefcf',
+  onSun: '#5f4100',
+  real: '#0d4f8a',
+  realSoft: '#dfeaf5',
+  danger: '#a3341f',
+};
 
-export const Colors = {
-  light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
-  },
-  dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
-  },
+const dark: Palette = {
+  background: '#0c1210',
+  surface: '#141d18',
+  sunk: '#101814',
+  text: '#e5eee8',
+  muted: '#9aaba0',
+  line: '#29362f',
+  leaf: '#4fc78c',
+  onLeaf: '#06130c',
+  leafSoft: '#163527',
+  sun: '#f2c14e',
+  sunSoft: '#382e13',
+  onSun: '#f2c14e',
+  real: '#8cc2f2',
+  realSoft: '#16283a',
+  danger: '#ff8a73',
+};
+
+const contrastLight: Palette = {
+  ...light,
+  background: '#ffffff',
+  surface: '#ffffff',
+  sunk: '#ffffff',
+  text: '#000000',
+  muted: '#1a1a1a',
+  line: '#000000',
+  leaf: '#004a28',
+  onSun: '#3f2b00',
+  real: '#06335c',
+};
+
+const contrastDark: Palette = {
+  ...dark,
+  background: '#000000',
+  surface: '#000000',
+  sunk: '#000000',
+  text: '#ffffff',
+  muted: '#f0f0f0',
+  line: '#ffffff',
+  leaf: '#7dffbe',
+  onLeaf: '#000000',
+  onSun: '#ffd76a',
+  real: '#b5dcff',
+};
+
+export function palette(scheme: 'light' | 'dark', highContrast: boolean): Palette {
+  if (scheme === 'dark') return highContrast ? contrastDark : dark;
+  return highContrast ? contrastLight : light;
+}
+
+/** Font family names registered in the root layout. */
+export const Fonts = {
+  display: 'YoungSerif_400Regular',
+  body: 'AtkinsonHyperlegible_400Regular',
+  bodyBold: 'AtkinsonHyperlegible_700Bold',
+  mono: 'IBMPlexMono_400Regular',
+  monoMedium: 'IBMPlexMono_500Medium',
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export const Space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
+export const Radius = { sm: 10, md: 14, lg: 18, pill: 999 } as const;
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
-
-export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
-} as const;
-
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 800;
+/** Minimum touch target, in points. */
+export const TapTarget = 44;
