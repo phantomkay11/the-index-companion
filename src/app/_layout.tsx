@@ -93,6 +93,13 @@ function AppStack() {
         <Stack.Screen name="new-post" options={{ title: t('newPost'), presentation: 'modal' }} />
         <Stack.Screen name="compose-broadcast" options={{ title: t('broadcast'), presentation: 'modal' }} />
         <Stack.Screen name="impact" options={{ title: t('impact') }} />
+        <Stack.Screen name="surveys" options={{ title: t('surveys') }} />
+        <Stack.Screen name="survey/[id]" options={{ title: t('surveys') }} />
+        <Stack.Screen name="survey-builder" options={{ title: 'New survey', presentation: 'modal' }} />
+        <Stack.Screen name="survey-results/[id]" options={{ title: 'Survey results' }} />
+        <Stack.Screen name="checkin/[id]" options={{ title: t('checkIn') }} />
+        <Stack.Screen name="checkins" options={{ title: t('checkIn') }} />
+        <Stack.Screen name="send-checkin" options={{ title: 'Send a check-in', presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
   );

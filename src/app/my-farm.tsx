@@ -102,13 +102,50 @@ function ManageFarm() {
       <ToggleRow label="Accept messages from buyers" value={farm.accepts_messages} onChange={(v) => setFarm({ accepts_messages: v })} />
       <ToggleRow
         label="I reply by text message"
-        hint="Messages reach you by SMS when the text line is turned on."
+        hint="Messages reach you by text when you’ve turned on text messages in Settings. Reply to the text to answer; for an inquiry, reply YES, PART or NO."
         value={farm.replies_by_sms}
         onChange={(v) => setFarm({ replies_by_sms: v })}
       />
+      <OrderLink key={`${farm.order_url}|${farm.order_label}`} url={farm.order_url ?? ''} label={farm.order_label ?? ''} onSave={setFarm} />
       <FarmPhotos farmId={farm.id} />
       <Button kind="ghost" label="View my public profile" onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })} />
     </Screen>
+  );
+}
+
+/** A link to the farm's own store, CSA sign-up or market page. The app never handles payment. */
+function OrderLink({ url: savedUrl, label: savedLabel, onSave }: { url: string; label: string; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
+  const { t, colors } = useSettings();
+  const [url, setUrl] = useState(savedUrl);
+  const [label, setLabel] = useState(savedLabel);
+  const [busy, setBusy] = useState(false);
+  const trimmed = url.trim();
+  const normalized = trimmed && !/^https?:\/\//i.test(trimmed) ? `https://${trimmed}` : trimmed.replace(/^http:\/\//i, 'https://');
+  const valid = !trimmed || /^https:\/\/[^\s.]+\.[^\s]+$/i.test(normalized);
+  const changed = normalized !== savedUrl || label.trim() !== savedLabel;
+
+  const save = async () => {
+    setBusy(true);
+    await onSave({ order_url: normalized || null, order_label: label.trim() || null });
+    setBusy(false);
+  };
+
+  return (
+    <Card>
+      <Txt variant="heading">{t('orderOnline')}</Txt>
+      <Txt variant="small" muted>
+        Have an online store, CSA sign-up or market page? Add it and buyers see an “{t('orderOnline')}” button on your profile.
+        Orders and payment go straight to you.
+      </Txt>
+      <Field label="Link" value={url} onChangeText={setUrl} placeholder="https://yourfarm.com/shop" autoCapitalize="none" keyboardType="url" />
+      {!valid ? (
+        <Txt variant="small" color={colors.danger}>
+          That doesn’t look like a web address yet.
+        </Txt>
+      ) : null}
+      <Field label="Button text (optional)" value={label} onChangeText={setLabel} placeholder="For example: Join our CSA" maxLength={40} />
+      <Button small label={t('save')} onPress={save} busy={busy} disabled={!valid || !changed} />
+    </Card>
   );
 }
 

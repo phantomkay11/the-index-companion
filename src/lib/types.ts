@@ -32,6 +32,9 @@ export type Farm = {
   languages: string[];
   how_to_buy: string[];
   website: string | null;
+  /** The farm's own store, CSA sign-up or market page. */
+  order_url?: string | null;
+  order_label?: string | null;
   accepts_messages: boolean;
   replies_by_sms: boolean;
   harvest_mode: boolean;
@@ -161,7 +164,16 @@ export type SavedAlert = {
   created_at: string;
 };
 
-export type FarmPhoto = { id: string; farm_id: string; path: string; alt_text: string; sort_order: number };
+export type FarmPhoto = {
+  id: string;
+  farm_id: string;
+  /** A path in the farm-photos bucket, or a full https URL (sample farms only). */
+  path: string;
+  alt_text: string;
+  sort_order: number;
+  credit?: string | null;
+  credit_url?: string | null;
+};
 
 export type PostKind = 'need' | 'offer' | 'equipment' | 'ride' | 'bulk' | 'mentor';
 
@@ -181,3 +193,59 @@ export type Post = {
 };
 
 export type FarmInsights = { views_30d: number; followers: number; inquiries_30d: number; open_inquiries: number };
+
+export type Audience = 'everyone' | 'growers' | 'neighbors' | `region:${string}`;
+
+export type SurveyQuestion = {
+  id: string;
+  type: 'single' | 'multi' | 'text' | 'scale';
+  prompt: string;
+  options?: string[];
+  required?: boolean;
+};
+
+export type SurveyAnswer = string | string[] | number;
+
+export type Survey = {
+  id: string;
+  title: string;
+  intro: string;
+  questions: SurveyQuestion[];
+  audience: Audience;
+  status: 'draft' | 'open' | 'closed';
+  closes_at: string | null;
+  created_at: string;
+};
+
+export type SurveyResponse = {
+  survey_id: string;
+  user_id: string;
+  answers: Record<string, SurveyAnswer>;
+  consent_share: boolean;
+  updated_at: string;
+};
+
+export type Checkin = {
+  id: string;
+  title: string;
+  message: string;
+  audience: Audience;
+  closes_at: string;
+  created_at: string;
+};
+
+export type CheckinResponse = {
+  checkin_id: string;
+  user_id: string;
+  status: 'ok' | 'need_help';
+  note: string;
+  via: 'app' | 'sms';
+  updated_at: string;
+};
+
+export type CheckinReport = {
+  reached: number;
+  ok: number;
+  need_help: number;
+  needs: { user_id: string; name: string; note: string; via: 'app' | 'sms'; updated_at: string; phone: string | null; region_id: string | null }[];
+};

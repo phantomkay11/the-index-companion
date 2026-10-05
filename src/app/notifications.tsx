@@ -23,6 +23,8 @@ const ICONS: Record<string, ComponentProps<typeof Ionicons>['name']> = {
   event_reminder: 'calendar-outline',
   deadline: 'time-outline',
   review: 'shield-checkmark-outline',
+  survey: 'clipboard-outline',
+  checkin: 'thunderstorm-outline',
 };
 
 export default function NotificationsScreen() {

@@ -26,6 +26,15 @@ Members control all of it in Settings → Notification settings: phone notificat
 
 Use the same Twilio number as the text line or a second one. Register it for A2P 10DLC messaging before sending to US numbers. Members must add their number and switch on "Send me texts". Twilio handles STOP and START automatically.
 
+**Replies come back into the app.** Point the number's "A message comes in" webhook at the `sms-line` function (see the text line steps in the README). When a member who has opted in replies to a text, `sms-line` matches their phone number and:
+
+- if we texted them about a message, inquiry or board reply in the last 3 days, posts their reply in that conversation (marked "by text");
+- if it was an inquiry and they're the farmer, YES, PART or NO answers it (anything after the word becomes the note: "PART I have 3 lb");
+- if a storm check-in is open for them, SAFE or NEED (plus what they need) answers it;
+- otherwise treats the text as a search. Members can always force a search by starting with FIND: "FIND HONEY LA".
+
+Outgoing texts end with "Reply to this text to answer" (or "Reply YES, PART or NO" for inquiries) so people know they can. If you use two numbers, replies only work on the number that sent the text, so send from the text line's number.
+
 ## 3. Email (Resend)
 
 Create a Resend account, verify a sending domain BFI owns (for example `notify.blackfarmersindex.com`), and create an API key.

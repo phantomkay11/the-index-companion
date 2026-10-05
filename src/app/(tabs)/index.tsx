@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
+import { BfiAsks } from '@/components/bfi-asks';
 import { FarmCard } from '@/components/farm-card';
 import { FarmMap } from '@/components/farm-map';
 import { SavedCopyNote } from '@/components/network-banner';
@@ -64,6 +65,7 @@ export default function Discover() {
 
   return (
     <Screen width="wide">
+      <BfiAsks />
       {myFarm ? (
         <Card tone="soft">
           <Row style={{ justifyContent: 'space-between' }}>

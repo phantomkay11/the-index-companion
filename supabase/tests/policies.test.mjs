@@ -287,4 +287,98 @@ const impact = (await one(`select public.impact_stats() as s`))[0].s;
 check('impact report counts inquiries and regions', impact.inquiries_total === 1 && impact.farms_by_region['6'] === 1 && impact.members === 4);
 check('miles() is accurate', Math.abs((await one(`select public.miles(30.22, -92.02, 29.95, -90.07) as m`))[0].m - 118.5) < 2);
 
+
+// ---------------------------------------------------------------------------
+// Round 3: photo credits, ordering links, two-way texting, surveys, check-ins
+// ---------------------------------------------------------------------------
+await as(staff);
+await one(`insert into public.farm_photos (farm_id, path, alt_text, farmer_consent, credit, credit_url)
+           values ('00000000-0000-4000-a000-000000000001', 'https://example.com/a.jpg', 'Rows of greens at sunrise', true, 'Jane Doe / Unsplash', 'https://unsplash.com')`);
+check('sample farms can use credited linked photos', (await one(`select count(*)::int n from public.farm_photos where credit is not null`))[0].n === 1);
+await expectFail('linked photo without credit refused', () => one(`insert into public.farm_photos (farm_id, path, alt_text, farmer_consent)
+           values ('00000000-0000-4000-a000-000000000001', 'https://example.com/b.jpg', 'Greens', true)`));
+await expectFail('real farms cannot use linked photos', () => one(`insert into public.farm_photos (farm_id, path, alt_text, farmer_consent, credit)
+           values ($1, 'https://example.com/c.jpg', 'Greens', true, 'x')`, [mine.id]));
+
+await as(farmer);
+await one(`update public.farms set order_url = 'https://shop.example.com', order_label = 'Join our CSA' where id = $1`, [mine.id]);
+check('farmer sets an ordering link', (await one(`select order_label from public.farms where id = $1`, [mine.id]))[0].order_label === 'Join our CSA');
+await expectFail('ordering link must be https', () => one(`update public.farms set order_url = 'javascript:alert(1)' where id = $1`, [mine.id]));
+
+// Two-way texting. The farmer was texted about the buyer's message; mark that text sent.
+await db.exec('reset role');
+await db.exec(`update public.notification_deliveries set status = 'sent' where channel = 'sms'`);
+await expectFail('members cannot call sms_inbound', async () => { await as(buyer); await one(`select public.sms_inbound('+15555550100', 'hi')`); });
+await db.exec('reset role');
+const sms1 = (await one(`select public.sms_inbound('(555) 555-0100', 'See you Saturday at 9') as r`))[0].r;
+check('farmer text reply lands in the thread', sms1.handled === true && sms1.conversation_id === conv
+  && (await one(`select count(*)::int n from public.messages where conversation_id = $1 and via = 'sms' and body = 'See you Saturday at 9'`, [conv]))[0].n === 1);
+check('buyer is notified of the texted reply', (await one(`select count(*)::int n from public.notifications where user_id = $1 and body = 'See you Saturday at 9'`, [buyer]))[0].n === 1);
+const unknown = (await one(`select public.sms_inbound('+15550000000', 'HONEY') as r`))[0].r;
+check('unknown numbers fall back to search', unknown.handled === false);
+// A fresh inquiry, answered by text.
+await as(buyer);
+await one(`select public.send_inquiry($1, 'Okra', '5 lb', '2026-10-12', 'Farm stand', '')`, [mine.id]);
+await db.exec('reset role');
+await db.exec(`update public.notification_deliveries set status = 'sent' where channel = 'sms'`);
+const sms2 = (await one(`select public.sms_inbound('+1 555 555 0100', 'part I have 3 lb') as r`))[0].r;
+check('farmer answers an inquiry with PART', sms2.handled === true
+  && (await one(`select inquiry_status from public.messages where conversation_id = $1 and kind = 'inquiry' order by created_at desc limit 1`, [conv]))[0].inquiry_status === 'partial'
+  && (await one(`select count(*)::int n from public.messages where body = 'I have 3 lb'`))[0].n === 1);
+await db.exec(`update public.contact_prefs set sms_opt_in = false where user_id = '${farmer}'`);
+check('opted-out numbers are not matched', (await one(`select public.sms_inbound('+15555550100', 'hello') as r`))[0].r.handled === false);
+await db.exec(`update public.contact_prefs set sms_opt_in = true where user_id = '${farmer}'`);
+
+// Surveys.
+await as(buyer);
+await expectFail('members cannot create surveys', () => one(`insert into public.surveys (title, status) values ('Mine', 'open')`));
+await as(staff);
+const survey = (await one(`insert into public.surveys (title, intro, questions, audience) values ('Growing season check', 'Three questions',
+  '[{"id":"q1","type":"scale","prompt":"How was the season?"},{"id":"q2","type":"text","prompt":"What would help?"}]', 'growers') returning id`))[0].id;
+await as(farmer);
+check('draft surveys are hidden', (await one(`select count(*)::int n from public.surveys`))[0].n === 0);
+await as(staff);
+await one(`update public.surveys set status = 'open' where id = $1`, [survey]);
+await db.exec('reset role');
+check('opening a survey notifies its audience only', (await one(`select count(*)::int n from public.notifications where kind = 'survey'`))[0].n === 1
+  && (await one(`select user_id from public.notifications where kind = 'survey'`))[0].user_id === farmer);
+await as(farmer);
+await one(`insert into public.survey_responses (survey_id, answers, consent_share) values ($1, '{"q1":4,"q2":"A cooler"}', true)`, [survey]);
+await one(`update public.survey_responses set answers = '{"q1":5,"q2":"A walk-in cooler"}' where survey_id = $1`, [survey]);
+check('farmer can change answers while open', (await one(`select answers->>'q2' a from public.survey_responses where survey_id = $1`, [survey]))[0].a === 'A walk-in cooler');
+await as(buyer);
+await expectFail('people outside the audience cannot answer', () => one(`insert into public.survey_responses (survey_id, answers) values ($1, '{}')`, [survey]));
+check('members cannot read others’ answers', (await one(`select count(*)::int n from public.survey_responses`))[0].n === 0);
+await as(staff);
+check('staff can read answers', (await one(`select count(*)::int n from public.survey_responses where consent_share`))[0].n === 1);
+await one(`update public.surveys set status = 'closed' where id = $1`, [survey]);
+await as(farmer);
+await one(`update public.survey_responses set answers = '{}' where survey_id = $1`, [survey]);
+check('answers lock when a survey closes', (await one(`select answers->>'q1' a from public.survey_responses where survey_id = $1`, [survey]))[0].a === '5');
+
+// Storm check-ins.
+await db.exec('reset role');
+await db.exec(`update public.profiles set region_id = '6' where id = '${buyer}'`);
+await as(farmer);
+await expectFail('members cannot send check-ins', () => one(`insert into public.checkins (title, audience) values ('x', 'everyone')`));
+await as(staff);
+const checkin = (await one(`insert into public.checkins (title, message, audience) values ('Hurricane check-in', 'Hurricane Delta passed through Louisiana.', 'region:6') returning id`))[0].id;
+await db.exec('reset role');
+const ciNotes = await one(`select n.user_id, array_agg(d.channel order by d.channel) ch from public.notifications n left join public.notification_deliveries d on d.notification_id = n.id where n.kind = 'checkin' group by n.user_id`);
+check('check-in reaches the region by push and text', ciNotes.length === 2 && ciNotes.find((r) => r.user_id === farmer)?.ch.join(',') === 'push,sms');
+await as(buyer);
+await one(`insert into public.checkin_responses (checkin_id, status, note) values ($1, 'need_help', 'Tree on the barn road')`, [checkin]);
+await as(other);
+check('people outside the region do not see the check-in', (await one(`select count(*)::int n from public.checkins`))[0].n === 0);
+await expectFail('outsiders cannot answer', () => one(`insert into public.checkin_responses (checkin_id, status) values ($1, 'ok')`, [checkin]));
+await db.exec('reset role');
+const sms3 = (await one(`select public.sms_inbound('+15555550100', 'SAFE all good here') as r`))[0].r;
+check('farmer answers the check-in by text', sms3.handled === true && sms3.checkin_id === checkin);
+await as(buyer);
+await expectFail('members cannot read the check-in report', () => one(`select public.checkin_report($1)`, [checkin]));
+await as(staff);
+const report = (await one(`select public.checkin_report($1) as r`, [checkin]))[0].r;
+check('report counts answers and lists who needs help with a phone', report.reached === 2 && report.ok === 1 && report.need_help === 1
+  && report.needs[0].name === 'Marcus' && report.needs[0].note === 'Tree on the barn road');
+
 console.log(process.exitCode ? 'SOME CHECKS FAILED' : 'ALL CHECKS PASSED');

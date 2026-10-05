@@ -12,23 +12,23 @@
 //   HONEY LA         limited to a state (two-letter code)
 //   EVENTS           the next three approved events
 //   HELP             how to use the line
+//   FIND HONEY       always searches, even for members with an open conversation
+// Two-way texting: a member who opted in to texts can simply reply to a text from The Index.
+//   - a reply to a message or inquiry text is posted in that conversation (farmers can answer
+//     an inquiry with YES, PART or NO plus an optional note)
+//   - SAFE or NEED <what you need> answers an open storm check-in
+// Anything that isn't one of those falls back to a search.
 // STOP / START are handled by Twilio's built-in opt-out before they reach this function.
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
-type FarmHit = { name: string; city: string; state: string; how_to_buy: string[]; replies_by_sms: boolean };
+import { routeText } from './route.ts';
 
-const STATES: Record<string, string> = {
-  AL: 'AL', AK: 'AK', AZ: 'AZ', AR: 'AR', CA: 'CA', CO: 'CO', CT: 'CT', DE: 'DE', DC: 'DC', FL: 'FL', GA: 'GA', HI: 'HI',
-  ID: 'ID', IL: 'IL', IN: 'IN', IA: 'IA', KS: 'KS', KY: 'KY', LA: 'LA', ME: 'ME', MD: 'MD', MA: 'MA', MI: 'MI', MN: 'MN',
-  MS: 'MS', MO: 'MO', MT: 'MT', NE: 'NE', NV: 'NV', NH: 'NH', NJ: 'NJ', NM: 'NM', NY: 'NY', NC: 'NC', ND: 'ND', OH: 'OH',
-  OK: 'OK', OR: 'OR', PA: 'PA', PR: 'PR', RI: 'RI', SC: 'SC', SD: 'SD', TN: 'TN', TX: 'TX', UT: 'UT', VT: 'VT', VA: 'VA',
-  VI: 'VI', WA: 'WA', WV: 'WV', WI: 'WI', WY: 'WY', GU: 'GU',
-};
+type FarmHit = { name: string; city: string; state: string; how_to_buy: string[]; replies_by_sms: boolean };
 
 const HELP =
   'The Index text line from Black Farmers Index. Text a product to find Black growers, like HONEY or OKRA. ' +
-  'Add a state to narrow it: SHRIMP LA. Text EVENTS for what is coming up. Reply STOP to opt out.';
+  'Add a state to narrow it: SHRIMP LA. Text EVENTS for what is coming up. If we texted you about a message, just reply to answer. Reply STOP to opt out.';
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -42,28 +42,21 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const words = (params.Body ?? '').trim().toUpperCase().split(/\s+/).filter(Boolean);
+  const route = routeText(params.Body ?? '');
   let reply: string;
 
   try {
-    if (!words.length || words[0] === 'HELP' || words[0] === 'INFO') {
+    if (route.type === 'help') {
       reply = HELP;
-    } else if (words[0] === 'EVENTS' || words[0] === 'EVENTOS') {
-      const { data, error } = await supabase
-        .from('events')
-        .select('title, starts_at, place')
-        .eq('status', 'approved')
-        .gte('starts_at', new Date().toISOString())
-        .order('starts_at')
-        .limit(3);
-      if (error) throw error;
-      reply = data?.length
-        ? 'Coming up:\n' + data.map((e, i) => `${i + 1}) ${shortDate(e.starts_at)} ${e.title}, ${e.place}`).join('\n')
-        : 'No upcoming events yet. Check back soon.';
+    } else if (route.type === 'events') {
+      reply = await upcomingEvents(supabase);
+    } else if (route.type === 'search') {
+      reply = await searchGrowers(supabase, route.keyword, route.state);
     } else {
-      const state = words.find((w) => STATES[w]);
-      const keyword = words.filter((w) => w !== state && !/^\d{5}$/.test(w)).join(' ').toLowerCase().replace(/s$/, '');
-      reply = await searchGrowers(supabase, keyword, state);
+      const { data, error } = await supabase.rpc('sms_inbound', { p_from: params.From ?? '', p_body: route.text });
+      if (error) throw error;
+      const result = data as { handled: boolean; reply?: string };
+      reply = result.handled && result.reply ? result.reply : await searchGrowers(supabase, route.fallback.keyword, route.fallback.state);
     }
   } catch (e) {
     console.error(e);
@@ -74,6 +67,20 @@ Deno.serve(async (req) => {
     headers: { 'Content-Type': 'text/xml' },
   });
 });
+
+async function upcomingEvents(supabase: SupabaseClient) {
+  const { data, error } = await supabase
+    .from('events')
+    .select('title, starts_at, place')
+    .eq('status', 'approved')
+    .gte('starts_at', new Date().toISOString())
+    .order('starts_at')
+    .limit(3);
+  if (error) throw error;
+  return data?.length
+    ? 'Coming up:\n' + data.map((e, i) => `${i + 1}) ${shortDate(e.starts_at)} ${e.title}, ${e.place}`).join('\n')
+    : 'No upcoming events yet. Check back soon.';
+}
 
 async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: string) {
   if (!keyword) return HELP;
