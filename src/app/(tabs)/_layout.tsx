@@ -5,12 +5,14 @@ import { Pressable, View } from 'react-native';
 import { NetworkBanner } from '@/components/network-banner';
 import { Txt } from '@/components/ui';
 import { Fonts } from '@/constants/theme';
+import { useLayout } from '@/lib/layout';
 import { useNotifications } from '@/providers/notifications';
 import { useSettings } from '@/providers/settings';
 
 export default function TabsLayout() {
   const { colors, t, textScale } = useSettings();
   const { unread } = useNotifications();
+  const { isTablet } = useLayout();
 
   const headerRight = () => (
     <View style={{ flexDirection: 'row', marginRight: 8 }}>
@@ -62,7 +64,15 @@ export default function TabsLayout() {
           headerRight,
           tabBarActiveTintColor: colors.leaf,
           tabBarInactiveTintColor: colors.muted,
-          tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
+          // On iPad the tabs become a sidebar rail on the left.
+          tabBarPosition: isTablet ? 'left' : 'bottom',
+          tabBarVariant: isTablet ? 'material' : 'uikit',
+          tabBarLabelPosition: 'below-icon',
+          tabBarStyle: isTablet
+            ? { backgroundColor: colors.surface, borderRightColor: colors.line, borderRightWidth: 1, width: 104, paddingTop: 12 }
+            : { backgroundColor: colors.surface, borderTopColor: colors.line },
+          tabBarItemStyle: isTablet ? { minHeight: 72, marginVertical: 2 } : undefined,
+          tabBarActiveBackgroundColor: isTablet ? colors.leafSoft : undefined,
           tabBarLabelStyle: { fontFamily: Fonts.bodyBold, fontSize: 11 * Math.min(textScale, 1.2) },
         }}
         screenLayout={({ children }) => (

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
 import { SavedCopyNote } from '@/components/network-banner';
-import { Button, Card, Chip, Empty, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { daysUntil, shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -49,7 +49,7 @@ export default function Resources() {
   const saved = (q.data?.resources ?? []).filter((r) => q.data?.saved.includes(r.id));
 
   return (
-    <Screen>
+    <Screen width="wide">
       <Card tone="soft">
         <Txt variant="label">{t('deadlines')}</Txt>
         {!saved.length ? (
@@ -101,6 +101,7 @@ export default function Resources() {
       ) : null}
       {q.data && !fits.length ? <Empty>No programs match. Try “Any”.</Empty> : null}
 
+      <Grid>
       {fits.map((r) => {
         const isSaved = q.data?.saved.includes(r.id);
         return (
@@ -122,6 +123,7 @@ export default function Resources() {
           </Card>
         );
       })}
+      </Grid>
       <Txt variant="small" muted>
         Summaries are in plain language. Each program sets its own rules and deadlines, so check the official site before applying.
       </Txt>

@@ -1,6 +1,6 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
-import type { ComponentProps, ReactNode } from 'react';
+import { Children, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 
 import { Fonts, Radius, Space, TapTarget } from '@/constants/theme';
+import { useLayout } from '@/lib/layout';
 import { useSettings } from '@/providers/settings';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -66,24 +67,52 @@ export function Txt({
 // ---------------------------------------------------------------------------
 // Layout
 // ---------------------------------------------------------------------------
+/**
+ * A scrolling page. On tablets the content sits in a centered column so lines stay readable:
+ * `width="reading"` (default) for forms and text, `width="wide"` for grids of cards.
+ */
 export function Screen({
   children,
   scroll = true,
+  width = 'reading',
   style,
 }: {
   children: ReactNode;
   scroll?: boolean;
+  width?: 'reading' | 'wide' | 'full';
   style?: StyleProp<ViewStyle>;
 }) {
   const { colors } = useSettings();
+  const { isTablet } = useLayout();
+  const column: ViewStyle | null =
+    isTablet && width !== 'full' ? { width: '100%', maxWidth: width === 'wide' ? 1180 : 760, alignSelf: 'center' } : null;
   if (!scroll) return <View style={[{ flex: 1, backgroundColor: colors.background }, style]}>{children}</View>;
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[styles.screen, style]}
+      contentContainerStyle={[styles.screen, isTablet && styles.screenTablet, column, style]}
       keyboardShouldPersistTaps="handled">
       {children}
     </ScrollView>
+  );
+}
+
+/** Lays cards out in columns on tablets; a single column on phones. */
+export function Grid({ children, columns, gap = Space.lg }: { children: ReactNode; columns?: number; gap?: number }) {
+  const layout = useLayout();
+  const [width, setWidth] = useState(0);
+  const cols = columns ?? layout.columns;
+  const items = Children.toArray(children);
+  if (cols <= 1) return <View style={{ gap }}>{items}</View>;
+  const cell = width ? Math.floor((width - gap * (cols - 1)) / cols) : undefined;
+  return (
+    <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ flexDirection: 'row', flexWrap: 'wrap', gap, alignItems: 'flex-start' }}>
+      {items.map((child, i) => (
+        <View key={i} style={{ width: cell ?? `${Math.floor(100 / cols) - 2}%` }}>
+          {child}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -359,6 +388,7 @@ export function SignInPrompt() {
 
 const styles = StyleSheet.create({
   screen: { padding: Space.lg, gap: Space.lg, paddingBottom: Space.xxl },
+  screenTablet: { padding: Space.xl, gap: Space.xl },
   card: { borderWidth: 1, borderRadius: Radius.lg, padding: Space.lg, gap: Space.sm },
   button: {
     minHeight: TapTarget,

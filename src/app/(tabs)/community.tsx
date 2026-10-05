@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, View } from 'react-native';
 
 import { SavedCopyNote } from '@/components/network-banner';
 import { TranslateToggle, useTranslation } from '@/components/translate';
-import { Button, Card, Chip, Empty, ErrorNote, Loading, Pill, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
+import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Pill, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { kindLabel, POST_KINDS } from '@/lib/board';
 import { shortDate } from '@/lib/format';
@@ -51,7 +51,7 @@ export default function Community() {
   }
 
   return (
-    <Screen>
+    <Screen width="wide">
       <Button label={t('newPost')} icon="add-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/new-post')} />
       <View style={{ gap: Space.sm }}>
         <Row gap={6}>
@@ -71,9 +71,11 @@ export default function Community() {
       {posts.error ? <ErrorNote message={posts.error} onRetry={posts.reload} /> : null}
       {!posts.data && !posts.error ? <Loading /> : null}
       {posts.data && !posts.data.length ? <Empty>Nothing posted here yet. Be the first.</Empty> : null}
+      <Grid>
       {posts.data?.map((p) => (
         <PostCard key={p.id} post={p} mine={p.author_id === session.user.id} onChange={posts.reload} />
       ))}
+      </Grid>
       <Txt variant="small" muted>
         Posts close on their own after 45 days. Reply privately to arrange details; never share bank details on the board.
       </Txt>

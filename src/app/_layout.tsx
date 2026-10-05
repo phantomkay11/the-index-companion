@@ -8,7 +8,9 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
+import { Dimensions, Platform } from 'react-native';
 
 import { Fonts } from '@/constants/theme';
 import { AuthProvider } from '@/providers/auth';
@@ -16,6 +18,14 @@ import { NotificationsProvider } from '@/providers/notifications';
 import { SettingsProvider, useSettings } from '@/providers/settings';
 
 SplashScreen.preventAutoHideAsync();
+
+// Phones stay upright; iPads and Android tablets rotate freely.
+if (Platform.OS !== 'web') {
+  const { width, height } = Dimensions.get('screen');
+  if (Math.min(width, height) < 600) {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+  }
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({

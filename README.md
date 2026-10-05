@@ -21,6 +21,7 @@ Built as a gift to Black Farmers Index by Kerry Laster. The intent is for BFI to
 | **Resources** | BFI's own programs first, then public programs, filtered by farm type and stage, with a deadline tracker and reminders. |
 | **Growers** | List a farm (reviewed by BFI), toggle what's fresh, add photos, harvest mode, and a monthly snapshot of profile views, followers and inquiries. |
 | **BFI staff** | A review queue, an announcement composer (by audience and channel), and an impact report for funders that can be shared as CSV. |
+| **iPad** | Tabs become a sidebar. Messages shows conversations and the open chat side by side. Farms, events, programs, posts and announcements lay out in a grid. In landscape the map sits beside the list, and farm profiles show the photo beside the details. iPads rotate freely; phones stay upright. The same layout applies on wide web browsers. |
 | **Accessibility** | Atkinson Hyperlegible type, text size up to 160% on top of the phone's setting, high contrast, reduce motion, save-data mode, read-aloud, five languages (English, Spanish, French, Haitian Creole, Portuguese), 44-point tap targets and screen-reader labels throughout. |
 | **Offline** | The directory, farm profiles, events, resources, announcements and board are saved on the phone and shown when there's no signal, with an offline banner. |
 | **Text line** | A Supabase function that answers SMS searches ("HONEY LA", "EVENTS") through Twilio, for people without smartphones. |

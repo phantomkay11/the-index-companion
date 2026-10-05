@@ -7,9 +7,10 @@ import { FarmCard } from '@/components/farm-card';
 import { FarmMap } from '@/components/farm-map';
 import { SavedCopyNote } from '@/components/network-banner';
 import { PlacePicker } from '@/components/place-picker';
-import { Button, Card, Chip, Empty, ErrorNote, Loading, Pill, Row, Screen, Segmented, Txt } from '@/components/ui';
+import { Button, Card, Chip, Empty, ErrorNote, Grid, Loading, Pill, Row, Screen, Segmented, Txt } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { BFI, CATEGORIES } from '@/lib/bfi';
+import { useLayout } from '@/lib/layout';
 import { miles, useHere } from '@/lib/location';
 import { supabase } from '@/lib/supabase';
 import type { Farm, Region } from '@/lib/types';
@@ -25,6 +26,7 @@ export default function Discover() {
   const [category, setCategory] = useState<string | null>(null);
   const [region, setRegion] = useState<string>('all');
   const [view, setView] = useState<'list' | 'map'>('list');
+  const { isTablet, isWide } = useLayout();
 
   const regions = useQuery(async () => must(await supabase.from('regions').select('*').order('sort_order')) as Region[], [], { cacheKey: 'regions' });
 
@@ -61,7 +63,7 @@ export default function Discover() {
   const selectedRegion = regions.data?.find((r) => r.id === region);
 
   return (
-    <Screen>
+    <Screen width="wide">
       {myFarm ? (
         <Card tone="soft">
           <Row style={{ justifyContent: 'space-between' }}>
@@ -164,8 +166,30 @@ export default function Discover() {
         </Row>
       ) : null}
       {farms.data && !visible.length ? <Empty>{t('noResults')}</Empty> : null}
-      {view === 'map' && !saveData && visible.length ? <FarmMap farms={visible} here={here?.point ?? null} /> : null}
-      {view === 'list' || saveData ? visible.map((f) => <FarmCard key={f.id} farm={f} here={here?.point} />) : null}
+      {view === 'map' && !saveData && visible.length ? (
+        isWide ? (
+          // iPad landscape: map and list side by side.
+          <View style={{ flexDirection: 'row', gap: Space.lg, height: 640 }}>
+            <View style={{ flex: 3 }}>
+              <FarmMap farms={visible} here={here?.point ?? null} height={640} />
+            </View>
+            <ScrollView style={{ flex: 2 }} contentContainerStyle={{ gap: Space.md }}>
+              {visible.map((f) => (
+                <FarmCard key={f.id} farm={f} here={here?.point} />
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <FarmMap farms={visible} here={here?.point ?? null} height={isTablet ? 520 : 320} />
+        )
+      ) : null}
+      {view === 'list' || saveData ? (
+        <Grid>
+          {visible.map((f) => (
+            <FarmCard key={f.id} farm={f} here={here?.point} />
+          ))}
+        </Grid>
+      ) : null}
 
       {!myFarm ? (
         <Card style={{ borderRadius: Radius.lg }}>
