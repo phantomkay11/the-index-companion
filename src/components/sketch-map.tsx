@@ -21,7 +21,8 @@ export function SketchMap({ farms, here, height = 280 }: MapProps) {
   const all = [...pts.map((f) => ({ lat: f.lat!, lon: f.lon! })), ...(here ? [here] : [])];
   if (!all.length) {
     return (
-      <View style={[styles.box, { height: 120, borderColor: colors.line, backgroundColor: colors.sunk, alignItems: 'center', justifyContent: 'center' }]}>
+      <View
+        style={[styles.box, { height: 120, borderColor: colors.line, backgroundColor: colors.sunk, alignItems: 'center', justifyContent: 'center' }]}>
         <Txt variant="small" muted>
           None of these farms share map coordinates yet.
         </Txt>
@@ -50,23 +51,31 @@ export function SketchMap({ farms, here, height = 280 }: MapProps) {
           <View key={`v${f}`} style={[styles.grid, { left: w * f, top: 0, bottom: 0, width: 1, backgroundColor: colors.line }]} />
         ))}
       {w > 0 && here ? (
-        <View style={[styles.here, { left: x(here.lon) - 9, top: y(here.lat) - 9, backgroundColor: colors.sun, borderColor: colors.surface }]} accessibilityLabel="You are here" />
+        <View
+          style={[styles.here, { left: x(here.lon) - 9, top: y(here.lat) - 9, backgroundColor: colors.sun, borderColor: colors.surface }]}
+          accessibilityLabel="You are here"
+        />
       ) : null}
       {w > 0 &&
-        pts.map((f) => (
-          <Pressable
-            key={f.id}
-            onPress={() => router.push({ pathname: '/farm/[id]', params: { id: f.id } })}
-            accessibilityRole="button"
-            accessibilityLabel={`${f.name}, ${f.city}`}
-            hitSlop={10}
-            style={[styles.pin, { left: x(f.lon!) - 8, top: y(f.lat!) - 8 }]}>
-            <View style={[styles.dot, { backgroundColor: colors.leaf, borderColor: colors.surface }]} />
-            <Txt variant="smallBold" style={{ fontSize: 11 }} numberOfLines={1}>
-              {f.name.split(' ')[0]}
-            </Txt>
-          </Pressable>
-        ))}
+        pts.map((f) => {
+          // Labels near the right edge sit to the left of their dot so they aren't cut off.
+          const px = x(f.lon!);
+          const flip = px > w - 120;
+          return (
+            <Pressable
+              key={f.id}
+              onPress={() => router.push({ pathname: '/farm/[id]', params: { id: f.id } })}
+              accessibilityRole="button"
+              accessibilityLabel={`${f.name}, ${f.city}`}
+              hitSlop={10}
+              style={[styles.pin, flip ? { right: w - px - 8, flexDirection: 'row-reverse' } : { left: px - 8 }, { top: y(f.lat!) - 8 }]}>
+              <View style={[styles.dot, { backgroundColor: colors.leaf, borderColor: colors.surface }]} />
+              <Txt variant="smallBold" style={{ fontSize: 11 }} numberOfLines={1}>
+                {f.name.split(' ')[0]}
+              </Txt>
+            </Pressable>
+          );
+        })}
     </View>
   );
 }
