@@ -8,13 +8,24 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
+import { Dimensions, Platform } from 'react-native';
 
 import { Fonts } from '@/constants/theme';
 import { AuthProvider } from '@/providers/auth';
+import { NotificationsProvider } from '@/providers/notifications';
 import { SettingsProvider, useSettings } from '@/providers/settings';
 
 SplashScreen.preventAutoHideAsync();
+
+// Phones stay upright; iPads and Android tablets rotate freely.
+if (Platform.OS !== 'web') {
+  const { width, height } = Dimensions.get('screen');
+  if (Math.min(width, height) < 600) {
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
+  }
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -34,7 +45,9 @@ export default function RootLayout() {
   return (
     <SettingsProvider>
       <AuthProvider>
-        <AppStack />
+        <NotificationsProvider>
+          <AppStack />
+        </NotificationsProvider>
       </AuthProvider>
     </SettingsProvider>
   );
@@ -75,6 +88,11 @@ function AppStack() {
         <Stack.Screen name="my-farm" options={{ title: t('myFarm') }} />
         <Stack.Screen name="post-event" options={{ title: t('postEvent'), presentation: 'modal' }} />
         <Stack.Screen name="review" options={{ title: t('review') }} />
+        <Stack.Screen name="notifications" options={{ title: t('notifications') }} />
+        <Stack.Screen name="alerts" options={{ title: t('nearMeAlerts') }} />
+        <Stack.Screen name="new-post" options={{ title: t('newPost'), presentation: 'modal' }} />
+        <Stack.Screen name="compose-broadcast" options={{ title: t('broadcast'), presentation: 'modal' }} />
+        <Stack.Screen name="impact" options={{ title: t('impact') }} />
       </Stack>
     </ThemeProvider>
   );

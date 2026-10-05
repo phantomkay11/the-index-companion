@@ -14,7 +14,9 @@
 //   HELP             how to use the line
 // STOP / START are handled by Twilio's built-in opt-out before they reach this function.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+
+type FarmHit = { name: string; city: string; state: string; how_to_buy: string[]; replies_by_sms: boolean };
 
 const STATES: Record<string, string> = {
   AL: 'AL', AK: 'AK', AZ: 'AZ', AR: 'AR', CA: 'CA', CO: 'CO', CT: 'CT', DE: 'DE', DC: 'DC', FL: 'FL', GA: 'GA', HI: 'HI',
@@ -73,7 +75,7 @@ Deno.serve(async (req) => {
   });
 });
 
-async function searchGrowers(supabase: ReturnType<typeof createClient>, keyword: string, state?: string) {
+async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: string) {
   if (!keyword) return HELP;
   // Match a product that is in season, or a grower type.
   const { data: products, error: pErr } = await supabase
@@ -93,14 +95,15 @@ async function searchGrowers(supabase: ReturnType<typeof createClient>, keyword:
     .limit(3);
   q = ids.length ? q.or(`id.in.(${ids.join(',')}),categories.cs.{${cap(keyword)}}`) : q.contains('categories', [cap(keyword)]);
   if (state) q = q.eq('state', state);
-  const { data, error } = await q;
+  const { data: rows, error } = await q;
   if (error) throw error;
+  const data = (rows ?? []) as FarmHit[];
 
-  if (!data?.length) {
+  if (!data.length) {
     return `No growers found for ${keyword.toUpperCase()}${state ? ` in ${state}` : ''}. Try another word, or text HELP.`;
   }
   const lines = data.map((f, i) => {
-    const how = (f.how_to_buy as string[])[0];
+    const how = f.how_to_buy[0];
     return `${i + 1}) ${f.name}, ${f.city} ${f.state}${how ? `. ${how}` : ''}`;
   });
   return `Black growers with ${keyword.toUpperCase()}${state ? ` in ${state}` : ''}:\n${lines.join('\n')}\nFind more on the Index app or blackfarmersindex.com`;

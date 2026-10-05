@@ -1,19 +1,24 @@
 import Slider from '@react-native-community/slider';
 import { router } from 'expo-router';
-import { Alert, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Platform, View } from 'react-native';
 
-import { Button, Card, Chip, Row, Screen, ToggleRow, Txt } from '@/components/ui';
+import { Button, Card, Chip, Field, Row, Screen, ToggleRow, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
+import { LANGUAGES, type Lang } from '@/lib/i18n';
+import { registerForPush, unregisterPush } from '@/lib/push';
 import { speak } from '@/lib/speak';
 import { supabase } from '@/lib/supabase';
+import type { ContactPrefs } from '@/lib/types';
+import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 
 export default function Settings() {
   const s = useSettings();
-  const { session, profile, signOut, refresh } = useAuth();
+  const { session, profile, signOut, refresh, isStaff } = useAuth();
 
-  const setLanguage = async (language: 'en' | 'es') => {
+  const setLanguage = async (language: Lang) => {
     s.update({ language });
     if (profile) {
       await supabase.from('profiles').update({ language }).eq('id', profile.id);
@@ -29,9 +34,7 @@ export default function Settings() {
         icon="volume-high-outline"
         onPress={() =>
           speak(
-            s.language === 'es'
-              ? 'Ajustes de accesibilidad. Puedes cambiar el tamaño del texto, el contraste, el movimiento y el idioma.'
-              : 'Accessibility settings. You can change text size, contrast, motion and language. Every screen has Listen buttons for farm profiles and messages.',
+            `${s.t('settings')}. ${s.t('textSize')}. ${s.t('highContrast')}. ${s.t('reduceMotion')}. ${s.t('language')}. ${s.t('notificationSettings')}.`,
             s.language,
           )
         }
@@ -61,17 +64,21 @@ export default function Settings() {
 
       <ToggleRow label={s.t('highContrast')} hint="Black and white text, stronger borders." value={s.highContrast} onChange={(v) => s.update({ highContrast: v })} />
       <ToggleRow label={s.t('reduceMotion')} hint="Turns off sliding and fading between screens." value={s.reduceMotion} onChange={(v) => s.update({ reduceMotion: v })} />
+      <ToggleRow label="Save data" hint="Hides photos and maps on slow or limited connections." value={s.saveData} onChange={(v) => s.update({ saveData: v })} />
 
       <View style={{ gap: Space.sm }}>
         <Txt variant="bodyBold">{s.t('language')}</Txt>
         <Row gap={6}>
-          <Chip label="English" selected={s.language === 'en'} onPress={() => setLanguage('en')} />
-          <Chip label="Español" selected={s.language === 'es'} onPress={() => setLanguage('es')} />
+          {LANGUAGES.map((l) => (
+            <Chip key={l.code} label={l.label} selected={s.language === l.code} onPress={() => setLanguage(l.code)} />
+          ))}
         </Row>
         <Txt variant="small" muted>
-          French, Haitian Creole and Portuguese are planned next, based on who is in the Index.
+          Messages and listings can be translated into your language with the Translate button.
         </Txt>
       </View>
+
+      {session ? <NotificationPrefs userId={session.user.id} /> : null}
 
       <Txt variant="label" style={{ marginTop: Space.md }}>
         Account
@@ -84,11 +91,13 @@ export default function Settings() {
           </Txt>
           <Row>
             <Button small kind="ghost" label={s.t('myFarm')} onPress={() => router.push('/my-farm')} />
+            <Button small kind="ghost" label={s.t('nearMeAlerts')} onPress={() => router.push('/alerts')} />
             <Button
               small
               kind="ghost"
               label={s.t('signOut')}
               onPress={async () => {
+                await unregisterPush(session.user.id).catch(() => {});
                 await signOut();
                 Alert.alert('Signed out');
               }}
@@ -99,7 +108,92 @@ export default function Settings() {
         <Button label={s.t('signIn')} onPress={() => router.push('/sign-in')} />
       )}
 
+      {isStaff ? (
+        <Card tone="soft">
+          <Txt variant="label">BFI staff</Txt>
+          <Row>
+            <Button small label={s.t('broadcast')} icon="megaphone-outline" onPress={() => router.push('/compose-broadcast')} />
+            <Button small kind="ghost" label={s.t('review')} icon="shield-checkmark-outline" onPress={() => router.push('/review')} />
+            <Button small kind="ghost" label={s.t('impact')} icon="stats-chart-outline" onPress={() => router.push('/impact')} />
+          </Row>
+        </Card>
+      ) : null}
+
       <Button kind="ghost" label={s.t('about')} icon="information-circle-outline" onPress={() => router.push('/about')} />
     </Screen>
+  );
+}
+
+function NotificationPrefs({ userId }: { userId: string }) {
+  const { t } = useSettings();
+  const prefs = useQuery(async () => must(await supabase.from('contact_prefs').select('*').eq('user_id', userId).single()) as ContactPrefs, [userId]);
+  const [phone, setPhone] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  if (!prefs.data) return null;
+  const p = prefs.data;
+  const phoneValue = phone ?? p.phone ?? '';
+
+  const save = async (patch: Partial<ContactPrefs>) => {
+    prefs.setData({ ...p, ...patch });
+    const { error } = await supabase.from('contact_prefs').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', userId);
+    if (error) {
+      Alert.alert('Not saved', error.message);
+      prefs.reload();
+    }
+  };
+
+  const togglePush = async (on: boolean) => {
+    if (!on) return save({ push_token: null });
+    setBusy(true);
+    const result = await registerForPush(userId);
+    setBusy(false);
+    if (!result.ok) Alert.alert('Phone notifications are off', result.reason);
+    prefs.reload();
+  };
+
+  const savePhone = () => {
+    const digits = phoneValue.replace(/[^\d+]/g, '');
+    const e164 = digits.startsWith('+') ? digits : digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : null;
+    if (!e164) return Alert.alert('Check the number', 'Use a 10-digit US number, or include the country code.');
+    setPhone(e164);
+    save({ phone: e164 });
+  };
+
+  return (
+    <View style={{ gap: Space.sm, marginTop: Space.md }}>
+      <Txt variant="label">{t('notificationSettings')}</Txt>
+      <ToggleRow
+        label={t('pushNotifications')}
+        hint={Platform.OS === 'web' ? 'Available in the iPhone and Android apps.' : busy ? 'Turning on…' : 'Replies, fresh products, reminders and BFI news.'}
+        value={!!p.push_token}
+        onChange={togglePush}
+      />
+      <ToggleRow label={t('email')} hint="Event reminders, deadlines and BFI announcements." value={p.email_opt_in} onChange={(v) => save({ email_opt_in: v })} />
+      <Card>
+        <Txt variant="bodyBold">{t('textMessages')}</Txt>
+        <Txt variant="small" muted>
+          For members who prefer texts. Message rates may apply. Reply STOP to any text to opt out.
+        </Txt>
+        <Row>
+          <View style={{ flex: 1, minWidth: 180 }}>
+            <Field label="Mobile number" value={phoneValue} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="337 555 0100" />
+          </View>
+          <Button small kind="ghost" label="Save number" onPress={savePhone} style={{ alignSelf: 'flex-end' }} />
+        </Row>
+        <ToggleRow label="Send me texts" value={p.sms_opt_in} onChange={(v) => (v && !p.phone ? Alert.alert('Add your number first') : save({ sms_opt_in: v }))} />
+      </Card>
+      <Txt variant="smallBold" style={{ marginTop: Space.sm }}>
+        Tell me about
+      </Txt>
+      <ToggleRow label="Messages and inquiries" value={p.notify_messages} onChange={(v) => save({ notify_messages: v })} />
+      <ToggleRow label="Farms I follow and near-me alerts" value={p.notify_follows} onChange={(v) => save({ notify_follows: v })} />
+      <ToggleRow label="Event reminders" value={p.notify_events} onChange={(v) => save({ notify_events: v })} />
+      <ToggleRow label="Program deadlines" value={p.notify_deadlines} onChange={(v) => save({ notify_deadlines: v })} />
+      <ToggleRow label="Announcements from BFI" value={p.notify_broadcasts} onChange={(v) => save({ notify_broadcasts: v })} />
+      <Txt variant="small" muted>
+        Everything also appears in your notifications inbox, whichever channels you choose.
+      </Txt>
+    </View>
   );
 }

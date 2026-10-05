@@ -1,12 +1,15 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { Card, Empty, ErrorNote, Loading, Provenance, Row, Screen, Segmented, SignInPrompt, Txt } from '@/components/ui';
+import { ThreadView } from '@/components/thread-view';
+
+import { Card, Empty, Grid, ErrorNote, Loading, Provenance, Row, Screen, Segmented, SignInPrompt, Txt } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { initials, shortDate, threadTime } from '@/lib/format';
+import { useLayout } from '@/lib/layout';
 import { supabase } from '@/lib/supabase';
 import type { Broadcast, Conversation } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -17,27 +20,70 @@ type Tab = 'direct' | 'channels' | 'bfi';
 type ThreadRow = Conversation & { unread: boolean; preview: string };
 
 export default function Messages() {
-  const { t } = useSettings();
+  const { t, colors } = useSettings();
   const { session } = useAuth();
+  const { isTablet } = useLayout();
   const [tab, setTab] = useState<Tab>('direct');
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const tabs = (
+    <Segmented<Tab>
+      value={tab}
+      onChange={(v) => {
+        setTab(v);
+        setSelected(null);
+      }}
+      options={[
+        { value: 'direct', label: t('direct') },
+        { value: 'channels', label: t('channels') },
+        { value: 'bfi', label: t('fromBfiTab') },
+      ]}
+    />
+  );
+
+  // iPad: conversation list on the left, the open conversation on the right.
+  if (isTablet && session && tab !== 'bfi') {
+    return (
+      <View style={{ flex: 1, flexDirection: 'row', backgroundColor: colors.background }}>
+        <ScrollView style={[styles.listPane, { borderRightColor: colors.line, backgroundColor: colors.surface }]} contentContainerStyle={{ padding: Space.lg, gap: Space.md }}>
+          {tabs}
+          <Threads kind={tab === 'direct' ? 'direct' : 'channel'} userId={session.user.id} selectedId={selected} onSelect={setSelected} />
+        </ScrollView>
+        <View style={{ flex: 1 }}>
+          {selected ? (
+            <ThreadView key={selected} id={selected} embedded />
+          ) : (
+            <View style={styles.placeholder}>
+              <Ionicons name="chatbubbles-outline" size={48} color={colors.line} />
+              <Txt muted style={{ textAlign: 'center' }}>
+                {tab === 'direct' ? 'Choose a conversation to read it here.' : 'Choose a channel to read it here.'}
+              </Txt>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   return (
-    <Screen>
-      <Segmented<Tab>
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'direct', label: t('direct') },
-          { value: 'channels', label: t('channels') },
-          { value: 'bfi', label: t('fromBfiTab') },
-        ]}
-      />
+    <Screen width={tab === 'bfi' ? 'wide' : 'reading'}>
+      {tabs}
       {tab === 'bfi' ? <Broadcasts /> : session ? <Threads kind={tab === 'direct' ? 'direct' : 'channel'} userId={session.user.id} /> : <SignInPrompt />}
     </Screen>
   );
 }
 
-function Threads({ kind, userId }: { kind: 'direct' | 'channel'; userId: string }) {
+function Threads({
+  kind,
+  userId,
+  selectedId,
+  onSelect,
+}: {
+  kind: 'direct' | 'channel';
+  userId: string;
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
+}) {
   const { colors } = useSettings();
   const threads = useQuery(async () => {
     let q = supabase.from('conversations').select('*').eq('kind', kind).order(kind === 'channel' ? 'title' : 'last_message_at', { ascending: kind === 'channel' });
@@ -89,10 +135,15 @@ function Threads({ kind, userId }: { kind: 'direct' | 'channel'; userId: string 
       {threads.data.map((c) => (
         <Pressable
           key={c.id}
-          onPress={() => router.push({ pathname: '/thread/[id]', params: { id: c.id } })}
+          onPress={() => (onSelect ? onSelect(c.id) : router.push({ pathname: '/thread/[id]', params: { id: c.id } }))}
           accessibilityRole="button"
+          accessibilityState={{ selected: selectedId === c.id }}
           accessibilityLabel={`${c.title ?? 'Conversation'}${c.unread ? ', unread' : ''}. ${c.subtitle ?? c.preview}`}
-          style={[styles.row, { borderBottomColor: colors.line }]}>
+          style={[
+            styles.row,
+            { borderBottomColor: colors.line },
+            selectedId === c.id && { backgroundColor: colors.leafSoft, borderRadius: Radius.md, paddingHorizontal: Space.sm },
+          ]}>
           <View style={[styles.mark, { backgroundColor: colors.leafSoft }]}>
             {kind === 'channel' ? (
               <Txt variant="mono" color={colors.leaf}>#</Txt>
@@ -129,12 +180,12 @@ function Threads({ kind, userId }: { kind: 'direct' | 'channel'; userId: string 
 
 function Broadcasts() {
   const { colors } = useSettings();
-  const list = useQuery(async () => must(await supabase.from('broadcasts').select('*').order('created_at', { ascending: false }).limit(30)) as Broadcast[]);
+  const list = useQuery(async () => must(await supabase.from('broadcasts').select('*').order('created_at', { ascending: false }).limit(30)) as Broadcast[], [], { cacheKey: 'broadcasts' });
   if (list.error) return <ErrorNote message={list.error} onRetry={list.reload} />;
   if (!list.data) return <Loading />;
   if (!list.data.length) return <Empty>No announcements from BFI yet.</Empty>;
   return (
-    <View style={{ gap: Space.md }}>
+    <Grid gap={Space.md}>
       {list.data.map((b) => (
         <Card key={b.id}>
           <Row style={{ justifyContent: 'space-between' }}>
@@ -167,11 +218,13 @@ function Broadcasts() {
           ) : null}
         </Card>
       ))}
-    </View>
+    </Grid>
   );
 }
 
 const styles = StyleSheet.create({
+  listPane: { width: 380, maxWidth: '42%', flexGrow: 0, borderRightWidth: 1 },
+  placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Space.md, padding: Space.xl },
   row: { flexDirection: 'row', alignItems: 'center', gap: Space.md, paddingVertical: Space.md, borderBottomWidth: 1, minHeight: 64 },
   mark: { width: 42, height: 42, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4 },

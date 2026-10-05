@@ -36,7 +36,17 @@ Table Editor → `resources`. Set `deadline` when an application window opens; m
 
 ## Announcements
 
-Table Editor → `broadcasts` → Insert row. Fill in `title`, `body`, and optionally `link_url` and `link_text`. It appears in Messages → From BFI. (Push and SMS delivery for broadcasts is planned next.)
+In the app: Settings → BFI staff → **Send an announcement**. Pick who gets it (everyone, growers, neighbors or one region) and how (phone notification, email, text). It appears in Messages → From BFI and in each member's inbox, and goes out on the channels they allow. Texts cost money per message, so save them for urgent news.
+
+## Moderation
+
+- **Messages:** staff see a **Hide** link on every message. Hidden messages disappear for members and stay visible to staff, marked as hidden. Messages can't be edited by anyone.
+- **Community board:** posts can be reported. To take one down, set its `status` to `hidden` in Table Editor → `posts`.
+- **Photos:** farmers confirm they have permission before a photo goes up, and must describe it for screen readers. Remove a photo by deleting its row in `farm_photos` and the file in Storage → `farm-photos`.
+
+## Impact report
+
+Settings → BFI staff → **Impact report** shows live counts for funder updates and grant reports: farms live and verified, inquiries sent and answered, profile views, members, events, RSVPs, volunteer sign-ups and farms by region. Sample data is left out. **Share as CSV** sends the figures by email or to a spreadsheet.
 
 ## Channels
 

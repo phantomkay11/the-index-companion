@@ -3,7 +3,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
-import { Button, Card, Chip, Empty, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
+import { SavedCopyNote } from '@/components/network-banner';
+import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { daysUntil, shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -26,7 +27,7 @@ export default function Resources() {
     const resources = must(await supabase.from('resources').select('*').order('sort_order')) as Resource[];
     const saved = uid ? (must(await supabase.from('saved_resources').select('resource_id').eq('user_id', uid)) as { resource_id: string }[]) : [];
     return { resources, saved: saved.map((s) => s.resource_id) };
-  }, [uid]);
+  }, [uid], { cacheKey: `resources:${uid ?? 'anon'}` });
 
   const fits = (q.data?.resources ?? []).filter((r) => {
     const okType = type === 'Any' || r.farm_types.includes('Any') || r.farm_types.includes(type);
@@ -48,7 +49,7 @@ export default function Resources() {
   const saved = (q.data?.resources ?? []).filter((r) => q.data?.saved.includes(r.id));
 
   return (
-    <Screen>
+    <Screen width="wide">
       <Card tone="soft">
         <Txt variant="label">{t('deadlines')}</Txt>
         {!saved.length ? (
@@ -90,6 +91,7 @@ export default function Resources() {
         </Row>
       </View>
 
+      <SavedCopyNote at={q.cachedAt} />
       {q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : null}
       {!q.data && !q.error ? <Loading /> : null}
       {q.data ? (
@@ -99,6 +101,7 @@ export default function Resources() {
       ) : null}
       {q.data && !fits.length ? <Empty>No programs match. Try “Any”.</Empty> : null}
 
+      <Grid>
       {fits.map((r) => {
         const isSaved = q.data?.saved.includes(r.id);
         return (
@@ -120,6 +123,7 @@ export default function Resources() {
           </Card>
         );
       })}
+      </Grid>
       <Txt variant="small" muted>
         Summaries are in plain language. Each program sets its own rules and deadlines, so check the official site before applying.
       </Txt>

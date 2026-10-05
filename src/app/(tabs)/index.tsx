@@ -1,12 +1,17 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { FarmCard } from '@/components/farm-card';
-import { Button, Card, Chip, Empty, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
+import { FarmMap } from '@/components/farm-map';
+import { SavedCopyNote } from '@/components/network-banner';
+import { PlacePicker } from '@/components/place-picker';
+import { Button, Card, Chip, Empty, ErrorNote, Grid, Loading, Pill, Row, Screen, Segmented, Txt } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { BFI, CATEGORIES } from '@/lib/bfi';
+import { useLayout } from '@/lib/layout';
+import { miles, useHere } from '@/lib/location';
 import { supabase } from '@/lib/supabase';
 import type { Farm, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -14,46 +19,51 @@ import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 
 export default function Discover() {
-  const { colors, t, textScale } = useSettings();
+  const { colors, t, textScale, saveData } = useSettings();
   const { myFarm, isStaff } = useAuth();
+  const here = useHere();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [region, setRegion] = useState<string>('all');
+  const [view, setView] = useState<'list' | 'map'>('list');
+  const { isTablet, isWide } = useLayout();
 
-  const regions = useQuery(async () =>
-    must(await supabase.from('regions').select('*').order('sort_order')) as Region[],
+  const regions = useQuery(async () => must(await supabase.from('regions').select('*').order('sort_order')) as Region[], [], { cacheKey: 'regions' });
+
+  const farms = useQuery(
+    async () => {
+      let q = supabase
+        .from('farms')
+        .select('*, farm_products(*), farm_photos(*)')
+        .eq('status', 'approved')
+        .order('verified_at', { ascending: false, nullsFirst: false })
+        .order('updated_at', { ascending: false })
+        .limit(300);
+      if (region !== 'all') q = q.eq('region_id', region);
+      if (category) q = q.contains('categories', [category]);
+      return must(await q) as Farm[];
+    },
+    [region, category],
+    { cacheKey: `farms:${region}:${category ?? 'all'}` },
   );
 
-  const farms = useQuery(async () => {
-    let q = supabase
-      .from('farms')
-      .select('*, farm_products(*)')
-      .eq('status', 'approved')
-      .order('verified_at', { ascending: false, nullsFirst: false })
-      .order('updated_at', { ascending: false })
-      .limit(200);
-    if (region !== 'all') q = q.eq('region_id', region);
-    if (category) q = q.contains('categories', [category]);
-    return must(await q) as Farm[];
-  }, [region, category]);
-
-  // Text search runs on the loaded page so it responds as people type.
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const list = (farms.data ?? []).filter((f) => f.id !== myFarm?.id);
-    if (!needle) return list;
-    return list.filter((f) =>
-      [f.name, f.city, f.state, ...f.categories, ...f.attributes, ...(f.farm_products ?? []).map((p) => p.name)]
-        .join(' ')
-        .toLowerCase()
-        .includes(needle),
-    );
-  }, [farms.data, query, myFarm?.id]);
+  // Text search runs on the loaded page so it responds as people type; nearest first when we know where you are.
+  const needle = query.trim().toLowerCase();
+  const visible = (farms.data ?? [])
+    .filter((f) => f.id !== myFarm?.id)
+    .filter(
+      (f) =>
+        !needle ||
+        [f.name, f.city, f.state, ...f.categories, ...f.attributes, ...(f.farm_products ?? []).map((p) => p.name)].join(' ').toLowerCase().includes(needle),
+    )
+    .map((f) => ({ f, d: here && f.lat != null && f.lon != null ? miles(here.point, { lat: f.lat, lon: f.lon }) : Infinity }))
+    .sort((a, b) => (here ? a.d - b.d : 0))
+    .map((x) => x.f);
 
   const selectedRegion = regions.data?.find((r) => r.id === region);
 
   return (
-    <Screen>
+    <Screen width="wide">
       {myFarm ? (
         <Card tone="soft">
           <Row style={{ justifyContent: 'space-between' }}>
@@ -106,17 +116,13 @@ export default function Discover() {
         />
       </View>
 
+      <PlacePicker compact />
+
       <View style={{ gap: Space.sm }}>
         <Txt variant="label">{t('browse')}</Txt>
         <Row gap={6}>
           {CATEGORIES.map((c) => (
-            <Chip
-              key={c.id}
-              label={c.id}
-              icon={c.icon as never}
-              selected={category === c.id}
-              onPress={() => setCategory(category === c.id ? null : c.id)}
-            />
+            <Chip key={c.id} label={c.id} icon={c.icon as never} selected={category === c.id} onPress={() => setCategory(category === c.id ? null : c.id)} />
           ))}
         </Row>
       </View>
@@ -139,14 +145,51 @@ export default function Discover() {
       {farms.error ? <ErrorNote message={farms.error} onRetry={farms.reload} /> : null}
       {farms.loading && !farms.data ? <Loading /> : null}
       {farms.data ? (
-        <Txt variant="small" muted accessibilityLiveRegion="polite">
-          {visible.length} {visible.length === 1 ? 'grower' : 'growers'}
-        </Txt>
+        <Row style={{ justifyContent: 'space-between' }}>
+          <View>
+            <Txt variant="small" muted accessibilityLiveRegion="polite">
+              {visible.length} {visible.length === 1 ? 'grower' : 'growers'}
+              {here ? ` · ${t('nearest').toLowerCase()}` : ''}
+            </Txt>
+            <SavedCopyNote at={farms.cachedAt} />
+          </View>
+          {!saveData ? (
+            <Segmented
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'list', label: t('list') },
+                { value: 'map', label: t('map') },
+              ]}
+            />
+          ) : null}
+        </Row>
       ) : null}
       {farms.data && !visible.length ? <Empty>{t('noResults')}</Empty> : null}
-      {visible.map((f) => (
-        <FarmCard key={f.id} farm={f} />
-      ))}
+      {view === 'map' && !saveData && visible.length ? (
+        isWide ? (
+          // iPad landscape: map and list side by side.
+          <View style={{ flexDirection: 'row', gap: Space.lg, height: 640 }}>
+            <View style={{ flex: 3 }}>
+              <FarmMap farms={visible} here={here?.point ?? null} height={640} />
+            </View>
+            <ScrollView style={{ flex: 2 }} contentContainerStyle={{ gap: Space.md }}>
+              {visible.map((f) => (
+                <FarmCard key={f.id} farm={f} here={here?.point} />
+              ))}
+            </ScrollView>
+          </View>
+        ) : (
+          <FarmMap farms={visible} here={here?.point ?? null} height={isTablet ? 520 : 320} />
+        )
+      ) : null}
+      {view === 'list' || saveData ? (
+        <Grid>
+          {visible.map((f) => (
+            <FarmCard key={f.id} farm={f} here={here?.point} />
+          ))}
+        </Grid>
+      ) : null}
 
       {!myFarm ? (
         <Card style={{ borderRadius: Radius.lg }}>
@@ -157,6 +200,7 @@ export default function Discover() {
           <Button kind="ghost" label="List my farm" icon="add-circle-outline" onPress={() => router.push('/my-farm')} />
         </Card>
       ) : null}
+      <Button kind="ghost" label={t('nearMeAlerts')} icon="notifications-outline" onPress={() => router.push('/alerts')} />
     </Screen>
   );
 }

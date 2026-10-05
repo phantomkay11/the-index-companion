@@ -1,13 +1,17 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Chip, Field, Pill, Row, Screen, SignInPrompt, ToggleRow, Txt, Verified } from '@/components/ui';
-import { Space } from '@/constants/theme';
+import { Radius, Space } from '@/constants/theme';
 import { CATEGORIES } from '@/lib/bfi';
+import { extensionOf, randomId, readBytes } from '@/lib/files';
 import { updatedAgo } from '@/lib/format';
+import { photoUrl } from '@/components/farm-card';
 import { supabase } from '@/lib/supabase';
-import type { FarmProduct, LocationVisibility, Region } from '@/lib/types';
+import type { FarmInsights, FarmPhoto, FarmProduct, LocationVisibility, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
@@ -69,6 +73,8 @@ function ManageFarm() {
         ) : null}
       </Card>
 
+      {farm.status === 'approved' ? <Insights farmId={farm.id} /> : null}
+
       <View style={{ gap: Space.sm }}>
         <Txt variant="label">What’s fresh this week · tap to turn on or off</Txt>
         <Row gap={6}>
@@ -100,6 +106,7 @@ function ManageFarm() {
         value={farm.replies_by_sms}
         onChange={(v) => setFarm({ replies_by_sms: v })}
       />
+      <FarmPhotos farmId={farm.id} />
       <Button kind="ghost" label="View my public profile" onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })} />
     </Screen>
   );
@@ -202,3 +209,151 @@ function ListFarm() {
     </Screen>
   );
 }
+
+
+/** Views, followers and inquiries over the last 30 days, so growers can see the app bringing business. */
+function Insights({ farmId }: { farmId: string }) {
+  const { t, colors } = useSettings();
+  const q = useQuery(async () => {
+    const rows = must(await supabase.rpc('farm_insights', { p_farm_id: farmId })) as FarmInsights[];
+    return rows[0];
+  }, [farmId]);
+  if (!q.data) return null;
+  const stats: [string, number][] = [
+    ['Profile views', q.data.views_30d],
+    ['Followers', q.data.followers],
+    ['Inquiries', q.data.inquiries_30d],
+  ];
+  return (
+    <Card>
+      <Txt variant="label">{t('insights')}</Txt>
+      <View style={{ flexDirection: 'row', gap: Space.sm }}>
+        {stats.map(([label, n]) => (
+          <View key={label} style={[styles.stat, { backgroundColor: colors.sunk }]}>
+            <Txt variant="mono" style={{ fontSize: 22, lineHeight: 28 }}>
+              {n}
+            </Txt>
+            <Txt variant="small" muted>
+              {label}
+            </Txt>
+          </View>
+        ))}
+      </View>
+      {q.data.open_inquiries ? (
+        <Button small label={`Answer ${q.data.open_inquiries} open ${q.data.open_inquiries === 1 ? 'inquiry' : 'inquiries'}`} icon="chatbubbles-outline" onPress={() => router.push('/messages')} />
+      ) : null}
+    </Card>
+  );
+}
+
+/** Farm photos: the farmer adds them, describes them for screen readers, and confirms they may be shown. */
+function FarmPhotos({ farmId }: { farmId: string }) {
+  const { t, colors } = useSettings();
+  const { refresh } = useAuth();
+  const photos = useQuery(
+    async () => must(await supabase.from('farm_photos').select('*').eq('farm_id', farmId).order('sort_order')) as FarmPhoto[],
+    [farmId],
+  );
+  const [picked, setPicked] = useState<ImagePicker.ImagePickerAsset | null>(null);
+  const [alt, setAlt] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const pick = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return Alert.alert('Photos are off', 'Allow photo access for The Index in your phone settings.');
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [16, 9], quality: 0.7 });
+    if (!res.canceled && res.assets[0]) setPicked(res.assets[0]);
+  };
+
+  const upload = async () => {
+    if (!picked) return;
+    setBusy(true);
+    try {
+      const ext = extensionOf(picked.fileName ?? picked.uri, 'jpg');
+      const path = `${farmId}/${randomId()}.${ext}`;
+      const bytes = await readBytes(picked.uri);
+      const up = await supabase.storage.from('farm-photos').upload(path, bytes, { contentType: picked.mimeType ?? 'image/jpeg' });
+      if (up.error) throw up.error;
+      const { error } = await supabase.from('farm_photos').insert({
+        farm_id: farmId,
+        path,
+        alt_text: alt.trim(),
+        farmer_consent: true,
+        sort_order: photos.data?.length ?? 0,
+      });
+      if (error) throw error;
+      setPicked(null);
+      setAlt('');
+      setConsent(false);
+      photos.reload();
+      refresh();
+    } catch (e) {
+      Alert.alert('Photo not added', e instanceof Error ? e.message : 'Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (p: FarmPhoto) => {
+    await supabase.storage.from('farm-photos').remove([p.path]);
+    const { error } = await supabase.from('farm_photos').delete().eq('id', p.id);
+    if (error) Alert.alert('Not removed', error.message);
+    photos.reload();
+    refresh();
+  };
+
+  const makeFirst = async (p: FarmPhoto) => {
+    const others = (photos.data ?? []).filter((x) => x.id !== p.id);
+    await Promise.all([p, ...others].map((x, i) => supabase.from('farm_photos').update({ sort_order: i }).eq('id', x.id)));
+    photos.reload();
+    refresh();
+  };
+
+  return (
+    <View style={{ gap: Space.sm }}>
+      <Txt variant="label">{t('photos')}</Txt>
+      <Row gap={Space.sm}>
+        {(photos.data ?? []).map((p, i) => (
+          <View key={p.id} style={{ gap: 4, width: 150 }}>
+            <Image source={{ uri: photoUrl(p.path) }} alt={p.alt_text} accessibilityLabel={p.alt_text} contentFit="cover" style={styles.thumb} />
+            <Row gap={4}>
+              {i > 0 ? <Button small kind="ghost" label="Make first" onPress={() => makeFirst(p)} /> : <Txt variant="small" muted>Cover photo</Txt>}
+              <Button small kind="ghost" label="Remove" onPress={() => remove(p)} accessibilityLabel={`Remove photo: ${p.alt_text}`} />
+            </Row>
+          </View>
+        ))}
+      </Row>
+      {picked ? (
+        <Card>
+          <Image source={{ uri: picked.uri }} contentFit="cover" style={[styles.thumb, { width: '100%', height: 180 }]} accessibilityLabel="Selected photo" />
+          <Field
+            label="Describe the photo"
+            hint="Read aloud for people who can't see it. For example: Rows of collards at sunrise."
+            value={alt}
+            onChangeText={setAlt}
+            maxLength={200}
+          />
+          <ToggleRow label="I took this photo or have permission, and BFI may show it in the app" value={consent} onChange={setConsent} />
+          <Row>
+            <Button label="Add photo" onPress={upload} busy={busy} disabled={alt.trim().length < 3 || !consent} />
+            <Button kind="ghost" label={t('cancel')} onPress={() => setPicked(null)} />
+          </Row>
+        </Card>
+      ) : (
+        <Button kind="ghost" label={t('addPhoto')} icon="image-outline" onPress={pick} />
+      )}
+      {!(photos.data ?? []).length && !picked ? (
+        <Txt variant="small" muted>
+          Farms with photos get more visits. Your first photo is the cover on your listing.
+        </Txt>
+      ) : null}
+      <View style={{ height: 1, backgroundColor: colors.line, marginVertical: Space.sm }} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  stat: { flex: 1, borderRadius: Radius.sm, padding: Space.sm, gap: 2 },
+  thumb: { width: 150, height: 100, borderRadius: Radius.sm },
+});
