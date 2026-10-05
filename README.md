@@ -30,6 +30,8 @@ Content that comes from blackfarmersindex.com (regions, stats, mission, timeline
 
 ## Getting started
 
+**Just want a link to open on your phone?** Follow [docs/WEB-LINK.md](docs/WEB-LINK.md): Supabase and Vercel, all in the browser, about 20 minutes. The steps below are for running it on your own computer.
+
 You need Node.js 20 or newer, a free [Supabase](https://supabase.com) account, and the Expo Go app on a phone (or a browser).
 
 ### 1. Install
@@ -50,6 +52,7 @@ npm install
    npx supabase link --project-ref <your-project-ref>
    npx supabase db push     # creates every table, policy and BFI's reference data
    ```
+   No command line? Paste `supabase/setup.sql` into the Supabase SQL editor instead (regenerate it with `npm run build:setup-sql` after adding a migration).
 3. **Demo only:** load the sample farms and events by pasting `supabase/seed.sql` into the Supabase SQL editor. Skip this for the real BFI project.
 4. **Sign-in codes:** in Supabase, open Authentication → Emails → Magic Link and make sure the template includes `{{ .Token }}`, so members receive a 6-digit code. For production, connect your own email sender under Authentication → SMTP.
 
