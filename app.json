@@ -34,6 +34,39 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#007640",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "The Index uses the microphone so you can send voice notes to farms and other members."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "The Index uses your location to show farms near you. It is never shared with other members."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The Index lets farmers add photos of their farm to their listing.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-maps",
+        {
+          "requestLocationPermission": false
+        }
       ]
     ],
     "experiments": {

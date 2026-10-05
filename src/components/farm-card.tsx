@@ -1,4 +1,5 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon as Ionicons } from '@/components/icon';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -6,22 +7,55 @@ import { Pill, Provenance, Row, Txt, Verified } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { CATEGORIES } from '@/lib/bfi';
 import { updatedAgo } from '@/lib/format';
-import type { Farm } from '@/lib/types';
+import { miles, type Point } from '@/lib/location';
+import { supabase } from '@/lib/supabase';
+import type { Farm, FarmPhoto } from '@/lib/types';
 import { useSettings } from '@/providers/settings';
 
-/** Stand-in until BFI uploads farm photography (with each farmer's permission). */
-export function PhotoSlot({ farm, tall }: { farm: Farm; tall?: boolean }) {
+export function photoUrl(path: string) {
+  return supabase.storage.from('farm-photos').getPublicUrl(path).data.publicUrl;
+}
+
+export function firstPhoto(farm: Farm): FarmPhoto | undefined {
+  return [...(farm.farm_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0];
+}
+
+/** The farm's own photo when it has one; otherwise a designed placeholder. */
+export function PhotoSlot({ farm, tall, photo }: { farm: Farm; tall?: boolean; photo?: FarmPhoto }) {
   const { colors } = useSettings();
+  const shown = photo ?? firstPhoto(farm);
   const cat = CATEGORIES.find((c) => farm.categories.includes(c.id));
+  const ratio = tall ? 16 / 9 : 16 / 7;
+
+  if (shown) {
+    return (
+      <View style={{ width: '100%', aspectRatio: ratio, backgroundColor: colors.leafSoft }}>
+        <Image
+          source={{ uri: photoUrl(shown.path) }}
+          alt={shown.alt_text}
+          accessibilityLabel={shown.alt_text}
+          contentFit="cover"
+          transition={200}
+          style={{ flex: 1 }}
+        />
+        {farm.is_sample ? (
+          <View style={styles.corner}>
+            <Provenance sample />
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <View
-      style={[styles.photo, { backgroundColor: colors.leafSoft, aspectRatio: tall ? 16 / 7 : 16 / 6 }]}
+      style={[styles.photo, { backgroundColor: colors.leafSoft, aspectRatio: ratio }]}
       accessible={false}
       importantForAccessibility="no-hide-descendants">
       <Ionicons name={(cat?.icon ?? 'leaf-outline') as never} size={tall ? 56 : 44} color={colors.leaf} style={{ opacity: 0.55 }} />
       <View style={[styles.caption, { backgroundColor: colors.surface }]}>
         <Txt variant="mono" style={{ fontSize: 11 }}>
-          Photo slot · {cat?.id ?? 'Farm'}
+          Photo coming · {cat?.id ?? 'Farm'}
         </Txt>
       </View>
       {farm.is_sample ? (
@@ -33,27 +67,28 @@ export function PhotoSlot({ farm, tall }: { farm: Farm; tall?: boolean }) {
   );
 }
 
-export function FarmCard({ farm }: { farm: Farm }) {
-  const { colors, t } = useSettings();
+export function FarmCard({ farm, here }: { farm: Farm; here?: Point | null }) {
+  const { colors, t, saveData } = useSettings();
   const inSeason = (farm.farm_products ?? []).filter((p) => p.in_season).map((p) => p.name);
   const tags = [...farm.categories, ...farm.attributes].filter((x, i, a) => a.indexOf(x) === i).slice(0, 5);
+  const distance = here && farm.lat != null && farm.lon != null ? Math.round(miles(here, { lat: farm.lat, lon: farm.lon })) : null;
   return (
     <Pressable
       onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${farm.name}, ${farm.city}, ${farm.state}. ${inSeason.length ? `${t('fresh')}: ${inSeason.join(', ')}` : ''}`}
-      style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: colors.surface, borderColor: pressed ? colors.leaf : colors.line },
-      ]}>
-      <PhotoSlot farm={farm} />
+      accessibilityLabel={`${farm.name}, ${farm.city}, ${farm.state}${distance != null ? `, ${distance} miles away` : ''}. ${inSeason.length ? `${t('fresh')}: ${inSeason.join(', ')}` : ''}`}
+      style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: pressed ? colors.leaf : colors.line }]}>
+      {!saveData ? <PhotoSlot farm={farm} /> : null}
       <View style={styles.inner}>
-        <View style={{ gap: 2 }}>
-          <Txt variant="heading">{farm.name}</Txt>
-          <Txt variant="small" muted>
-            {farm.city}, {farm.state} · Region {farm.region_id}
-          </Txt>
-        </View>
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <View style={{ gap: 2, flex: 1 }}>
+            <Txt variant="heading">{farm.name}</Txt>
+            <Txt variant="small" muted>
+              {farm.city}, {farm.state} · Region {farm.region_id}
+            </Txt>
+          </View>
+          {distance != null ? <Txt variant="mono" muted>{distance} mi</Txt> : null}
+        </Row>
         <Row>
           {farm.verified_at ? <Verified /> : <Pill label="Awaiting verification" tone="sun" />}
           <Txt variant="mono" muted>

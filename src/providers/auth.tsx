@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     const [{ data: p }, { data: f }] = await Promise.all([
       supabase.from('profiles').select('id, display_name, role, region_id, language').eq('id', s.user.id).maybeSingle(),
-      supabase.from('farms').select('*, farm_products(*)').eq('owner_id', s.user.id).limit(1).maybeSingle(),
+      supabase.from('farms').select('*, farm_products(*), farm_photos(*)').eq('owner_id', s.user.id).limit(1).maybeSingle(),
     ]);
     setProfile((p as Profile) ?? null);
     setMyFarm((f as Farm) ?? null);

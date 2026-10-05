@@ -1,9 +1,11 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon as Ionicons } from '@/components/icon';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { TranslateToggle, useTranslation } from '@/components/translate';
 import { Button, ErrorNote, Loading, Row, SignInPrompt, Txt } from '@/components/ui';
+import { VoicePlayer, VoiceRecorder } from '@/components/voice';
 import { Radius, Space } from '@/constants/theme';
 import { shortDate, timeOfDay } from '@/lib/format';
 import { speak } from '@/lib/speak';
@@ -17,8 +19,8 @@ const SELECT = '*, sender:profiles(display_name, role)';
 
 export default function Thread() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { colors, t, textScale, language } = useSettings();
-  const { session, myFarm } = useAuth();
+  const { colors, t, textScale } = useSettings();
+  const { session, myFarm, isStaff } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -30,7 +32,7 @@ export default function Thread() {
     return Boolean(data);
   }, [id, session?.user.id]);
 
-  // Initial load, then live updates for new messages.
+  // Initial load, then live updates for new messages and transcripts.
   useEffect(() => {
     if (!session) return;
     let active = true;
@@ -50,9 +52,10 @@ export default function Thread() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, async (payload) => {
         const row = payload.new as { id?: string };
         if (!row?.id) return;
-        const { data } = await supabase.from('messages').select(SELECT).eq('id', row.id).single();
-        if (!data || !active) return;
+        const { data } = await supabase.from('messages').select(SELECT).eq('id', row.id).maybeSingle();
+        if (!active) return;
         setMessages((prev) => {
+          if (!data) return prev.filter((m) => m.id !== row.id); // hidden by a moderator
           const i = prev.findIndex((m) => m.id === row.id);
           if (i === -1) return [...prev, data as Message];
           const next = prev.slice();
@@ -84,22 +87,6 @@ export default function Thread() {
     setDraft('');
   };
 
-  const answer = async (m: Message, status: InquiryStatus) => {
-    const reply = {
-      ready: "Yes, it's ready. See you then!",
-      partial: "I have part of that this week. Want me to hold what I have?",
-      unavailable: "Not this week, sorry. I'll message you when it's back.",
-      open: '',
-    }[status];
-    const { error } = await supabase.rpc('answer_inquiry', { p_message_id: m.id, p_status: status, p_reply: reply });
-    if (error) Alert.alert('Reply not sent', error.message);
-  };
-
-  const report = async (m: Message) => {
-    const { error } = await supabase.from('reports').insert({ target_type: 'message', target_id: m.id, reason: 'Reported from thread' });
-    Alert.alert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this message.');
-  };
-
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
       <Stack.Screen options={{ title: c.title ?? 'Conversation' }} />
@@ -118,87 +105,11 @@ export default function Thread() {
           </View>
         }
         ListEmptyComponent={<Txt variant="small" muted style={{ textAlign: 'center' }}>No messages yet.</Txt>}
-        renderItem={({ item: m }) => {
-          const mine = m.sender_id === session.user.id;
-          const name = mine ? 'You' : m.sender?.display_name ?? 'Member';
-          const staff = m.sender?.role === 'coordinator' || m.sender?.role === 'admin';
-
-          if (m.kind === 'inquiry' && m.inquiry) {
-            return (
-              <View style={[styles.inquiry, { borderColor: colors.line, backgroundColor: colors.surface, alignSelf: mine ? 'flex-end' : 'flex-start' }]}>
-                <Txt variant="label">{mine ? 'Your inquiry' : `Inquiry from ${name}`}</Txt>
-                <InquiryRow label="Product" value={m.inquiry.product} />
-                <InquiryRow label="Amount" value={m.inquiry.amount} />
-                <InquiryRow label="When" value={shortDate(m.inquiry.wanted_on)} />
-                <InquiryRow label="How" value={m.inquiry.how} />
-                {m.body ? <Txt variant="small">{m.body}</Txt> : null}
-                {m.inquiry_status && m.inquiry_status !== 'open' ? (
-                  <Txt variant="smallBold" color={colors.leaf}>
-                    {{ ready: 'Farmer says: ready', partial: 'Farmer says: partly available', unavailable: 'Farmer says: not this week' }[m.inquiry_status]}
-                  </Txt>
-                ) : null}
-                {ownsThisFarm && !mine && m.inquiry_status === 'open' ? (
-                  <Row gap={6}>
-                    <Button small label="Yes, it's ready" onPress={() => answer(m, 'ready')} />
-                    <Button small kind="ghost" label="I have part of it" onPress={() => answer(m, 'partial')} />
-                    <Button small kind="ghost" label="Not this week" onPress={() => answer(m, 'unavailable')} />
-                  </Row>
-                ) : null}
-              </View>
-            );
-          }
-
-          const text = m.kind === 'voice' ? m.transcript ?? '' : m.body;
-          return (
-            <View
-              style={[
-                styles.bubble,
-                mine
-                  ? { alignSelf: 'flex-end', backgroundColor: colors.leaf, borderColor: colors.leaf }
-                  : { alignSelf: 'flex-start', backgroundColor: colors.sunk, borderColor: colors.line },
-              ]}>
-              {!mine ? (
-                <Row gap={4}>
-                  <Txt variant="smallBold" color={colors.leaf}>
-                    {name}
-                  </Txt>
-                  {staff ? <Txt variant="small" color={colors.leaf}>· BFI staff</Txt> : null}
-                  {m.pinned ? <Txt variant="small" muted>· pinned</Txt> : null}
-                </Row>
-              ) : null}
-              {m.kind === 'voice' ? (
-                <Row gap={6}>
-                  <Ionicons name="mic-outline" size={16} color={mine ? colors.onLeaf : colors.muted} />
-                  <Txt variant="label" color={mine ? colors.onLeaf : colors.muted}>
-                    Voice note · transcript
-                  </Txt>
-                </Row>
-              ) : null}
-              <Txt color={mine ? colors.onLeaf : colors.text}>{text}</Txt>
-              <Row gap={14}>
-                <Txt variant="mono" color={mine ? colors.onLeaf : colors.muted} style={{ fontSize: 11 }}>
-                  {timeOfDay(m.created_at)}
-                  {m.via === 'sms' ? ' · by text message' : ''}
-                </Txt>
-                <Pressable onPress={() => speak(`${name}: ${text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')} to message from ${name}`} hitSlop={8}>
-                  <Txt variant="small" color={mine ? colors.onLeaf : colors.text} style={{ textDecorationLine: 'underline' }}>
-                    {t('listen')}
-                  </Txt>
-                </Pressable>
-                {!mine ? (
-                  <Pressable onPress={() => report(m)} accessibilityRole="button" accessibilityLabel={`${t('report')} message from ${name}`} hitSlop={8}>
-                    <Txt variant="small" style={{ textDecorationLine: 'underline' }}>
-                      {t('report')}
-                    </Txt>
-                  </Pressable>
-                ) : null}
-              </Row>
-            </View>
-          );
-        }}
+        renderItem={({ item }) => <MessageRow m={item} mine={item.sender_id === session.user.id} canAnswer={ownsThisFarm} isStaff={isStaff} />}
       />
       {canPost.data ? (
         <View style={[styles.composer, { borderTopColor: colors.line, backgroundColor: colors.surface }]}>
+          <VoiceRecorder conversationId={id} userId={session.user.id} />
           <TextInput
             value={draft}
             onChangeText={setDraft}
@@ -225,6 +136,118 @@ export default function Thread() {
         </View>
       )}
     </KeyboardAvoidingView>
+  );
+}
+
+function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean; canAnswer: boolean; isStaff: boolean }) {
+  const { colors, t, language } = useSettings();
+  const name = mine ? 'You' : m.sender?.display_name ?? 'Member';
+  const staff = m.sender?.role === 'coordinator' || m.sender?.role === 'admin';
+  const text = m.kind === 'voice' ? m.transcript ?? '' : m.body;
+  const tr = useTranslation(text);
+
+  const answer = async (status: InquiryStatus) => {
+    const reply = {
+      ready: "Yes, it's ready. See you then!",
+      partial: 'I have part of that this week. Want me to hold what I have?',
+      unavailable: "Not this week, sorry. I'll message you when it's back.",
+      open: '',
+    }[status];
+    const { error } = await supabase.rpc('answer_inquiry', { p_message_id: m.id, p_status: status, p_reply: reply });
+    if (error) Alert.alert('Reply not sent', error.message);
+  };
+
+  const report = async () => {
+    const { error } = await supabase.from('reports').insert({ target_type: 'message', target_id: m.id, reason: 'Reported from thread' });
+    Alert.alert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this message.');
+  };
+
+  const hide = async () => {
+    const { error } = await supabase.from('messages').update({ hidden: true }).eq('id', m.id);
+    if (error) Alert.alert('Not hidden', error.message);
+  };
+
+  if (m.kind === 'inquiry' && m.inquiry) {
+    return (
+      <View style={[styles.inquiry, { borderColor: colors.line, backgroundColor: colors.surface, alignSelf: mine ? 'flex-end' : 'flex-start' }]}>
+        <Txt variant="label">{mine ? 'Your inquiry' : `Inquiry from ${name}`}</Txt>
+        <InquiryRow label="Product" value={m.inquiry.product} />
+        <InquiryRow label="Amount" value={m.inquiry.amount} />
+        <InquiryRow label="When" value={shortDate(m.inquiry.wanted_on)} />
+        <InquiryRow label="How" value={m.inquiry.how} />
+        {m.body ? <Txt variant="small">{m.body}</Txt> : null}
+        {m.inquiry_status && m.inquiry_status !== 'open' ? (
+          <Txt variant="smallBold" color={colors.leaf}>
+            {{ ready: 'Farmer says: ready', partial: 'Farmer says: partly available', unavailable: 'Farmer says: not this week' }[m.inquiry_status]}
+          </Txt>
+        ) : null}
+        {canAnswer && !mine && m.inquiry_status === 'open' ? (
+          <Row gap={6}>
+            <Button small label="Yes, it's ready" onPress={() => answer('ready')} />
+            <Button small kind="ghost" label="I have part of it" onPress={() => answer('partial')} />
+            <Button small kind="ghost" label="Not this week" onPress={() => answer('unavailable')} />
+          </Row>
+        ) : null}
+      </View>
+    );
+  }
+
+  const fg = mine ? colors.onLeaf : colors.text;
+  return (
+    <View
+      style={[
+        styles.bubble,
+        mine
+          ? { alignSelf: 'flex-end', backgroundColor: colors.leaf, borderColor: colors.leaf }
+          : { alignSelf: 'flex-start', backgroundColor: colors.sunk, borderColor: colors.line },
+        m.hidden && { opacity: 0.5, borderStyle: 'dashed' },
+      ]}>
+      {!mine ? (
+        <Row gap={4}>
+          <Txt variant="smallBold" color={colors.leaf}>
+            {name}
+          </Txt>
+          {staff ? <Txt variant="small" color={colors.leaf}>· BFI staff</Txt> : null}
+          {m.pinned ? <Txt variant="small" muted>· pinned</Txt> : null}
+          {m.hidden ? <Txt variant="small" muted>· hidden by a moderator</Txt> : null}
+        </Row>
+      ) : null}
+      {m.kind === 'voice' && m.audio_path ? <VoicePlayer path={m.audio_path} tint={fg} /> : null}
+      {m.kind === 'voice' ? (
+        <Txt variant="label" color={mine ? colors.onLeaf : colors.muted}>
+          {t('transcript')}
+        </Txt>
+      ) : null}
+      {text ? <Txt color={fg}>{tr.text}</Txt> : m.kind === 'voice' ? <Txt variant="small" color={fg}>Transcript on its way…</Txt> : null}
+      <Row gap={14}>
+        <Txt variant="mono" color={mine ? colors.onLeaf : colors.muted} style={{ fontSize: 11 }}>
+          {timeOfDay(m.created_at)}
+          {m.via === 'sms' ? ' · by text message' : ''}
+        </Txt>
+        {text ? (
+          <Pressable onPress={() => speak(`${name}: ${tr.text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')}: ${name}`} hitSlop={8}>
+            <Txt variant="small" color={fg} style={{ textDecorationLine: 'underline' }}>
+              {t('listen')}
+            </Txt>
+          </Pressable>
+        ) : null}
+        {text && !mine ? <TranslateToggle tr={tr} color={fg} /> : null}
+        {!mine ? (
+          <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`${t('report')}: ${name}`} hitSlop={8}>
+            <Txt variant="small" style={{ textDecorationLine: 'underline' }}>
+              {t('report')}
+            </Txt>
+          </Pressable>
+        ) : null}
+        {isStaff && !mine && !m.hidden ? (
+          <Pressable onPress={hide} accessibilityRole="button" accessibilityLabel={`Hide message from ${name}`} hitSlop={8}>
+            <Txt variant="small" color={colors.danger} style={{ textDecorationLine: 'underline' }}>
+              Hide
+            </Txt>
+          </Pressable>
+        ) : null}
+      </Row>
+    </View>
   );
 }
 

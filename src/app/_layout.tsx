@@ -12,6 +12,7 @@ import { useEffect } from 'react';
 
 import { Fonts } from '@/constants/theme';
 import { AuthProvider } from '@/providers/auth';
+import { NotificationsProvider } from '@/providers/notifications';
 import { SettingsProvider, useSettings } from '@/providers/settings';
 
 SplashScreen.preventAutoHideAsync();
@@ -34,7 +35,9 @@ export default function RootLayout() {
   return (
     <SettingsProvider>
       <AuthProvider>
-        <AppStack />
+        <NotificationsProvider>
+          <AppStack />
+        </NotificationsProvider>
       </AuthProvider>
     </SettingsProvider>
   );
@@ -75,6 +78,11 @@ function AppStack() {
         <Stack.Screen name="my-farm" options={{ title: t('myFarm') }} />
         <Stack.Screen name="post-event" options={{ title: t('postEvent'), presentation: 'modal' }} />
         <Stack.Screen name="review" options={{ title: t('review') }} />
+        <Stack.Screen name="notifications" options={{ title: t('notifications') }} />
+        <Stack.Screen name="alerts" options={{ title: t('nearMeAlerts') }} />
+        <Stack.Screen name="new-post" options={{ title: t('newPost'), presentation: 'modal' }} />
+        <Stack.Screen name="compose-broadcast" options={{ title: t('broadcast'), presentation: 'modal' }} />
+        <Stack.Screen name="impact" options={{ title: t('impact') }} />
       </Stack>
     </ThemeProvider>
   );

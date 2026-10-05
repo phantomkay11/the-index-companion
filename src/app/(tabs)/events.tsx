@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
+import { SavedCopyNote } from '@/components/network-banner';
 import { Button, Card, Chip, Empty, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { monthDay, timeOfDay } from '@/lib/format';
@@ -33,7 +34,7 @@ export default function Events() {
     const rsvps = must(await supabase.from('event_rsvps').select('*').eq('user_id', uid)) as Rsvp[];
     const signups = must(await supabase.from('shift_signups').select('shift_id').eq('user_id', uid)) as { shift_id: string }[];
     return { events, shifts, rsvps, mySignups: signups.map((s) => s.shift_id) };
-  }, [uid]);
+  }, [uid], { cacheKey: `events:${uid ?? 'anon'}` });
 
   const requireSignIn = () => {
     router.push('/sign-in');
@@ -70,6 +71,7 @@ export default function Events() {
       {session ? (
         <Button kind="ghost" label={t('postEvent')} icon="add-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/post-event')} />
       ) : null}
+      <SavedCopyNote at={q.cachedAt} />
       {q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : null}
       {!q.data && !q.error ? <Loading /> : null}
       {q.data && !q.data.events.length ? <Empty>No upcoming events yet.</Empty> : null}

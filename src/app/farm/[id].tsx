@@ -1,10 +1,13 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon as Ionicons } from '@/components/icon';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState, type ComponentProps } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState, type ComponentProps } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 
-import { PhotoSlot } from '@/components/farm-card';
+import { PhotoSlot, photoUrl } from '@/components/farm-card';
+import { SavedCopyNote } from '@/components/network-banner';
+import { TranslateToggle, useTranslation } from '@/components/translate';
 import { Button, Card, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt, Verified } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { shortDate, updatedAgo } from '@/lib/format';
@@ -17,11 +20,21 @@ import { useSettings } from '@/providers/settings';
 
 export default function FarmProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { colors, t, language } = useSettings();
+  const { colors, t, language, saveData } = useSettings();
   const { session } = useAuth();
   const [busy, setBusy] = useState<'follow' | 'message' | null>(null);
 
-  const farm = useQuery(async () => must(await supabase.from('farms').select('*, farm_products(*)').eq('id', id).single()) as Farm, [id]);
+  const farm = useQuery(
+    async () => must(await supabase.from('farms').select('*, farm_products(*), farm_photos(*)').eq('id', id).single()) as Farm,
+    [id],
+    { cacheKey: `farm:${id}` },
+  );
+  const story = useTranslation(farm.data?.story ?? '');
+
+  // Count a profile view once per visit (the database ignores the owner's own views).
+  useEffect(() => {
+    supabase.rpc('log_farm_view', { p_farm_id: id }).then(() => {});
+  }, [id]);
   const follow = useQuery(async () => {
     if (!session) return false;
     const { count } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('farm_id', id).eq('user_id', session.user.id);
@@ -72,14 +85,14 @@ export default function FarmProfile() {
   };
 
   const readAloud = () =>
-    speak(`${f.name}, ${f.city}, ${f.state}. ${f.story ?? ''} ${inSeason.length ? `${t('fresh')}: ${inSeason.join(', ')}.` : ''}`, language);
+    speak(`${f.name}, ${f.city}, ${f.state}. ${story.text} ${inSeason.length ? `${t('fresh')}: ${inSeason.join(', ')}.` : ''}`, language);
 
   const canMessage = !!f.owner_id && f.accepts_messages && !isOwner;
 
   return (
     <Screen style={{ paddingTop: 0, paddingHorizontal: 0 }}>
       <Stack.Screen options={{ title: f.name }} />
-      <PhotoSlot farm={f} tall />
+      {!saveData ? <PhotoSlot farm={f} tall /> : null}
       <View style={styles.body}>
         <View style={{ gap: 4 }}>
           <Txt variant="label">
@@ -97,7 +110,27 @@ export default function FarmProfile() {
           {f.is_sample ? <Provenance sample /> : null}
         </Row>
         {f.harvest_mode ? <Pill label="In harvest: replies may take a couple of days" tone="sun" icon="time-outline" /> : null}
-        {f.story ? <Txt>{f.story}</Txt> : null}
+        <SavedCopyNote at={farm.cachedAt} />
+        {f.story ? (
+          <View style={{ gap: 4 }}>
+            <Txt>{story.text}</Txt>
+            <TranslateToggle tr={story} color={colors.muted} />
+          </View>
+        ) : null}
+        {!saveData && (f.farm_photos?.length ?? 0) > 1 ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Space.sm }}>
+            {[...(f.farm_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order).slice(1).map((p) => (
+              <Image
+                key={p.id}
+                source={{ uri: photoUrl(p.path) }}
+                alt={p.alt_text}
+                accessibilityLabel={p.alt_text}
+                contentFit="cover"
+                style={{ width: 160, height: 110, borderRadius: Radius.md }}
+              />
+            ))}
+          </ScrollView>
+        ) : null}
 
         <View style={[styles.facts, { borderColor: colors.line }]}>
           <Fact icon="leaf-outline" label={t('fresh')} value={inSeason.length ? inSeason.join(', ') : 'Nothing posted this week'} />

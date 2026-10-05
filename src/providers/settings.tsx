@@ -9,6 +9,8 @@ type Settings = {
   textScale: number;
   highContrast: boolean;
   reduceMotion: boolean;
+  /** Hide photos and maps to save mobile data. */
+  saveData: boolean;
   language: Lang;
 };
 
@@ -19,7 +21,7 @@ type SettingsContextValue = Settings & {
   t: (key: StringKey) => string;
 };
 
-const DEFAULTS: Settings = { textScale: 1, highContrast: false, reduceMotion: false, language: 'en' };
+const DEFAULTS: Settings = { textScale: 1, highContrast: false, reduceMotion: false, saveData: false, language: 'en' };
 const STORAGE_KEY = 'the-index/settings';
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);

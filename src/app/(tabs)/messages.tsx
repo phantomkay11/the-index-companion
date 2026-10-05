@@ -1,4 +1,4 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
@@ -129,7 +129,7 @@ function Threads({ kind, userId }: { kind: 'direct' | 'channel'; userId: string 
 
 function Broadcasts() {
   const { colors } = useSettings();
-  const list = useQuery(async () => must(await supabase.from('broadcasts').select('*').order('created_at', { ascending: false }).limit(30)) as Broadcast[]);
+  const list = useQuery(async () => must(await supabase.from('broadcasts').select('*').order('created_at', { ascending: false }).limit(30)) as Broadcast[], [], { cacheKey: 'broadcasts' });
   if (list.error) return <ErrorNote message={list.error} onRetry={list.reload} />;
   if (!list.data) return <Loading />;
   if (!list.data.length) return <Empty>No announcements from BFI yet.</Empty>;

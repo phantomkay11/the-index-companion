@@ -41,6 +41,7 @@ export type Farm = {
   is_sample: boolean;
   updated_at: string;
   farm_products?: FarmProduct[];
+  farm_photos?: FarmPhoto[];
 };
 
 export type Conversation = {
@@ -50,6 +51,7 @@ export type Conversation = {
   subtitle: string | null;
   region_id: string | null;
   farm_id: string | null;
+  post_id?: string | null;
   last_message_at: string;
 };
 
@@ -64,6 +66,8 @@ export type Message = {
   inquiry: Inquiry | null;
   inquiry_status: InquiryStatus | null;
   transcript: string | null;
+  audio_path: string | null;
+  hidden?: boolean;
   via: 'app' | 'sms';
   pinned: boolean;
   created_at: string;
@@ -121,3 +125,59 @@ export type Resource = {
   deadline: string | null;
   is_bfi_program: boolean;
 };
+
+export type ContactPrefs = {
+  user_id: string;
+  phone: string | null;
+  sms_opt_in: boolean;
+  email_opt_in: boolean;
+  push_token: string | null;
+  notify_messages: boolean;
+  notify_follows: boolean;
+  notify_events: boolean;
+  notify_deadlines: boolean;
+  notify_broadcasts: boolean;
+};
+
+export type AppNotification = {
+  id: string;
+  user_id: string;
+  kind: string;
+  title: string;
+  body: string;
+  data: { route?: string; link_url?: string | null; [k: string]: unknown };
+  created_at: string;
+  read_at: string | null;
+};
+
+export type SavedAlert = {
+  id: string;
+  user_id: string;
+  keyword: string;
+  lat: number;
+  lon: number;
+  place_label: string | null;
+  radius_miles: number;
+  created_at: string;
+};
+
+export type FarmPhoto = { id: string; farm_id: string; path: string; alt_text: string; sort_order: number };
+
+export type PostKind = 'need' | 'offer' | 'equipment' | 'ride' | 'bulk' | 'mentor';
+
+export type Post = {
+  id: string;
+  author_id: string;
+  kind: PostKind;
+  title: string;
+  body: string;
+  region_id: string | null;
+  location_text: string | null;
+  happens_on: string | null;
+  status: 'open' | 'closed' | 'hidden';
+  expires_at: string;
+  created_at: string;
+  author?: { display_name: string; role: Role } | null;
+};
+
+export type FarmInsights = { views_30d: number; followers: number; inquiries_30d: number; open_inquiries: number };
