@@ -65,7 +65,7 @@
     "test:functions": "npx --yes deno@2 test supabase/functions",
     "store:capture": "npx expo export --platform web && node store/capture.mjs",
     "store:screenshots": "node store/screenshots.mjs",
-    "store:preview": "node store/preview.mjs && python3 store/preview_compose.py"
+    "store:preview": "node store/preview.mjs iphone && python3 store/preview_compose.py iphone && node store/preview.mjs ipad && python3 store/preview_compose.py ipad"
   },
   "private": true
 }
