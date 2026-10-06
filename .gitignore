@@ -46,3 +46,4 @@ example
 .env
 supabase/.temp/
 supabase/.branches/
+store/out/
