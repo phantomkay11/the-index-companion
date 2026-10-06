@@ -3,14 +3,14 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, type ComponentProps } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PhotoCredit, PhotoSlot, photoUrl } from '@/components/farm-card';
-import { SavedCopyNote } from '@/components/network-banner';
 import { TranslateToggle, useTranslation } from '@/components/translate';
-import { Button, Card, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt, Verified } from '@/components/ui';
-import { Radius, Space } from '@/constants/theme';
+import { Button, Card, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
+import { Credit, GlassChip, Photo, Scrim, useLightStatusBar } from '@/components/visual';
+import { Radius } from '@/constants/theme';
 import { shortDate, updatedAgo } from '@/lib/format';
+import { farmCover, farmPhotos } from '@/lib/imagery';
 import { useLayout } from '@/lib/layout';
 import { speak } from '@/lib/speak';
 import { supabase } from '@/lib/supabase';
@@ -22,9 +22,11 @@ import { useSettings } from '@/providers/settings';
 export default function FarmProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors, t, language, saveData } = useSettings();
-  const { isTablet } = useLayout();
+  const { isTablet, width } = useLayout();
   const { session } = useAuth();
   const [busy, setBusy] = useState<'follow' | 'message' | null>(null);
+  const insets = useSafeAreaInsets();
+  useLightStatusBar();
 
   const farm = useQuery(
     async () => must(await supabase.from('farms').select('*, farm_products(*), farm_photos(*)').eq('id', id).single()) as Farm,
@@ -107,173 +109,211 @@ export default function FarmProfile() {
 
   const canMessage = !!f.owner_id && f.accepts_messages && !isOwner;
 
-  return (
-    <Screen width={isTablet ? 'wide' : 'full'} style={isTablet ? undefined : { paddingTop: 0, paddingHorizontal: 0 }}>
-      <Stack.Screen options={{ title: f.name }} />
-      {/* iPad: photo on the left, details on the right. */}
-      <View style={isTablet ? { flexDirection: 'row', gap: Space.xl, alignItems: 'flex-start' } : undefined}>
-        {!saveData ? (
-          <View style={isTablet ? { flex: 5, borderRadius: Radius.lg, overflow: 'hidden' } : undefined}>
-            <PhotoSlot farm={f} tall />
-          </View>
-        ) : null}
-        <View style={[styles.body, isTablet && { flex: 6, paddingHorizontal: 0 }]}>
-          <View style={{ gap: 4 }}>
-            <Txt variant="label">
-              Region {f.region_id} · {f.city}, {f.state}
-            </Txt>
-            <Txt variant="display" accessibilityRole="header">
-              {f.name}
-            </Txt>
-          </View>
-          <Row>
-            {f.verified_at ? <Verified /> : <Pill label="Awaiting verification" tone="sun" />}
-            <Txt variant="mono" muted>
-              On the Index since {new Date(f.listed_since).getFullYear()} · {updatedAgo(f.updated_at).toLowerCase()}
-            </Txt>
-            {f.is_sample ? <Provenance sample /> : null}
-          </Row>
-          {f.harvest_mode ? <Pill label="In harvest: replies may take a couple of days" tone="sun" icon="time-outline" /> : null}
-          <SavedCopyNote at={farm.cachedAt} />
-          {f.story ? (
-            <View style={{ gap: 4 }}>
-              <Txt>{story.text}</Txt>
-              <TranslateToggle tr={story} color={colors.muted} />
+  const cover = farmCover(f);
+  const more = farmPhotos(f).slice(1);
+  const kind = f.categories[0];
+  const tags = [...f.categories.slice(1), ...f.attributes].filter((x, i, a) => a.indexOf(x) === i);
+  const showBar = isOwner || canMessage;
+
+  const hero = (
+    <Photo picture={cover} style={{ height: (isTablet ? 500 : 420) + insets.top }}>
+      <Scrim from={0.3} top />
+      <View style={[styles.heroCopy, isTablet && { left: Math.max(48, (width - 760) / 2 + 32), right: 48, bottom: 60 }]}>
+        <Row gap={8}>
+          {f.verified_at ? (
+            <GlassChip>
+              <Ionicons name="shield-checkmark" size={14} color={colors.leaf} />
+              <Txt variant="smallBold" color="#0b4a2f" style={{ fontSize: 12.5 }}>
+                {t('verified')}
+              </Txt>
+            </GlassChip>
+          ) : (
+            <GlassChip>
+              <Txt variant="smallBold" color="#5f4100" style={{ fontSize: 12.5 }}>
+                Awaiting verification
+              </Txt>
+            </GlassChip>
+          )}
+          {f.is_sample ? (
+            <View style={styles.sample}>
+              <Txt variant="smallBold" color="#ffffff" style={{ fontSize: 12 }}>
+                {t('sample')}
+              </Txt>
             </View>
           ) : null}
-          {!saveData && (f.farm_photos?.length ?? 0) > 1 ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Space.sm }}>
-              {[...(f.farm_photos ?? [])]
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .slice(1)
-                .map((p) => (
-                  <View key={p.id} style={{ width: 160, height: 110, borderRadius: Radius.md, overflow: 'hidden' }}>
-                    <Image
-                      source={{ uri: photoUrl(p.path) }}
-                      alt={p.alt_text}
-                      accessibilityLabel={p.alt_text}
-                      contentFit="cover"
-                      style={{ flex: 1 }}
-                    />
-                    <View style={{ position: 'absolute', left: 4, bottom: 4 }}>
-                      <PhotoCredit photo={p} onDark />
-                    </View>
-                  </View>
-                ))}
-            </ScrollView>
-          ) : null}
+        </Row>
+        <Txt variant="hero" color="#ffffff" accessibilityRole="header">
+          {f.name}
+        </Txt>
+        <Txt color="rgba(255,255,255,0.92)">{[`${f.city}, ${f.state}`, kind, `Region ${f.region_id}`].filter(Boolean).join('  ·  ')}</Txt>
+      </View>
+      <Credit picture={cover} style={{ bottom: 40 }} />
+      {/* The page curves up over the photo, like a sheet. */}
+      <View style={[styles.lip, { backgroundColor: colors.background }]} />
+    </Photo>
+  );
 
-          <View style={[styles.facts, { borderColor: colors.line }]}>
-            <Fact icon="leaf-outline" label={t('fresh')} value={inSeason.length ? inSeason.join(', ') : 'Nothing posted this week'} />
-            <Fact icon="bag-handle-outline" label={t('howToBuy')} value={f.how_to_buy.join(' · ') || 'Message the farm'} />
-            <Fact icon="location-outline" label={t('location')} value={location} />
-            <Fact
-              icon="globe-outline"
-              label={t('languages')}
-              value={`${f.languages.join(', ')}${f.replies_by_sms ? ' · replies by text message' : ''}`}
-              last={!f.website}
-            />
-            {f.website ? (
-              <Pressable onPress={() => WebBrowser.openBrowserAsync(f.website!)} accessibilityRole="link">
-                <Fact icon="open-outline" label="Website" value={f.website} last />
-              </Pressable>
-            ) : null}
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <Stack.Screen options={{ title: '', headerTransparent: true, headerTintColor: '#ffffff' }} />
+      <Screen hero={hero} style={{ paddingTop: 4, paddingBottom: showBar ? 132 : 48 }}>
+        <Txt variant="small" muted>
+          On the Index since {new Date(f.listed_since).getFullYear()}
+          {f.verified_at ? `, verified by BFI ${shortDate(f.verified_at)}` : ''}. {updatedAgo(f.updated_at)}.
+        </Txt>
+
+        {story.text ? (
+          <View style={{ gap: 6 }}>
+            <Txt style={{ fontSize: 18, lineHeight: 27 }}>{story.text}</Txt>
+            <TranslateToggle tr={story} color={colors.muted} />
           </View>
+        ) : null}
 
-          <Row gap={6}>
-            {[...f.categories, ...f.attributes]
-              .filter((x, i, a) => a.indexOf(x) === i)
-              .map((x) => (
-                <Pill key={x} label={x} />
-              ))}
-          </Row>
+        {more.length && !saveData ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+            {more.map((p, i) => (
+              <Photo key={i} picture={p} rounded={Radius.lg} style={{ width: 240, height: 170 }}>
+                <Credit picture={p} />
+              </Photo>
+            ))}
+          </ScrollView>
+        ) : null}
 
-          {f.order_url ? (
-            <Card>
-              <Row style={{ justifyContent: 'space-between' }}>
-                <View style={{ flex: 1, minWidth: 180, gap: 2 }}>
-                  <Txt variant="smallBold">{f.order_label || t('orderOnline')}</Txt>
-                  <Txt variant="small" muted>
-                    Opens the farm’s own page. Orders and payment go straight to the farm.
+        <View style={{ gap: 10 }}>
+          <Txt variant="title">{t('fresh')}</Txt>
+          {inSeason.length ? (
+            <Row gap={8}>
+              {inSeason.map((name) => (
+                <View key={name} style={[styles.fresh, { backgroundColor: colors.sunSoft }]}>
+                  <View style={[styles.dot, { backgroundColor: colors.sun }]} />
+                  <Txt variant="smallBold" color={colors.onSun}>
+                    {name}
                   </Txt>
                 </View>
-                <Button
-                  label={t('orderOnline')}
-                  icon="cart-outline"
-                  accessibilityLabel={`${f.order_label || t('orderOnline')} with ${f.name}`}
-                  onPress={() => WebBrowser.openBrowserAsync(f.order_url!)}
-                />
-              </Row>
-            </Card>
-          ) : null}
-
-          {!isOwner ? (
-            <Row>
-              {canMessage ? (
-                <Button
-                  label={t('sendInquiry')}
-                  icon="create-outline"
-                  onPress={() =>
-                    session
-                      ? router.push({
-                          pathname: '/inquiry/[farmId]',
-                          params: { farmId: f.id },
-                        })
-                      : needSignIn()
-                  }
-                />
-              ) : null}
-              {canMessage ? (
-                <Button kind="ghost" label={t('message')} icon="chatbubble-outline" busy={busy === 'message'} onPress={openMessage} />
-              ) : null}
-              <Button
-                kind="ghost"
-                label={follow.data ? t('following') : t('follow')}
-                icon={follow.data ? 'checkmark' : 'notifications-outline'}
-                busy={busy === 'follow'}
-                onPress={toggleFollow}
-              />
-              <Button kind="ghost" label={t('listen')} icon="volume-high-outline" onPress={readAloud} />
+              ))}
             </Row>
           ) : (
-            <Button label="Edit my farm" icon="create-outline" onPress={() => router.push('/my-farm')} />
+            <Txt muted>Nothing posted this week. Follow the farm to hear when something comes in.</Txt>
           )}
-          {!f.owner_id ? (
-            <Card tone="sun">
-              <Txt variant="small">This farm is listed on the Index but hasn’t joined the app yet, so it can’t receive messages here.</Txt>
-            </Card>
-          ) : null}
+        </View>
 
-          <Card>
-            <Row gap={6}>
-              <Ionicons name="shield-checkmark-outline" size={18} color={colors.leaf} />
-              <Txt variant="smallBold">How verification works</Txt>
-            </Row>
-            <Txt variant="small" muted>
-              BFI confirms each farm before it gets the verified mark
-              {f.verified_at ? ` (verified ${shortDate(f.verified_at)})` : ''}. Farmers choose how much of their location to show.
-            </Txt>
-          </Card>
-          {!isOwner ? (
-            <Pressable onPress={report} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
-              <Txt variant="small" muted style={{ textDecorationLine: 'underline' }}>
-                {t('reportListing')}
+        {f.order_url ? (
+          <Pressable
+            onPress={() => WebBrowser.openBrowserAsync(f.order_url!)}
+            accessibilityRole="link"
+            accessibilityLabel={`${f.order_label || t('orderOnline')} with ${f.name}. Opens the farm’s own page.`}
+            style={({ pressed }) => [styles.order, { backgroundColor: colors.harvest, opacity: pressed ? 0.9 : 1 }]}>
+            <View style={[styles.factIcon, { backgroundColor: 'rgba(255,255,255,0.55)' }]}>
+              <Ionicons name="cart" size={18} color={colors.onHarvest} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt variant="heading" color={colors.onHarvest}>
+                {f.order_label || t('orderOnline')}
               </Txt>
+              <Txt variant="small" color={colors.onHarvest}>
+                On the farm’s own site. Orders and payment go straight to the farm.
+              </Txt>
+            </View>
+            <Ionicons name="open-outline" size={20} color={colors.onHarvest} />
+          </Pressable>
+        ) : null}
+
+        <View style={{ gap: 4 }}>
+          <Fact icon="bag-handle" label={t('howToBuy')} value={f.how_to_buy.join('\n') || 'Message the farm'} />
+          <Fact icon="location" label={t('location')} value={location} />
+          <Fact icon="language" label={t('languages')} value={`${f.languages.join(', ')}${f.replies_by_sms ? '. Replies by text message.' : ''}`} />
+          {f.website ? (
+            <Pressable onPress={() => WebBrowser.openBrowserAsync(f.website!)} accessibilityRole="link">
+              <Fact icon="globe" label="Website" value={f.website} />
             </Pressable>
           ) : null}
         </View>
-      </View>
-    </Screen>
+
+        {tags.length ? (
+          <Row gap={6}>
+            {tags.map((x) => (
+              <Pill key={x} label={x} />
+            ))}
+          </Row>
+        ) : null}
+
+        <Row>
+          {!isOwner ? (
+            <Button
+              small
+              kind="ghost"
+              label={follow.data ? t('following') : t('follow')}
+              icon={follow.data ? 'checkmark' : 'notifications-outline'}
+              busy={busy === 'follow'}
+              onPress={toggleFollow}
+            />
+          ) : null}
+          <Button small kind="ghost" label={t('listen')} icon="volume-high-outline" onPress={readAloud} />
+        </Row>
+
+        {!f.owner_id ? (
+          <Card tone="sun">
+            <Txt variant="small">This farm is listed on the Index but hasn’t joined the app yet, so it can’t receive messages here.</Txt>
+          </Card>
+        ) : null}
+
+        <View style={styles.verify}>
+          <Ionicons name="shield-checkmark-outline" size={22} color={colors.leaf} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Txt variant="heading">How verification works</Txt>
+            <Txt variant="small" muted>
+              BFI confirms each farm before it gets the verified mark. Farmers choose how much of their location to show.
+            </Txt>
+          </View>
+        </View>
+        {!isOwner ? (
+          <Pressable onPress={report} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Txt variant="small" muted style={{ textDecorationLine: 'underline' }}>
+              {t('reportListing')}
+            </Txt>
+          </Pressable>
+        ) : null}
+      </Screen>
+
+      {showBar ? (
+        // The main action stays in reach while you read.
+        <View style={[styles.bar, { backgroundColor: colors.surface, paddingBottom: 12 + insets.bottom }]}>
+          <View style={[styles.barInner, isTablet && { maxWidth: 760, alignSelf: 'center', width: '100%' }]}>
+            {isOwner ? (
+              <Button label="Edit my farm" icon="create-outline" style={{ flex: 1 }} onPress={() => router.push('/my-farm')} />
+            ) : (
+              <>
+                <Pressable
+                  onPress={openMessage}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('message')}
+                  style={({ pressed }) => [styles.round, { backgroundColor: colors.leafSoft, opacity: pressed ? 0.8 : 1 }]}>
+                  <Ionicons name="chatbubble-ellipses" size={22} color={colors.forest} />
+                </Pressable>
+                <Button
+                  label={t('sendInquiry')}
+                  icon="create-outline"
+                  style={{ flex: 1 }}
+                  onPress={() => (session ? router.push({ pathname: '/inquiry/[farmId]', params: { farmId: f.id } }) : needSignIn())}
+                />
+              </>
+            )}
+          </View>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
-function Fact({ icon, label, value, last }: { icon: ComponentProps<typeof Ionicons>['name']; label: string; value: string; last?: boolean }) {
+function Fact({ icon, label, value }: { icon: ComponentProps<typeof Ionicons>['name']; label: string; value: string }) {
   const { colors } = useSettings();
   return (
-    <View style={[styles.fact, !last && { borderBottomWidth: 1, borderBottomColor: colors.line }]}>
-      <Ionicons name={icon} size={20} color={colors.leaf} style={{ marginTop: 2 }} />
-      <View style={{ flex: 1 }}>
-        <Txt variant="small" muted>
+    <View style={styles.fact}>
+      <View style={[styles.factIcon, { backgroundColor: colors.leafSoft }]}>
+        <Ionicons name={icon} size={18} color={colors.forest} />
+      </View>
+      <View style={{ flex: 1, gap: 1 }}>
+        <Txt variant="smallBold" muted>
           {label}
         </Txt>
         <Txt>{value}</Txt>
@@ -283,7 +323,28 @@ function Fact({ icon, label, value, last }: { icon: ComponentProps<typeof Ionico
 }
 
 const styles = StyleSheet.create({
-  body: { paddingHorizontal: Space.lg, gap: Space.md },
-  facts: { borderWidth: 1, borderRadius: Radius.md, overflow: 'hidden' },
-  fact: { flexDirection: 'row', gap: Space.md, padding: Space.md },
+  heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 44, gap: 8 },
+  sample: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 2 },
+  lip: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 26, borderTopLeftRadius: 26, borderTopRightRadius: 26 },
+  fresh: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: Radius.pill, paddingHorizontal: 14, minHeight: 38 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  order: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: Radius.lg, padding: 16 },
+  fact: { flexDirection: 'row', gap: 14, paddingVertical: 10, alignItems: 'flex-start' },
+  factIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  verify: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  bar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    shadowColor: '#0b2a1b',
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 10,
+  },
+  barInner: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+  round: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
 });

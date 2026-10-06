@@ -1,11 +1,16 @@
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
+
+import { Icon as Ionicons } from '@/components/icon';
 
 import { SavedCopyNote } from '@/components/network-banner';
-import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
+import { Button, Grid, Chip, Empty, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
+import { GlassChip, Photo, Scrim } from '@/components/visual';
 import { Radius, Space } from '@/constants/theme';
 import { monthDay, timeOfDay } from '@/lib/format';
+import { eventImage, sectionImage } from '@/lib/imagery';
+import { useLayout } from '@/lib/layout';
 import { supabase } from '@/lib/supabase';
 import type { EventRow, Rsvp, Shift } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -17,6 +22,7 @@ type Data = { events: EventRow[]; rsvps: Rsvp[]; shifts: Shift[]; mySignups: str
 export default function Events() {
   const { colors, t } = useSettings();
   const { session } = useAuth();
+  const { isTablet } = useLayout();
   const uid = session?.user.id;
 
   const q = useQuery<Data>(async () => {
@@ -66,8 +72,20 @@ export default function Events() {
     q.reload();
   };
 
+  const hero = (
+    <Photo picture={sectionImage('events')} style={{ height: isTablet ? 300 : 230 }}>
+      <Scrim from={0.15} />
+      <View style={[styles.heroCopy, isTablet && { left: 48, right: 48 }]}>
+        <Txt variant="display" color="#ffffff">
+          Market days, workdays and gatherings
+        </Txt>
+        <Txt color="rgba(255,255,255,0.9)">RSVP once and get reminders your way.</Txt>
+      </View>
+    </Photo>
+  );
+
   return (
-    <Screen width="wide">
+    <Screen width="wide" hero={hero}>
       {session ? (
         <Button kind="ghost" label={t('postEvent')} icon="add-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/post-event')} />
       ) : null}
@@ -75,83 +93,99 @@ export default function Events() {
       {q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : null}
       {!q.data && !q.error ? <Loading /> : null}
       {q.data && !q.data.events.length ? <Empty>No upcoming events yet.</Empty> : null}
-      <Grid>
-      {q.data?.events.map((e) => {
-        const { month, day } = monthDay(e.starts_at);
-        const rsvp = q.data!.rsvps.find((r) => r.event_id === e.id);
-        const shifts = q.data!.shifts.filter((s) => s.event_id === e.id);
-        const featured = !e.is_sample && e.host_name === 'Black Farmers Index' && !!e.ticket_url;
-        return (
-          <Card key={e.id} tone={featured ? 'soft' : 'plain'} style={[styles.event, e.status === 'pending' && { borderStyle: 'dashed' }]}>
-            <View style={[styles.date, { backgroundColor: colors.sunk, borderColor: colors.line }]} accessibilityLabel={`${month} ${day}`}>
-              <Txt variant="label" color={colors.leaf}>
-                {month}
-              </Txt>
-              <Txt variant="mono" style={{ fontSize: 22, lineHeight: 26 }}>
-                {day}
-              </Txt>
-            </View>
-            <View style={{ flex: 1, gap: 6, minWidth: 0 }}>
-              <Row gap={6}>
-                <Pill label={e.type} tone="leaf" />
-                {e.status === 'pending' ? <Pill label="Waiting for BFI approval" tone="sun" /> : null}
-                <Provenance sample={e.is_sample} />
-              </Row>
-              <Txt variant="heading">{e.title}</Txt>
-              <Txt variant="small" muted>
-                {e.place} · {timeOfDay(e.starts_at)}
-              </Txt>
-              {e.description ? <Txt variant="small">{e.description}</Txt> : null}
-              <Txt variant="small" muted>
-                Hosted by {e.host_name}
-              </Txt>
-              {e.ticket_url ? (
-                <Pressable onPress={() => WebBrowser.openBrowserAsync(e.ticket_url!)} accessibilityRole="link" style={{ minHeight: 36, justifyContent: 'center' }}>
-                  <Txt variant="bodyBold" color={colors.leaf}>
-                    {e.ticket_label ?? 'Tickets'}
+      <Grid gap={Space.xl}>
+        {q.data?.events.map((e) => {
+          const { month, day } = monthDay(e.starts_at);
+          const rsvp = q.data!.rsvps.find((r) => r.event_id === e.id);
+          const shifts = q.data!.shifts.filter((s) => s.event_id === e.id);
+          return (
+            <View key={e.id} style={{ gap: 12, opacity: e.status === 'pending' ? 0.85 : 1 }}>
+              <Photo picture={eventImage(e.type)} rounded={Radius.xl} style={{ aspectRatio: 16 / 9 }}>
+                <Scrim from={0.55} />
+                <View style={[styles.date, { backgroundColor: colors.surface }]} accessibilityLabel={`${month} ${day}`}>
+                  <Txt variant="smallBold" color={colors.leaf} style={{ fontSize: 12 }}>
+                    {month}
                   </Txt>
-                </Pressable>
-              ) : null}
-              {e.status === 'approved' ? (
-                <Button
-                  small
-                  kind={rsvp ? 'primary' : 'ghost'}
-                  icon={rsvp ? 'checkmark' : undefined}
-                  label={rsvp ? t('going') : t('rsvp')}
-                  style={{ alignSelf: 'flex-start' }}
-                  onPress={() => toggleRsvp(e)}
-                />
-              ) : null}
-              {rsvp ? (
-                <Row gap={6}>
-                  <Txt variant="small" muted>
-                    {t('remindMe')}
+                  <Txt variant="display" style={{ fontSize: 26, lineHeight: 28 }}>
+                    {day}
                   </Txt>
-                  <Chip label="Push" selected={rsvp.remind_push} onPress={() => setReminder(rsvp, 'remind_push')} />
-                  <Chip label="Text" selected={rsvp.remind_sms} onPress={() => setReminder(rsvp, 'remind_sms')} />
-                  <Chip label="Email" selected={rsvp.remind_email} onPress={() => setReminder(rsvp, 'remind_email')} />
-                </Row>
-              ) : null}
-              {shifts.length ? (
-                <View style={{ gap: 6, marginTop: 4 }}>
-                  <Txt variant="label">Volunteer shifts</Txt>
-                  {shifts.map((s) => {
-                    const mine = q.data!.mySignups.includes(s.id);
-                    return (
-                      <Row key={s.id} style={[styles.shift, { borderTopColor: colors.line }]}>
-                        <Txt variant="small" style={{ flex: 1 }}>
-                          <Txt variant="smallBold">{s.label}</Txt> · {s.open_spots} open
-                        </Txt>
-                        <Button small kind={mine ? 'primary' : 'ghost'} label={mine ? 'Signed up' : 'Sign up'} disabled={!mine && s.open_spots <= 0} onPress={() => toggleShift(s)} />
-                      </Row>
-                    );
-                  })}
                 </View>
-              ) : null}
+                <View style={styles.chips}>
+                  <GlassChip>
+                    <Txt variant="smallBold" color="#0b4a2f" style={{ fontSize: 12.5 }}>
+                      {e.type}
+                    </Txt>
+                  </GlassChip>
+                  {e.is_sample ? (
+                    <View style={styles.sample}>
+                      <Txt variant="smallBold" color="#ffffff" style={{ fontSize: 12 }}>
+                        {t('sample')}
+                      </Txt>
+                    </View>
+                  ) : (
+                    <GlassChip>
+                      <Ionicons name="checkmark-circle" size={14} color={colors.real} />
+                      <Txt variant="smallBold" color={colors.real} style={{ fontSize: 12.5 }}>
+                        {t('fromBfi')}
+                      </Txt>
+                    </GlassChip>
+                  )}
+                </View>
+                <Txt variant="small" color="rgba(255,255,255,0.95)" style={styles.place}>
+                  {e.place}, {timeOfDay(e.starts_at)}
+                </Txt>
+              </Photo>
+              <View style={{ gap: 6, paddingHorizontal: 4 }}>
+                {e.status === 'pending' ? <Pill label="Waiting for BFI approval" tone="sun" /> : null}
+                <Txt variant="title">{e.title}</Txt>
+                {e.description ? <Txt muted>{e.description}</Txt> : null}
+                <Txt variant="small" muted>
+                  Hosted by {e.host_name}
+                </Txt>
+                <Row style={{ marginTop: 4 }}>
+                  {e.status === 'approved' ? (
+                    <Button
+                      small
+                      kind={rsvp ? 'primary' : 'ghost'}
+                      icon={rsvp ? 'checkmark' : 'calendar-outline'}
+                      label={rsvp ? t('going') : t('rsvp')}
+                      onPress={() => toggleRsvp(e)}
+                    />
+                  ) : null}
+                  {e.ticket_url ? (
+                    <Button small kind="ghost" icon="ticket-outline" label={e.ticket_label ?? 'Tickets'} onPress={() => WebBrowser.openBrowserAsync(e.ticket_url!)} />
+                  ) : null}
+                </Row>
+                {rsvp ? (
+                  <Row gap={6}>
+                    <Txt variant="small" muted>
+                      {t('remindMe')}
+                    </Txt>
+                    <Chip label="Push" selected={rsvp.remind_push} onPress={() => setReminder(rsvp, 'remind_push')} />
+                    <Chip label="Text" selected={rsvp.remind_sms} onPress={() => setReminder(rsvp, 'remind_sms')} />
+                    <Chip label="Email" selected={rsvp.remind_email} onPress={() => setReminder(rsvp, 'remind_email')} />
+                  </Row>
+                ) : null}
+                {shifts.length ? (
+                  <View style={[styles.shifts, { backgroundColor: colors.sunk }]}>
+                    <Txt variant="heading">Volunteer shifts</Txt>
+                    {shifts.map((s) => {
+                      const mine = q.data!.mySignups.includes(s.id);
+                      return (
+                        <Row key={s.id} style={{ justifyContent: 'space-between' }}>
+                          <Txt variant="small" style={{ flex: 1 }}>
+                            <Txt variant="smallBold">{s.label}</Txt>, {s.open_spots} open
+                          </Txt>
+                          <Button small kind={mine ? 'primary' : 'inverse'} label={mine ? 'Signed up' : 'Sign up'} disabled={!mine && s.open_spots <= 0} onPress={() => toggleShift(s)} />
+                        </Row>
+                      );
+                    })}
+                  </View>
+                ) : null}
+              </View>
             </View>
-          </Card>
-        );
-      })}
+          );
+        })}
       </Grid>
       <Txt variant="small" muted>
         Farmers post their own events. BFI or a regional coordinator approves them before they go public.
@@ -161,7 +195,10 @@ export default function Events() {
 }
 
 const styles = StyleSheet.create({
-  event: { flexDirection: 'row', gap: Space.md, alignItems: 'flex-start' },
-  date: { width: 56, borderWidth: 1, borderRadius: Radius.sm, alignItems: 'center', paddingVertical: 6 },
-  shift: { justifyContent: 'space-between', borderTopWidth: 1, paddingTop: 6 },
+  heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 22, gap: 4 },
+  date: { position: 'absolute', top: 12, left: 12, width: 58, borderRadius: Radius.md, alignItems: 'center', paddingVertical: 6 },
+  chips: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 6 },
+  sample: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 3 },
+  place: { position: 'absolute', left: 14, right: 14, bottom: 12 },
+  shifts: { borderRadius: Radius.lg, padding: 14, gap: 10, marginTop: 4 },
 });

@@ -7,6 +7,7 @@
 export type Palette = {
   background: string;
   surface: string;
+  /** Tinted panel used instead of outlined boxes. */
   sunk: string;
   text: string;
   muted: string;
@@ -14,45 +15,60 @@ export type Palette = {
   leaf: string;
   onLeaf: string;
   leafSoft: string;
+  /** Deep green for gradients and text on light tints. */
+  forest: string;
+  /** Bright fresh green, the light end of the brand gradient. */
+  sprout: string;
   sun: string;
   sunSoft: string;
   onSun: string;
+  /** Harvest yellow: search, highlights and what's fresh. */
+  harvest: string;
+  onHarvest: string;
   real: string;
   realSoft: string;
   danger: string;
 };
 
 const light: Palette = {
-  background: '#edf1ec',
-  surface: '#fdfdfb',
-  sunk: '#f3f6f2',
-  text: '#122019',
-  muted: '#506157',
-  line: '#d3dcd5',
+  background: '#ffffff',
+  surface: '#ffffff',
+  sunk: '#f1f6f2',
+  text: '#13241b',
+  muted: '#55665c',
+  line: '#e1e9e3',
   leaf: '#007640',
   onLeaf: '#ffffff',
-  leafSoft: '#dcede2',
+  leafSoft: '#e3f3e8',
+  forest: '#0b4a2f',
+  sprout: '#2fb36b',
   sun: '#e9a91f',
-  sunSoft: '#fbefcf',
+  sunSoft: '#fff4c7',
   onSun: '#5f4100',
+  harvest: '#ffd84d',
+  onHarvest: '#2a2200',
   real: '#0d4f8a',
-  realSoft: '#dfeaf5',
+  realSoft: '#e3eef8',
   danger: '#a3341f',
 };
 
 const dark: Palette = {
-  background: '#0c1210',
-  surface: '#141d18',
-  sunk: '#101814',
-  text: '#e5eee8',
-  muted: '#9aaba0',
-  line: '#29362f',
+  background: '#0b1310',
+  surface: '#111c17',
+  sunk: '#16231d',
+  text: '#e8f0ea',
+  muted: '#9db0a4',
+  line: '#24332b',
   leaf: '#4fc78c',
   onLeaf: '#06130c',
-  leafSoft: '#163527',
+  leafSoft: '#173627',
+  forest: '#0b3a25',
+  sprout: '#5fd697',
   sun: '#f2c14e',
-  sunSoft: '#382e13',
+  sunSoft: '#3a3014',
   onSun: '#f2c14e',
+  harvest: '#ffd84d',
+  onHarvest: '#2a2200',
   real: '#8cc2f2',
   realSoft: '#16283a',
   danger: '#ff8a73',
@@ -67,6 +83,7 @@ const contrastLight: Palette = {
   muted: '#1a1a1a',
   line: '#000000',
   leaf: '#004a28',
+  forest: '#003a20',
   onSun: '#3f2b00',
   real: '#06335c',
 };
@@ -85,6 +102,14 @@ const contrastDark: Palette = {
   real: '#b5dcff',
 };
 
+/** The brand gradient: forest into BFI green into fresh sprout. Used sparingly, on bands and buttons. */
+export function brandGradient(colors: Palette) {
+  return [colors.forest, colors.leaf, colors.sprout] as const;
+}
+
+/** A dark wash over photos so white text stays readable (bottom of the image). */
+export const SCRIM = ['rgba(6,24,15,0)', 'rgba(6,24,15,0.35)', 'rgba(6,24,15,0.82)'] as const;
+
 export function palette(scheme: 'light' | 'dark', highContrast: boolean): Palette {
   if (scheme === 'dark') return highContrast ? contrastDark : dark;
   return highContrast ? contrastLight : light;
@@ -92,7 +117,12 @@ export function palette(scheme: 'light' | 'dark', highContrast: boolean): Palett
 
 /** Font family names registered in the root layout. */
 export const Fonts = {
-  display: 'YoungSerif_400Regular',
+  /** Figtree: friendly geometric headings. Atkinson Hyperlegible stays for reading. */
+  hero: 'Figtree_800ExtraBold',
+  display: 'Figtree_700Bold',
+  heading: 'Figtree_700Bold',
+  ui: 'Figtree_600SemiBold',
+  serif: 'YoungSerif_400Regular',
   body: 'AtkinsonHyperlegible_400Regular',
   bodyBold: 'AtkinsonHyperlegible_700Bold',
   mono: 'IBMPlexMono_400Regular',
@@ -100,7 +130,7 @@ export const Fonts = {
 } as const;
 
 export const Space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
-export const Radius = { sm: 10, md: 14, lg: 18, pill: 999 } as const;
+export const Radius = { sm: 10, md: 16, lg: 22, xl: 28, pill: 999 } as const;
 
 /** Minimum touch target, in points. */
 export const TapTarget = 44;

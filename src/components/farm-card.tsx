@@ -1,149 +1,104 @@
-import { Icon as Ionicons } from '@/components/icon';
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Pill, Provenance, Row, Txt, Verified } from '@/components/ui';
-import { Radius, Space } from '@/constants/theme';
-import { CATEGORIES } from '@/lib/bfi';
-import { updatedAgo } from '@/lib/format';
+import { Icon as Ionicons } from '@/components/icon';
+import { Txt } from '@/components/ui';
+import { Credit, GlassChip, Photo, Scrim } from '@/components/visual';
+import { Radius } from '@/constants/theme';
+import { farmCover, photoUrl } from '@/lib/imagery';
 import { miles, type Point } from '@/lib/location';
-import { supabase } from '@/lib/supabase';
-import type { Farm, FarmPhoto } from '@/lib/types';
+import type { Farm } from '@/lib/types';
 import { useSettings } from '@/providers/settings';
 
-export function photoUrl(path: string) {
-  // Sample farms may link a credited stock photo directly; everything else lives in the farm-photos bucket.
-  if (/^https:\/\//.test(path)) return path;
-  return supabase.storage.from('farm-photos').getPublicUrl(path).data.publicUrl;
-}
+export { photoUrl };
 
-/** "Photo: Jane Doe / Unsplash" — shown on any photo that needs a credit. */
-export function PhotoCredit({ photo, onDark }: { photo: FarmPhoto; onDark?: boolean }) {
-  const { colors } = useSettings();
-  if (!photo.credit) return null;
-  const label = `Photo: ${photo.credit}`;
-  return (
-    <View style={[styles.credit, { backgroundColor: onDark ? 'rgba(0,0,0,0.55)' : colors.surface }]}>
-      <Txt
-        variant="mono"
-        style={{ fontSize: 10 }}
-        color={onDark ? '#fff' : colors.muted}
-        onPress={photo.credit_url ? () => Linking.openURL(photo.credit_url!) : undefined}
-        accessibilityRole={photo.credit_url ? 'link' : 'text'}>
-        {label}
-      </Txt>
-    </View>
-  );
-}
-
-export function firstPhoto(farm: Farm): FarmPhoto | undefined {
-  return [...(farm.farm_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0];
-}
-
-/** The farm's own photo when it has one; otherwise a designed placeholder. */
-export function PhotoSlot({ farm, tall, photo }: { farm: Farm; tall?: boolean; photo?: FarmPhoto }) {
-  const { colors } = useSettings();
-  const shown = photo ?? firstPhoto(farm);
-  const cat = CATEGORIES.find((c) => farm.categories.includes(c.id));
-  const ratio = tall ? 16 / 9 : 16 / 7;
-
-  if (shown) {
-    return (
-      <View style={{ width: '100%', aspectRatio: ratio, backgroundColor: colors.leafSoft }}>
-        <Image
-          source={{ uri: photoUrl(shown.path) }}
-          alt={shown.alt_text}
-          accessibilityLabel={shown.alt_text}
-          contentFit="cover"
-          transition={200}
-          style={{ flex: 1 }}
-        />
-        {farm.is_sample ? (
-          <View style={styles.corner}>
-            <Provenance sample />
-          </View>
-        ) : null}
-        <View style={styles.creditSpot}>
-          <PhotoCredit photo={shown} onDark />
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View
-      style={[styles.photo, { backgroundColor: colors.leafSoft, aspectRatio: ratio }]}
-      accessible={false}
-      importantForAccessibility="no-hide-descendants">
-      <Ionicons name={(cat?.icon ?? 'leaf-outline') as never} size={tall ? 56 : 44} color={colors.leaf} style={{ opacity: 0.55 }} />
-      <View style={[styles.caption, { backgroundColor: colors.surface }]}>
-        <Txt variant="mono" style={{ fontSize: 11 }}>
-          Photo coming · {cat?.id ?? 'Farm'}
-        </Txt>
-      </View>
-      {farm.is_sample ? (
-        <View style={styles.corner}>
-          <Provenance sample />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-export function FarmCard({ farm, here }: { farm: Farm; here?: Point | null }) {
-  const { colors, t, saveData } = useSettings();
+/**
+ * A farm in a list: the photo carries the card. Name and town sit on the image; what's fresh
+ * sits underneath on the page, with no box around it.
+ */
+export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | null; compact?: boolean }) {
+  const { colors, t } = useSettings();
   const inSeason = (farm.farm_products ?? []).filter((p) => p.in_season).map((p) => p.name);
-  const tags = [...farm.categories, ...farm.attributes].filter((x, i, a) => a.indexOf(x) === i).slice(0, 5);
   const distance = here && farm.lat != null && farm.lon != null ? Math.round(miles(here, { lat: farm.lat, lon: farm.lon })) : null;
+  const cover = farmCover(farm);
+  const kind = farm.categories[0];
+
   return (
     <Pressable
       onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${farm.name}, ${farm.city}, ${farm.state}${distance != null ? `, ${distance} miles away` : ''}. ${inSeason.length ? `${t('fresh')}: ${inSeason.join(', ')}` : ''}`}
-      style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderColor: pressed ? colors.leaf : colors.line }]}>
-      {!saveData ? <PhotoSlot farm={farm} /> : null}
-      <View style={styles.inner}>
-        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <View style={{ gap: 2, flex: 1 }}>
-            <Txt variant="heading">{farm.name}</Txt>
-            <Txt variant="small" muted>
-              {farm.city}, {farm.state} · Region {farm.region_id}
+      accessibilityLabel={[
+        farm.name,
+        `${farm.city}, ${farm.state}`,
+        farm.verified_at ? t('verified') : 'awaiting verification',
+        distance != null ? `${distance} miles away` : '',
+        inSeason.length ? `${t('fresh')}: ${inSeason.join(', ')}` : '',
+        farm.is_sample ? t('sample') : '',
+      ]
+        .filter(Boolean)
+        .join('. ')}
+      style={({ pressed }) => [styles.card, { opacity: pressed ? 0.88 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
+      <Photo picture={cover} rounded={Radius.xl} style={{ aspectRatio: compact ? 16 / 10 : 4 / 3 }}>
+        <Scrim from={0.4} />
+        <View style={styles.topRow}>
+          {farm.verified_at ? (
+            <GlassChip>
+              <Ionicons name="shield-checkmark" size={14} color={colors.leaf} />
+              <Txt variant="smallBold" color="#0b4a2f" style={{ fontSize: 12.5 }}>
+                Verified
+              </Txt>
+            </GlassChip>
+          ) : (
+            <GlassChip>
+              <Txt variant="smallBold" color="#5f4100" style={{ fontSize: 12.5 }}>
+                Awaiting review
+              </Txt>
+            </GlassChip>
+          )}
+          {farm.is_sample ? (
+            <View style={styles.sample}>
+              <Txt variant="smallBold" color="#ffffff" style={{ fontSize: 12 }}>
+                {t('sample')}
+              </Txt>
+            </View>
+          ) : null}
+        </View>
+        <View style={styles.caption}>
+          <Txt variant="title" color="#ffffff" numberOfLines={2}>
+            {farm.name}
+          </Txt>
+          <Txt variant="small" color="rgba(255,255,255,0.88)">
+            {[`${farm.city}, ${farm.state}`, kind, distance != null ? `${distance} mi` : null].filter(Boolean).join('  ·  ')}
+          </Txt>
+        </View>
+        <Credit picture={cover} style={{ top: 46, bottom: undefined, right: 12 }} />
+      </Photo>
+      <View style={styles.below}>
+        {inSeason.length ? (
+          <View style={styles.freshRow}>
+            <View style={[styles.dot, { backgroundColor: colors.harvest }]} />
+            <Txt variant="small" numberOfLines={1} style={{ flex: 1 }}>
+              <Txt variant="smallBold">{t('fresh')}: </Txt>
+              {inSeason.join(', ')}
             </Txt>
           </View>
-          {distance != null ? <Txt variant="mono" muted>{distance} mi</Txt> : null}
-        </Row>
-        <Row>
-          {farm.verified_at ? <Verified /> : <Pill label="Awaiting verification" tone="sun" />}
-          <Txt variant="mono" muted>
-            {updatedAgo(farm.updated_at)}
-          </Txt>
-        </Row>
-        {inSeason.length ? (
-          <Txt variant="small">
-            <Txt variant="smallBold" color={colors.leaf}>
-              {t('fresh')}:{' '}
-            </Txt>
-            {inSeason.join(', ')}
+        ) : null}
+        {farm.harvest_mode ? (
+          <Txt variant="small" color={colors.onSun}>
+            In harvest, may reply slowly
           </Txt>
         ) : null}
-        <Row gap={6}>
-          {tags.map((x) => (
-            <Pill key={x} label={x} />
-          ))}
-          {farm.harvest_mode ? <Pill label="In harvest" tone="sun" /> : null}
-        </Row>
       </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: Radius.lg, overflow: 'hidden' },
-  inner: { padding: Space.lg, gap: Space.sm },
-  photo: { width: '100%', alignItems: 'center', justifyContent: 'center' },
-  caption: { position: 'absolute', left: 10, bottom: 8, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  corner: { position: 'absolute', right: 10, top: 8 },
-  creditSpot: { position: 'absolute', left: 8, bottom: 6 },
-  credit: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 },
+  card: { gap: 10 },
+  topRow: { position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  sample: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 2 },
+  caption: { position: 'absolute', left: 16, right: 16, bottom: 14, gap: 2 },
+  below: { paddingHorizontal: 4, gap: 4 },
+  freshRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });
