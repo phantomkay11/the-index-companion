@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { AccessibilityInfo, useColorScheme, Platform } from 'react-native';
 
 import { palette, type Palette } from '@/constants/theme';
-import { strings, type Lang, type StringKey } from '@/lib/i18n';
+import { fill, setCurrentLang, strings, type Lang, type StringKey, type Vars } from '@/lib/i18n';
 
 type Settings = {
   textScale: number;
@@ -18,7 +18,7 @@ type SettingsContextValue = Settings & {
   colors: Palette;
   scheme: 'light' | 'dark';
   update: (patch: Partial<Settings>) => void;
-  t: (key: StringKey) => string;
+  t: (key: StringKey, vars?: Vars) => string;
 };
 
 const DEFAULTS: Settings = { textScale: 1, highContrast: false, reduceMotion: false, saveData: false, language: 'en' };
@@ -58,16 +58,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const value = useMemo<SettingsContextValue>(
-    () => ({
+  const value = useMemo<SettingsContextValue>(() => {
+    setCurrentLang(settings.language); // for alerts, errors and dates outside components
+    return {
       ...settings,
       scheme,
       colors: palette(scheme, settings.highContrast),
       update,
-      t: (key) => strings[settings.language][key] ?? strings.en[key],
-    }),
-    [settings, scheme, update],
-  );
+      t: (key, vars) => fill(strings[settings.language][key] ?? strings.en[key], vars),
+    };
+  }, [settings, scheme, update]);
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

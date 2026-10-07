@@ -1,3 +1,7 @@
+import browse from '@/lib/strings/browse';
+import member from '@/lib/strings/member';
+import staff from '@/lib/strings/staff';
+
 export type Lang = 'en' | 'es' | 'fr' | 'ht' | 'pt';
 
 export const LANGUAGES: { code: Lang; label: string }[] = [
@@ -8,7 +12,7 @@ export const LANGUAGES: { code: Lang; label: string }[] = [
   { code: 'pt', label: 'Português' },
 ];
 
-const en = {
+const enBase = {
   discover: 'Discover',
   messages: 'Messages',
   events: 'Events',
@@ -188,9 +192,9 @@ const en = {
   usNumbersOnly: "Text alerts are only available for US numbers right now. Use a 10-digit number, like 601 555 0142.",
 };
 
-type Strings = typeof en;
+type BaseStrings = typeof enBase;
 
-const es: Strings = {
+const esBase: BaseStrings = {
   discover: 'Descubrir',
   messages: 'Mensajes',
   events: 'Eventos',
@@ -370,7 +374,7 @@ const es: Strings = {
   usNumbersOnly: "Por ahora, los avisos por texto solo funcionan con números de EE. UU. Usa un número de 10 dígitos, como 601 555 0142.",
 };
 
-const fr: Strings = {
+const frBase: BaseStrings = {
   discover: 'Découvrir',
   messages: 'Messages',
   events: 'Événements',
@@ -551,7 +555,7 @@ const fr: Strings = {
 };
 
 // Haitian Creole and Portuguese: drafted for the pilot. Have native speakers in the Index review before launch.
-const ht: Strings = {
+const htBase: BaseStrings = {
   discover: 'Dekouvri',
   messages: 'Mesaj',
   events: 'Evènman',
@@ -731,7 +735,7 @@ const ht: Strings = {
   usNumbersOnly: "Pou kounye a, alèt pa tèks yo mache sèlman ak nimewo Etazini. Sèvi ak yon nimewo 10 chif, tankou 601 555 0142.",
 };
 
-const pt: Strings = {
+const ptBase: BaseStrings = {
   discover: 'Descobrir',
   messages: 'Mensagens',
   events: 'Eventos',
@@ -911,8 +915,36 @@ const pt: Strings = {
   usNumbersOnly: "Por enquanto, os alertas por SMS só funcionam com números dos EUA. Use um número de 10 dígitos, como 601 555 0142.",
 };
 
+// Screen-area dictionaries live in ./strings; each must cover all five languages (the types enforce it).
+const en = { ...enBase, ...browse.en, ...member.en, ...staff.en };
+type Strings = typeof en;
+const es: Strings = { ...esBase, ...browse.es, ...member.es, ...staff.es };
+const fr: Strings = { ...frBase, ...browse.fr, ...member.fr, ...staff.fr };
+const ht: Strings = { ...htBase, ...browse.ht, ...member.ht, ...staff.ht };
+const pt: Strings = { ...ptBase, ...browse.pt, ...member.pt, ...staff.pt };
+
 export const strings: Record<Lang, Strings> = { en, es, fr, ht, pt };
 export type StringKey = keyof Strings;
+export type Vars = Record<string, string | number>;
+
+/** Fill {name} placeholders: format('{n} growers', { n: 3 }). */
+export function fill(text: string, vars?: Vars) {
+  return vars ? text.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : text;
+}
+
+// The chosen language, for code outside React (alerts, error wording, date formats). Settings keeps it current.
+let current: Lang = 'en';
+export function setCurrentLang(lang: Lang) {
+  current = lang;
+}
+export function currentLang() {
+  return current;
+}
+
+/** Translate outside a component. Inside one, use `t` from useSettings (it re-renders on language change). */
+export function tr(key: StringKey, vars?: Vars) {
+  return fill(strings[current][key] ?? strings.en[key], vars);
+}
 
 /** Speech voice for each language. */
 export const SPEECH_LANG: Record<Lang, string> = { en: 'en-US', es: 'es-US', fr: 'fr-FR', ht: 'fr-FR', pt: 'pt-BR' };
