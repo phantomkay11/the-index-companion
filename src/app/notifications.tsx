@@ -78,7 +78,7 @@ export default function NotificationsScreen() {
           style={({ pressed }) => [
             styles.item,
             {
-              backgroundColor: n.read_at ? colors.surface : colors.leafSoft,
+              backgroundColor: n.read_at ? colors.sunk : colors.leafSoft,
               borderColor: n.read_at ? colors.line : colors.leaf,
               opacity: pressed ? 0.85 : 1,
             },
@@ -102,5 +102,5 @@ export default function NotificationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  item: { flexDirection: 'row', gap: Space.md, borderWidth: 1, borderRadius: Radius.md, padding: Space.md, alignItems: 'flex-start' },
+  item: { flexDirection: 'row', gap: Space.md, borderWidth: 0, borderRadius: Radius.lg, padding: Space.md, alignItems: 'flex-start' },
 });

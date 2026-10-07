@@ -206,10 +206,10 @@ async function access(page, rec, ctxFor) {
 
 const font = (pkg, file) => pathToFileURL(path.join(root, 'node_modules/@expo-google-fonts', pkg, file)).href;
 const FONTS = `
-@font-face { font-family: 'Young Serif'; src: url(${font('young-serif', '400Regular/YoungSerif_400Regular.ttf')}); }
+@font-face { font-family: 'Figtree'; font-weight: 800; src: url(${font('figtree', '800ExtraBold/Figtree_800ExtraBold.ttf')}); }
 @font-face { font-family: 'Atkinson'; font-weight: 400; src: url(${font('atkinson-hyperlegible', '400Regular/AtkinsonHyperlegible_400Regular.ttf')}); }
 @font-face { font-family: 'Atkinson'; font-weight: 700; src: url(${font('atkinson-hyperlegible', '700Bold/AtkinsonHyperlegible_700Bold.ttf')}); }
-@font-face { font-family: 'Plex Mono'; font-weight: 500; src: url(${font('ibm-plex-mono', '500Medium/IBMPlexMono_500Medium.ttf')}); }
+@font-face { font-family: 'Figtree'; font-weight: 600; src: url(${font('figtree', '600SemiBold/Figtree_600SemiBold.ttf')}); }
 *{margin:0;padding:0;box-sizing:border-box} body{background:transparent;-webkit-font-smoothing:antialiased}`;
 
 async function renderArt(browser) {
@@ -218,45 +218,51 @@ async function renderArt(browser) {
   const page = await browser.newPage({ viewport: { width: W, height: D.px[1] }, deviceScaleFactor: 1 });
   const shot = async (name, html, height) => {
     await page.setViewportSize({ width: W, height });
-    await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>${FONTS}</style></head><body>${html}</body></html>`);
+    // Load from a file so the page may read the font files from disk.
+    const file = path.join(art, `${name}.html`);
+    fs.writeFileSync(file, `<!doctype html><html><head><meta charset="utf-8"><style>${FONTS}</style></head><body>${html}</body></html>`);
+    await page.goto(pathToFileURL(file).href);
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: path.join(art, `${name}.png`), omitBackground: true });
   };
 
   const s = SCALE;
-  const icons = (w) => `<svg width="${Math.round(70 * w)}" height="${Math.round(13 * w)}" viewBox="0 0 70 13"><g fill="#122019">
+  const icons = (w, ink) => `<svg width="${Math.round(70 * w)}" height="${Math.round(13 * w)}" viewBox="0 0 70 13"><g fill="${ink}">
         <rect x="0" y="8" width="3.4" height="5" rx="1"/><rect x="5" y="5.5" width="3.4" height="7.5" rx="1"/><rect x="10" y="3" width="3.4" height="10" rx="1"/><rect x="15" y="0" width="3.4" height="13" rx="1"/>
         <path d="M30 12.2l-2-2.1a2.8 2.8 0 0 1 4 0z"/><path d="M26.2 8.2a5.4 5.4 0 0 1 7.6 0l-1.2 1.2a3.7 3.7 0 0 0-5.2 0z"/><path d="M24.2 6.2a8.2 8.2 0 0 1 11.6 0l-1.2 1.2a6.5 6.5 0 0 0-9.2 0z"/>
-        <rect x="43" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="#122019" stroke-opacity=".4"/><rect x="45" y="2.5" width="19" height="8" rx="2"/><rect x="67.3" y="4.5" width="1.6" height="4" rx=".8" fill-opacity=".4"/></g></svg>`;
-  if (DEVICE === 'ipad') {
-    await shot('status', `
-    <div style="width:${W}px;height:${Math.round(D.status * s)}px;background:#fdfdfb;display:flex;align-items:center;justify-content:space-between;padding:0 ${Math.round(20 * s)}px;font:700 ${Math.round(13 * s)}px Atkinson;color:#122019">
-      <span>9:41&nbsp;&nbsp;Tue Oct 6</span>${icons(s * 0.85)}
-    </div>`, Math.round(D.status * s));
-  } else await shot('status', `
-    <div style="width:${W}px;height:${Math.round(54 * s)}px;background:#fdfdfb;position:relative;display:flex;align-items:center;justify-content:space-between;padding:${Math.round(6 * s)}px ${Math.round(30 * s)}px 0 ${Math.round(44 * s)}px;font:700 ${Math.round(17 * s)}px Atkinson;color:#122019">
-      <span>9:41</span>
-      <svg width="${Math.round(70 * s)}" height="${Math.round(13 * s)}" viewBox="0 0 70 13"><g fill="#122019">
-        <rect x="0" y="8" width="3.4" height="5" rx="1"/><rect x="5" y="5.5" width="3.4" height="7.5" rx="1"/><rect x="10" y="3" width="3.4" height="10" rx="1"/><rect x="15" y="0" width="3.4" height="13" rx="1"/>
-        <path d="M30 12.2l-2-2.1a2.8 2.8 0 0 1 4 0z"/><path d="M26.2 8.2a5.4 5.4 0 0 1 7.6 0l-1.2 1.2a3.7 3.7 0 0 0-5.2 0z"/><path d="M24.2 6.2a8.2 8.2 0 0 1 11.6 0l-1.2 1.2a6.5 6.5 0 0 0-9.2 0z"/>
-        <rect x="43" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="#122019" stroke-opacity=".4"/><rect x="45" y="2.5" width="19" height="8" rx="2"/><rect x="67.3" y="4.5" width="1.6" height="4" rx=".8" fill-opacity=".4"/></g></svg>
-      <div style="position:absolute;top:${Math.round(11 * s)}px;left:50%;width:${Math.round(126 * s)}px;height:${Math.round(37 * s)}px;margin-left:-${Math.round(63 * s)}px;background:#000;border-radius:999px"></div>
-    </div>`, Math.round(54 * s));
+        <rect x="43" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="${ink}" stroke-opacity=".4"/><rect x="45" y="2.5" width="19" height="8" rx="2"/><rect x="67.3" y="4.5" width="1.6" height="4" rx=".8" fill-opacity=".4"/></g></svg>`;
+  // Two transparent status bars, dark and light ink; the composer picks one for each frame.
+  for (const [name, ink] of [['dark', '#122019'], ['light', '#ffffff']]) {
+    if (DEVICE === 'ipad') {
+      await shot(`status-${name}`, `
+      <div style="width:${W}px;height:${Math.round(D.status * s)}px;display:flex;align-items:center;justify-content:space-between;padding:0 ${Math.round(20 * s)}px;font:700 ${Math.round(13 * s)}px Atkinson;color:${ink}">
+        <span>9:41&nbsp;&nbsp;Tue Oct 6</span>${icons(s * 0.85, ink)}
+      </div>`, Math.round(D.status * s));
+    } else await shot(`status-${name}`, `
+      <div style="width:${W}px;height:${Math.round(54 * s)}px;position:relative;display:flex;align-items:center;justify-content:space-between;padding:${Math.round(6 * s)}px ${Math.round(30 * s)}px 0 ${Math.round(44 * s)}px;font:700 ${Math.round(17 * s)}px Atkinson;color:${ink}">
+        <span>9:41</span>
+        <svg width="${Math.round(70 * s)}" height="${Math.round(13 * s)}" viewBox="0 0 70 13"><g fill="${ink}">
+          <rect x="0" y="8" width="3.4" height="5" rx="1"/><rect x="5" y="5.5" width="3.4" height="7.5" rx="1"/><rect x="10" y="3" width="3.4" height="10" rx="1"/><rect x="15" y="0" width="3.4" height="13" rx="1"/>
+          <path d="M30 12.2l-2-2.1a2.8 2.8 0 0 1 4 0z"/><path d="M26.2 8.2a5.4 5.4 0 0 1 7.6 0l-1.2 1.2a3.7 3.7 0 0 0-5.2 0z"/><path d="M24.2 6.2a8.2 8.2 0 0 1 11.6 0l-1.2 1.2a6.5 6.5 0 0 0-9.2 0z"/>
+          <rect x="43" y="0.5" width="23" height="12" rx="3.5" fill="none" stroke="${ink}" stroke-opacity=".4"/><rect x="45" y="2.5" width="19" height="8" rx="2"/><rect x="67.3" y="4.5" width="1.6" height="4" rx=".8" fill-opacity=".4"/></g></svg>
+        <div style="position:absolute;top:${Math.round(11 * s)}px;left:50%;width:${Math.round(126 * s)}px;height:${Math.round(37 * s)}px;margin-left:-${Math.round(63 * s)}px;background:#000;border-radius:999px"></div>
+      </div>`, Math.round(54 * s));
+  }
 
   for (const shotDef of SHOTS) {
     const text = shotDef.caption.replace(/\*(.+?)\*/g, '<span style="color:#f5d978">$1</span>');
     await shot(`caption-${shotDef.name}`, `
       <div style="padding:0 34px;display:flex;justify-content:center">
         <div style="background:rgba(9,74,43,0.96);border-radius:${Math.round(D.captionSize * 0.63)}px;padding:${Math.round(D.captionSize * 0.57)}px ${Math.round(D.captionSize * 0.73)}px ${Math.round(D.captionSize * 0.63)}px;box-shadow:0 20px 50px rgba(0,0,0,.28);max-width:${Math.min(W - 68, 860)}px">
-          <div style="font:400 ${D.captionSize}px/1.08 'Young Serif';color:#fffdf5;text-align:center;text-wrap:balance">${text}</div>
+          <div style="font:800 ${D.captionSize}px/1.08 Figtree;letter-spacing:-.01em;color:#fffdf5;text-align:center;text-wrap:balance">${text}</div>
         </div>
       </div>`, 300);
   }
 
   await shot('endcard', `
     <div style="width:${W}px;height:${D.px[1]}px;background:linear-gradient(170deg,#0a4f2e,#007640);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;text-align:center;padding:0 80px">
-      <div style="font:500 28px 'Plex Mono';letter-spacing:.16em;text-transform:uppercase;color:#a9d9b8">Free from Black Farmers Index</div>
-      <div style="font:400 130px/1 'Young Serif';color:#fffdf5">The Index</div>
+      <div style="font:600 34px Figtree;color:#cdeed9">Free from Black Farmers Index</div>
+      <div style="font:800 140px/1 Figtree;letter-spacing:-.03em;color:#fffdf5">The Index</div>
       <div style="font:400 44px/1.3 Atkinson;color:#d5eadb;text-wrap:balance">Find growers, ask, talk and show up for each other.</div>
     </div>`, D.px[1]);
   await page.close();

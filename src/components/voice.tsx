@@ -115,7 +115,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
       accessibilityRole="button"
       accessibilityLabel={t('recordVoice')}
       accessibilityState={{ busy }}
-      style={[styles.round, { backgroundColor: colors.sunk, borderWidth: 1, borderColor: colors.line, opacity: busy ? 0.5 : 1 }]}>
+      style={[styles.round, { backgroundColor: colors.sunk, opacity: busy ? 0.5 : 1 }]}>
       <Ionicons name={busy ? 'cloud-upload-outline' : 'mic-outline'} size={22} color={colors.text} />
     </Pressable>
   );

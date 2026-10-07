@@ -1,15 +1,18 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BfiAsks } from '@/components/bfi-asks';
 import { SavedCopyNote } from '@/components/network-banner';
 import { TranslateToggle, useTranslation } from '@/components/translate';
-import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Pill, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
+import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
+import { Photo, Scrim } from '@/components/visual';
 import { Space } from '@/constants/theme';
 import { kindLabel, POST_KINDS } from '@/lib/board';
-import { shortDate } from '@/lib/format';
+import { initials, shortDate } from '@/lib/format';
+import { sectionImage } from '@/lib/imagery';
+import { useLayout } from '@/lib/layout';
 import { supabase } from '@/lib/supabase';
 import type { Post, PostKind, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -20,6 +23,7 @@ import { useSettings } from '@/providers/settings';
 export default function Community() {
   const { t } = useSettings();
   const { session, profile } = useAuth();
+  const { isTablet } = useLayout();
   const [kind, setKind] = useState<PostKind | null>(null);
   const [region, setRegion] = useState<string | null>(profile?.region_id ?? null);
 
@@ -42,9 +46,21 @@ export default function Community() {
     { cacheKey: `posts:${kind ?? 'all'}:${region ?? 'all'}` },
   );
 
+  const hero = (
+    <Photo picture={sectionImage('community')} style={{ height: isTablet ? 300 : 230 }}>
+      <Scrim from={0.15} />
+      <View style={{ position: 'absolute', left: isTablet ? 48 : 20, right: 20, bottom: 22, gap: 4 }}>
+        <Txt variant="display" color="#ffffff">
+          Lend a hand. Borrow a seeder.
+        </Txt>
+        <Txt color="rgba(255,255,255,0.9)">Needs, offers, rides and mentoring in your region.</Txt>
+      </View>
+    </Photo>
+  );
+
   if (!session) {
     return (
-      <Screen>
+      <Screen hero={hero}>
         <Txt muted>Ask for a hand at harvest, share equipment, offer seedlings, find a ride to market or a mentor. Members only.</Txt>
         <SignInPrompt />
       </Screen>
@@ -52,7 +68,7 @@ export default function Community() {
   }
 
   return (
-    <Screen width="wide">
+    <Screen width="wide" hero={hero}>
       <BfiAsks />
       <Button label={t('newPost')} icon="add-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/new-post')} />
       <View style={{ gap: Space.sm }}>
@@ -112,27 +128,38 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
 
   return (
     <Card>
-      <Row style={{ justifyContent: 'space-between' }}>
-        <Row gap={6}>
-          <Ionicons name={(kind?.icon ?? 'chatbox-outline') as never} size={18} color={colors.leaf} />
-          <Pill label={kindLabel(post.kind)} tone="leaf" />
-          {post.region_id ? <Pill label={post.region_id === 'intl' ? 'International' : `Region ${post.region_id}`} /> : null}
+      <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
+        <Row gap={10} style={{ flex: 1, flexWrap: 'nowrap' }}>
+          <View style={[styles.avatar, { backgroundColor: colors.leafSoft }]}>
+            <Txt variant="smallBold" color={colors.forest}>
+              {initials(post.author?.display_name ?? 'Member')}
+            </Txt>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt variant="smallBold" numberOfLines={1}>
+              {mine ? 'You' : post.author?.display_name ?? 'A member'}
+              {post.author?.role === 'grower' ? ', grower' : post.author?.role === 'admin' || post.author?.role === 'coordinator' ? ', BFI staff' : ''}
+            </Txt>
+            <Txt variant="small" muted>
+              {shortDate(post.created_at)}
+              {post.region_id ? `, ${post.region_id === 'intl' ? 'International' : `Region ${post.region_id}`}` : ''}
+            </Txt>
+          </View>
         </Row>
-        <Txt variant="mono" muted>
-          {shortDate(post.created_at)}
-        </Txt>
+        <View style={[styles.kind, { backgroundColor: colors.sunSoft }]}>
+          <Ionicons name={(kind?.icon ?? 'chatbox-outline') as never} size={14} color={colors.onSun} />
+          <Txt variant="smallBold" color={colors.onSun} style={{ fontSize: 12.5 }}>
+            {kindLabel(post.kind)}
+          </Txt>
+        </View>
       </Row>
-      <Txt variant="heading">{post.title}</Txt>
-      {post.body ? <Txt variant="small">{body.text}</Txt> : null}
+      <Txt variant="title">{post.title}</Txt>
+      {post.body ? <Txt muted>{body.text}</Txt> : null}
       {post.location_text || post.happens_on ? (
         <Txt variant="small" muted>
           {[post.location_text, post.happens_on ? `On ${shortDate(post.happens_on)}` : null].filter(Boolean).join(' · ')}
         </Txt>
       ) : null}
-      <Txt variant="small" muted>
-        Posted by {mine ? 'you' : post.author?.display_name ?? 'a member'}
-        {post.author?.role === 'grower' ? ' · grower' : post.author?.role === 'admin' || post.author?.role === 'coordinator' ? ' · BFI staff' : ''}
-      </Txt>
       <Row>
         {mine ? (
           <Button small kind="ghost" label={t('closePost')} icon="checkmark-circle-outline" onPress={close} />
@@ -151,3 +178,8 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
     </Card>
   );
 }
+
+const styles = StyleSheet.create({
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  kind: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+});

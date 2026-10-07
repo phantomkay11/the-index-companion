@@ -81,7 +81,7 @@ export function SketchMap({ farms, here, height = 280 }: MapProps) {
 }
 
 const styles = StyleSheet.create({
-  box: { borderWidth: 1, borderRadius: Radius.lg, overflow: 'hidden', position: 'relative' },
+  box: { borderWidth: 0, borderRadius: Radius.xl, overflow: 'hidden', position: 'relative' },
   grid: { position: 'absolute', opacity: 0.6 },
   here: { position: 'absolute', width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
   pin: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: 120 },

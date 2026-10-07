@@ -4,9 +4,12 @@ import { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
 import { SavedCopyNote } from '@/components/network-banner';
-import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Row, Screen, Txt } from '@/components/ui';
+import { GradientBand, Photo, Scrim } from '@/components/visual';
 import { Space } from '@/constants/theme';
 import { daysUntil, shortDate } from '@/lib/format';
+import { sectionImage } from '@/lib/imagery';
+import { useLayout } from '@/lib/layout';
 import { supabase } from '@/lib/supabase';
 import type { Resource } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -19,6 +22,7 @@ const STAGES = ['Any', 'Starting out', 'Established'];
 export default function Resources() {
   const { colors, t } = useSettings();
   const { session, profile } = useAuth();
+  const { isTablet } = useLayout();
   const uid = session?.user.id;
   const [type, setType] = useState('Any');
   const [stage, setStage] = useState('Any');
@@ -48,10 +52,22 @@ export default function Resources() {
 
   const saved = (q.data?.resources ?? []).filter((r) => q.data?.saved.includes(r.id));
 
+  const hero = (
+    <Photo picture={sectionImage('resources')} style={{ height: isTablet ? 300 : 230 }}>
+      <Scrim from={0.15} />
+      <View style={{ position: 'absolute', left: isTablet ? 48 : 20, right: 20, bottom: 22, gap: 4 }}>
+        <Txt variant="display" color="#ffffff">
+          Money, land and know-how
+        </Txt>
+        <Txt color="rgba(255,255,255,0.9)">Programs matched to your farm, with deadline reminders.</Txt>
+      </View>
+    </Photo>
+  );
+
   return (
-    <Screen width="wide">
+    <Screen width="wide" hero={hero}>
       <Card tone="soft">
-        <Txt variant="label">{t('deadlines')}</Txt>
+        <Txt variant="title">{t('deadlines')}</Txt>
         {!saved.length ? (
           <Txt variant="small" muted>
             Save a program below to keep it here. When BFI adds a deadline, you get reminders 30, 7 and 1 day before.
@@ -72,7 +88,7 @@ export default function Resources() {
       </Card>
 
       <View style={{ gap: Space.sm }}>
-        <Txt variant="label">{t('whatFits')}</Txt>
+        <Txt variant="title">{t('whatFits')}</Txt>
         <Txt variant="small" muted>
           Farm type
         </Txt>
@@ -95,7 +111,7 @@ export default function Resources() {
       {q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : null}
       {!q.data && !q.error ? <Loading /> : null}
       {q.data ? (
-        <Txt variant="small" muted>
+        <Txt variant="title" accessibilityLiveRegion="polite">
           {fits.length} programs fit
         </Txt>
       ) : null}
@@ -105,22 +121,38 @@ export default function Resources() {
       {fits.map((r) => {
         const isSaved = q.data?.saved.includes(r.id);
         return (
-          <Card key={r.id} style={r.is_bfi_program ? { borderColor: colors.leaf } : undefined}>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Pill label={r.kind} tone="leaf" />
-              {r.is_bfi_program ? <Provenance sample={false} /> : <Txt variant="small" muted>{r.org}</Txt>}
-            </Row>
-            <Txt variant="heading">{r.name}</Txt>
-            <Txt variant="small">{r.summary}</Txt>
-            <Row style={{ justifyContent: 'space-between' }}>
-              <Pressable onPress={() => WebBrowser.openBrowserAsync(r.url)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
-                <Txt variant="bodyBold" color={colors.leaf}>
-                  {r.is_bfi_program ? 'Open on BFI site' : 'Official site'}
-                </Txt>
-              </Pressable>
-              <Button small kind={isSaved ? 'primary' : 'ghost'} icon={isSaved ? 'checkmark' : 'bookmark-outline'} label={isSaved ? t('saved') : t('save')} onPress={() => toggleSave(r)} />
-            </Row>
-          </Card>
+          // BFI's own programs sit on the brand gradient; public programs on a soft tint.
+          r.is_bfi_program ? (
+            <GradientBand key={r.id}>
+              <Txt variant="smallBold" color="rgba(255,255,255,0.9)">
+                {r.kind} from {r.org}
+              </Txt>
+              <Txt variant="title" color="#ffffff">
+                {r.name}
+              </Txt>
+              <Txt color="rgba(255,255,255,0.92)">{r.summary}</Txt>
+              <Row>
+                <Button small kind="inverse" icon="open-outline" label="Open on BFI site" onPress={() => WebBrowser.openBrowserAsync(r.url)} />
+                <Button small kind="inverse" icon={isSaved ? 'checkmark' : 'bookmark-outline'} label={isSaved ? t('saved') : t('save')} onPress={() => toggleSave(r)} />
+              </Row>
+            </GradientBand>
+          ) : (
+            <Card key={r.id}>
+              <Txt variant="smallBold" color={colors.forest}>
+                {r.kind} from {r.org}
+              </Txt>
+              <Txt variant="title">{r.name}</Txt>
+              <Txt muted>{r.summary}</Txt>
+              <Row style={{ justifyContent: 'space-between', marginTop: 4 }}>
+                <Pressable onPress={() => WebBrowser.openBrowserAsync(r.url)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
+                  <Txt variant="bodyBold" color={colors.leaf}>
+                    Official site
+                  </Txt>
+                </Pressable>
+                <Button small kind={isSaved ? 'primary' : 'inverse'} icon={isSaved ? 'checkmark' : 'bookmark-outline'} label={isSaved ? t('saved') : t('save')} onPress={() => toggleSave(r)} />
+              </Row>
+            </Card>
+          )
         );
       })}
       </Grid>

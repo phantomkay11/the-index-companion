@@ -10,10 +10,10 @@ import { out, playwright, root } from './lib.mjs';
 
 const font = (pkg, file) => pathToFileURL(path.join(root, 'node_modules/@expo-google-fonts', pkg, file)).href;
 const FONTS = `
-@font-face { font-family: 'Young Serif'; src: url(${font('young-serif', '400Regular/YoungSerif_400Regular.ttf')}); }
+@font-face { font-family: 'Figtree'; font-weight: 800; src: url(${font('figtree', '800ExtraBold/Figtree_800ExtraBold.ttf')}); }
 @font-face { font-family: 'Atkinson'; font-weight: 400; src: url(${font('atkinson-hyperlegible', '400Regular/AtkinsonHyperlegible_400Regular.ttf')}); }
 @font-face { font-family: 'Atkinson'; font-weight: 700; src: url(${font('atkinson-hyperlegible', '700Bold/AtkinsonHyperlegible_700Bold.ttf')}); }
-@font-face { font-family: 'Plex Mono'; font-weight: 500; src: url(${font('ibm-plex-mono', '500Medium/IBMPlexMono_500Medium.ttf')}); }`;
+@font-face { font-family: 'Figtree'; font-weight: 600; src: url(${font('figtree', '600SemiBold/Figtree_600SemiBold.ttf')}); }`;
 
 const THEMES = {
   green: { bg: 'linear-gradient(170deg, #0a4f2e 0%, #007640 100%)', head: '#fffdf5', accent: '#f5d978', sub: '#d5eadb', eyebrow: '#a9d9b8', line: 'rgba(255,255,255,0.07)' },
@@ -60,6 +60,20 @@ const ICONS = (color) => `
   <rect x="4" y="4" width="34" height="14" rx="3.5" fill="${color}"/><rect x="43.5" y="7.5" width="3" height="7" rx="1.5" fill="${color}" fill-opacity="0.45"/></svg>`;
 
 /** The colour of the app's bottom edge, so the home-indicator strip continues it. */
+function edgeColor(file, row) {
+  return execFileSync('python3', ['-c', `
+from PIL import Image
+im = Image.open(${JSON.stringify(file)}).convert('RGB')
+y = ${row === 'top' ? 2 : 'im.height - 2'}
+print('#%02x%02x%02x' % im.getpixel((im.width - 4, y)))
+`]).toString().trim();
+}
+
+const isDark = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return 0.299 * r + 0.587 * g + 0.114 * b < 150;
+};
+
 function bottomColor(file) {
   return execFileSync('python3', ['-c', `
 from PIL import Image
@@ -68,7 +82,8 @@ print('#%02x%02x%02x' % im.getpixel((im.width // 2, im.height - 2)))
 `]).toString().trim();
 }
 
-function slideHtml(device, d, slide, rawUrl, bottom) {
+function slideHtml(device, d, slide, rawUrl, bottom, top) {
+  const ink = isDark(top) ? '#ffffff' : '#122019';
   const t = THEMES[slide.theme];
   const [W, H] = d.canvas;
   const s = d.screenW / d.logical[0];
@@ -78,11 +93,11 @@ function slideHtml(device, d, slide, rawUrl, bottom) {
   const deviceW = d.screenW + d.bezel * 2;
   const isPhone = device === 'iphone';
   const statusRow = isPhone
-    ? `<div style="position:absolute;left:0;right:0;top:0;height:${statusH}px;display:flex;align-items:center;justify-content:space-between;padding:0 ${Math.round(34 * s)}px 0 ${Math.round(46 * s)}px;font:700 ${Math.round(17 * s)}px Atkinson;color:#122019">
-         <span style="padding-top:${Math.round(6 * s)}px">9:41</span><span style="display:flex;gap:${Math.round(6 * s)}px;align-items:center;transform:scale(${(s / 2.2).toFixed(2)});transform-origin:right center;padding-top:${Math.round(6 * s)}px">${ICONS('#122019')}</span></div>
+    ? `<div style="position:absolute;left:0;right:0;top:0;height:${statusH}px;display:flex;align-items:center;justify-content:space-between;padding:0 ${Math.round(34 * s)}px 0 ${Math.round(46 * s)}px;font:700 ${Math.round(17 * s)}px Atkinson;color:${ink};background:${top}">
+         <span style="padding-top:${Math.round(6 * s)}px">9:41</span><span style="display:flex;gap:${Math.round(6 * s)}px;align-items:center;transform:scale(${(s / 2.2).toFixed(2)});transform-origin:right center;padding-top:${Math.round(6 * s)}px">${ICONS(ink)}</span></div>
        <div style="position:absolute;top:${Math.round(11 * s)}px;left:50%;width:${Math.round(126 * s)}px;height:${Math.round(37 * s)}px;margin-left:-${Math.round(63 * s)}px;background:#000;border-radius:999px"></div>`
-    : `<div style="position:absolute;left:0;right:0;top:0;height:${statusH}px;display:flex;align-items:center;justify-content:space-between;padding:0 ${Math.round(22 * s)}px;font:700 ${Math.round(13 * s)}px Atkinson;color:#122019">
-         <span>9:41&nbsp;&nbsp;Tue Oct 6</span><span style="display:flex;gap:10px;align-items:center;transform:scale(${(s / 1.9).toFixed(2)});transform-origin:right center">${ICONS('#122019')}</span></div>`;
+    : `<div style="position:absolute;left:0;right:0;top:0;height:${statusH}px;display:flex;align-items:center;justify-content:space-between;padding:0 ${Math.round(22 * s)}px;font:700 ${Math.round(13 * s)}px Atkinson;color:${ink};background:${top}">
+         <span>9:41&nbsp;&nbsp;Tue Oct 6</span><span style="display:flex;gap:10px;align-items:center;transform:scale(${(s / 1.9).toFixed(2)});transform-origin:right center">${ICONS(ink)}</span></div>`;
 
   // Faint contour "furrows" behind the device.
   const furrows = Array.from({ length: 14 }, (_, i) => {
@@ -94,8 +109,8 @@ function slideHtml(device, d, slide, rawUrl, bottom) {
   *{box-sizing:border-box;margin:0;padding:0} html,body{width:${W}px;height:${H}px;overflow:hidden}
   body{background:${t.bg};position:relative;-webkit-font-smoothing:antialiased}
   .copy{position:absolute;left:${d.pad}px;right:${d.pad}px;top:${isPhone ? 150 : 110}px;text-align:center}
-  .eyebrow{font:500 ${d.eyebrowSize}px 'Plex Mono';letter-spacing:.14em;text-transform:uppercase;color:${t.eyebrow};margin-bottom:${isPhone ? 34 : 40}px}
-  h1{font:400 ${d.headSize}px/1.04 'Young Serif';color:${t.head};letter-spacing:-.01em;text-wrap:balance}
+  .eyebrow{font:600 ${Math.round(d.eyebrowSize * 1.25)}px Figtree;color:${t.eyebrow};margin-bottom:${isPhone ? 34 : 40}px}
+  h1{font:800 ${d.headSize}px/1.04 Figtree;color:${t.head};letter-spacing:-.02em;text-wrap:balance}
   p{font:400 ${d.subSize}px/1.3 Atkinson;color:${t.sub};margin-top:${isPhone ? 34 : 40}px;text-wrap:balance}
   .device{position:absolute;left:${(W - deviceW) / 2}px;top:${d.top}px;width:${deviceW}px;padding:${d.bezel}px;border-radius:${d.radius}px;
     background:#0d0f0e;box-shadow:0 0 0 3px #2c302d inset, 0 60px 120px rgba(0,0,0,.28), 0 18px 40px rgba(0,0,0,.18)}
@@ -122,7 +137,7 @@ for (const [device, d] of Object.entries(DEVICES)) {
   for (const [i, slide] of d.slides.entries()) {
     const raw = path.join(out, 'raw', device, `${slide.shot}.png`);
     const html = path.join(work, `${device}-${slide.shot}.html`);
-    fs.writeFileSync(html, slideHtml(device, d, slide, pathToFileURL(raw).href, bottomColor(raw)));
+    fs.writeFileSync(html, slideHtml(device, d, slide, pathToFileURL(raw).href, bottomColor(raw), edgeColor(raw, 'top')));
     await page.goto(pathToFileURL(html).href);
     await page.evaluate(() => document.fonts.ready);
     const file = path.join(dir, `${String(i + 1).padStart(2, '0')}-${slide.shot}.png`);

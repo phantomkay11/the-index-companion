@@ -27,7 +27,7 @@ export function FarmMap(props: MapProps) {
   const camera = { coordinates: { latitude: center.lat, longitude: center.lon }, zoom };
 
   return (
-    <View style={{ height, borderRadius: Radius.lg, overflow: 'hidden', borderWidth: 1, borderColor: colors.line }} accessibilityLabel={`Map of ${pts.length} farms`}>
+    <View style={{ height, borderRadius: Radius.xl, overflow: 'hidden' }} accessibilityLabel={`Map of ${pts.length} farms`}>
       {Platform.OS === 'ios' ? (
         <AppleMaps.View
           style={{ flex: 1 }}
