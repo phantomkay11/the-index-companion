@@ -28,7 +28,7 @@ const ICONS: Record<string, ComponentProps<typeof Ionicons>['name']> = {
 };
 
 export default function NotificationsScreen() {
-  const { colors, t } = useSettings();
+  const { colors, t, language } = useSettings();
   const { session } = useAuth();
   const { refresh } = useNotifications();
 
@@ -74,7 +74,7 @@ export default function NotificationsScreen() {
           key={n.id}
           onPress={() => open(n)}
           accessibilityRole="button"
-          accessibilityLabel={`${n.title}. ${n.body}${n.read_at ? '' : '. Unread'}`}
+          accessibilityLabel={`${n.title}. ${n.body}${n.read_at ? '' : `. ${t('b_unread')}`}`}
           style={({ pressed }) => [
             styles.item,
             {
@@ -93,7 +93,7 @@ export default function NotificationsScreen() {
             ) : null}
           </View>
           <Txt variant="mono" muted>
-            {threadTime(n.created_at)}
+            {threadTime(n.created_at, undefined, language)}
           </Txt>
         </Pressable>
       ))}

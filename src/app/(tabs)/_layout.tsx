@@ -22,7 +22,7 @@ export default function TabsLayout() {
       <Pressable
         onPress={() => router.push('/notifications')}
         accessibilityRole="button"
-        accessibilityLabel={unread ? `${t('notifications')}, ${unread} unread` : t('notifications')}
+        accessibilityLabel={unread ? t('b_notifUnreadLabel', { n: unread }) : t('notifications')}
         hitSlop={6}
         style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: onPhoto ? 'rgba(6,24,15,0.55)' : 'transparent' }}>
         <Ionicons name={unread ? 'notifications' : 'notifications-outline'} size={23} color={tint} />

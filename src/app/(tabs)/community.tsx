@@ -65,7 +65,7 @@ export default function Community() {
   if (!session) {
     return (
       <Screen hero={hero}>
-        <Txt muted>Ask for a hand at harvest, share equipment, offer seedlings, find a ride to market or a mentor. Members only.</Txt>
+        <Txt muted>{t('b_communitySignedOut')}</Txt>
         <SignInPrompt />
       </Screen>
     );
@@ -77,9 +77,9 @@ export default function Community() {
       <Button label={t('newPost')} icon="add-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/new-post')} />
       <View style={{ gap: Space.sm }}>
         <Row gap={6}>
-          <Chip label="Everything" selected={!kind} onPress={() => setKind(null)} />
+          <Chip label={t('b_everything')} selected={!kind} onPress={() => setKind(null)} />
           {POST_KINDS.map((k) => (
-            <Chip key={k.id} label={k.label} icon={k.icon as never} selected={kind === k.id} onPress={() => setKind(kind === k.id ? null : k.id)} />
+            <Chip key={k.id} label={kindLabel(k.id, t)} icon={k.icon as never} selected={kind === k.id} onPress={() => setKind(kind === k.id ? null : k.id)} />
           ))}
         </Row>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
@@ -92,42 +92,49 @@ export default function Community() {
       <SavedCopyNote at={posts.cachedAt} />
       {posts.error ? <ErrorNote message={posts.error} onRetry={posts.reload} /> : null}
       {(!posts.data || (posts.loading && !posts.data.length)) && !posts.error ? <Loading /> : null}
-      {posts.data && !posts.data.length && !posts.loading && !posts.error ? <Empty>Nothing posted here yet. Be the first.</Empty> : null}
+      {posts.data && !posts.data.length && !posts.loading && !posts.error ? <Empty>{t('b_noPostsYet')}</Empty> : null}
       <Grid>
       {posts.data?.map((p) => (
         <PostCard key={p.id} post={p} mine={p.author_id === session.user.id} onChange={posts.reload} />
       ))}
       </Grid>
       <Txt variant="small" muted>
-        Posts close on their own after 45 days. Reply privately to arrange details; never share bank details on the board.
+        {t('b_boardRules')}
       </Txt>
     </Screen>
   );
 }
 
 function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChange: () => void }) {
-  const { colors, t } = useSettings();
+  const { colors, t, language } = useSettings();
   const [busy, setBusy] = useState(false);
   const body = useTranslation(post.body);
   const kind = POST_KINDS.find((k) => k.id === post.kind);
+  const authorName = mine ? t('b_you') : (post.author?.display_name ?? t('b_aMember'));
+  const authorLine =
+    post.author?.role === 'grower'
+      ? t('b_authorGrower', { name: authorName })
+      : post.author?.role === 'admin' || post.author?.role === 'coordinator'
+        ? t('b_authorStaff', { name: authorName })
+        : authorName;
 
   const reply = async () => {
     setBusy(true);
     const { data, error } = await supabase.rpc('start_post_conversation', { p_post_id: post.id });
     setBusy(false);
-    if (error) return showAlert('Could not reply', error.message);
+    if (error) return showAlert(t('b_couldNotReply'), error.message);
     router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
 
   const close = async () => {
     const { error } = await supabase.from('posts').update({ status: 'closed' }).eq('id', post.id);
-    if (error) showAlert('Not updated', error.message);
+    if (error) showAlert(t('b_notUpdated'), error.message);
     onChange();
   };
 
   const report = async () => {
     const { error } = await supabase.from('reports').insert({ target_type: 'post', target_id: post.id, reason: 'Reported from community board' });
-    showAlert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this post.');
+    showAlert(error ? t('b_reportNotSent') : t('b_reportSent'), error ? error.message : t('b_reportSentBody'));
   };
 
   return (
@@ -137,16 +144,15 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
         <Row gap={10} style={{ flexGrow: 1, flexShrink: 1, flexBasis: 200, flexWrap: 'nowrap' }}>
           <View style={[styles.avatar, { backgroundColor: colors.leafSoft }]}>
             <Txt variant="smallBold" color={colors.forest}>
-              {initials(post.author?.display_name ?? 'Member')}
+              {initials(post.author?.display_name ?? t('b_memberFallback'))}
             </Txt>
           </View>
           <View style={{ flex: 1 }}>
             <Txt variant="smallBold" numberOfLines={1}>
-              {mine ? 'You' : post.author?.display_name ?? 'A member'}
-              {post.author?.role === 'grower' ? ', grower' : post.author?.role === 'admin' || post.author?.role === 'coordinator' ? ', BFI staff' : ''}
+              {authorLine}
             </Txt>
             <Txt variant="small" muted>
-              {shortDate(post.created_at)}
+              {shortDate(post.created_at, language)}
               {post.region_id ? `, ${regionLabel(post.region_id, t)}` : ''}
             </Txt>
           </View>
@@ -154,7 +160,7 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
         <View style={[styles.kind, { backgroundColor: colors.sunSoft }]}>
           <Ionicons name={(kind?.icon ?? 'chatbox-outline') as never} size={14} color={colors.onSun} />
           <Txt variant="smallBold" color={colors.onSun} style={{ fontSize: 12.5 }}>
-            {kindLabel(post.kind)}
+            {kindLabel(post.kind, t)}
           </Txt>
         </View>
       </Row>
@@ -162,7 +168,7 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
       {post.body ? <Txt muted>{body.text}</Txt> : null}
       {post.location_text || post.happens_on ? (
         <Txt variant="small" muted>
-          {[post.location_text, post.happens_on ? `On ${shortDate(post.happens_on)}` : null].filter(Boolean).join(' · ')}
+          {[post.location_text, post.happens_on ? t('b_onDate', { date: shortDate(post.happens_on, language) }) : null].filter(Boolean).join(' · ')}
         </Txt>
       ) : null}
       <Row>

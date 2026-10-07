@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import { tr } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 
 /** True inside the Expo Go app, where remote push and some native modules aren't available. */
@@ -27,10 +28,10 @@ export type PushResult = { ok: true } | { ok: false; reason: string };
  * Push needs a development or store build (not Expo Go on Android) and an EAS project id.
  */
 export async function registerForPush(userId: string): Promise<PushResult> {
-  if (Platform.OS === 'web') return { ok: false, reason: 'Phone notifications work in the iPhone and Android apps.' };
-  if (!Device.isDevice) return { ok: false, reason: 'Phone notifications need a real phone, not a simulator.' };
+  if (Platform.OS === 'web') return { ok: false, reason: tr('s_pushWeb') };
+  if (!Device.isDevice) return { ok: false, reason: tr('s_pushSimulator') };
   if (isExpoGo && Platform.OS === 'android') {
-    return { ok: false, reason: 'Phone notifications need the installed app. They are not available in Expo Go on Android.' };
+    return { ok: false, reason: tr('s_pushExpoGo') };
   }
 
   if (Platform.OS === 'android') {
@@ -47,10 +48,10 @@ export async function registerForPush(userId: string): Promise<PushResult> {
     const asked = await Notifications.requestPermissionsAsync();
     granted = asked.granted;
   }
-  if (!granted) return { ok: false, reason: 'Notifications are turned off for The Index in your phone settings.' };
+  if (!granted) return { ok: false, reason: tr('s_pushOff') };
 
   const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-  if (!projectId) return { ok: false, reason: 'This build is missing its EAS project id. See docs/NOTIFICATIONS.md.' };
+  if (!projectId) return { ok: false, reason: tr('s_pushNoProject') };
 
   try {
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
@@ -58,7 +59,7 @@ export async function registerForPush(userId: string): Promise<PushResult> {
     if (error) return { ok: false, reason: error.message };
     return { ok: true };
   } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : 'Could not reach the notification service. Try again later.' };
+    return { ok: false, reason: e instanceof Error ? e.message : tr('s_pushUnreachable') };
   }
 }
 

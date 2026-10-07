@@ -388,10 +388,10 @@ export function ToggleRow({
 // States
 // ---------------------------------------------------------------------------
 export function Loading() {
-  const { colors } = useSettings();
+  const { colors, t } = useSettings();
   return (
     <View style={{ padding: Space.xl, alignItems: 'center' }}>
-      <ActivityIndicator color={colors.leaf} accessibilityLabel="Loading" />
+      <ActivityIndicator color={colors.leaf} accessibilityLabel={t('m_loading')} />
     </View>
   );
 }

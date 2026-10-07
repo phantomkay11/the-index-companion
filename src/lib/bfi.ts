@@ -1,52 +1,82 @@
+import { monthYear } from '@/lib/format';
+import { currentLang, tr, type Lang, type StringKey } from '@/lib/i18n';
+
+/**
+ * BFI's descriptive copy in one language. Inside components call bfiCopy(t, language) with both from
+ * useSettings(), so the text is recomputed when the language changes (the BFI getters below read the
+ * current language at call time, which memoized components may not re-read).
+ */
+export function bfiCopy(t: (key: StringKey) => string = tr, lang: Lang = currentLang()) {
+  return {
+    tagline: t('s_bfiTagline'),
+    status: t('s_bfiStatus'),
+    stats: [
+      { value: '~1,300', label: t('s_bfiStatGrowers') },
+      { value: '400+', label: t('s_bfiStatWomen') },
+      { value: '300+', label: t('s_bfiStatOrganic') },
+    ],
+    pillars: [t('s_bfiPillar1'), t('s_bfiPillar2'), t('s_bfiPillar3'), t('s_bfiPillar4')],
+    timeline: [
+      [monthYear('2020-04', lang), t('s_bfiTimeline1')],
+      [monthYear('2020-07', lang), t('s_bfiTimeline2')],
+      [monthYear('2021-11', lang), t('s_bfiTimeline3')],
+      ['2021–22', t('s_bfiTimeline4')],
+      [monthYear('2024-10', lang), t('s_bfiTimeline5')],
+    ] as readonly (readonly [string, string])[],
+    programs: [t('s_bfiProgram1'), t('s_bfiProgram2'), t('s_bfiProgram3'), t('s_bfiProgram4'), t('s_bfiProgram5'), t('s_bfiProgram6')],
+    founder: t('s_bfiFounder'),
+    contacts: [
+      { label: t('s_bfiContactGeneral'), value: 'foodculture@blackfarmersindex.com' },
+      { label: t('s_bfiContactCollab'), value: 'cornbread@blackfarmersindex.com' },
+      { label: t('s_bfiContactDonor'), value: 'cheddar@blackfarmersindex.com' },
+      { label: t('s_bfiContactPress'), value: 'lettuce@blackfarmersindex.com' },
+      { label: t('s_bfiContactPhone'), value: '337-357-8321' },
+      { label: t('s_bfiContactMail'), value: '1105 Moss St #90391, Lafayette, LA 70509' },
+    ],
+  };
+}
+
 /**
  * What Black Farmers Index publishes about itself (blackfarmersindex.com: home, The Index, About BFI).
  * Checked October 4, 2026. BFI should review and own this copy.
+ *
+ * Descriptive copy (tagline, stats, pillars, timeline, programs, contact roles) is translated: these getters
+ * read the current language each time (see bfiCopy). BFI's own words stay as published: the
+ * "Build + Connect + Grow" motto, the Fannie Lou Hamer quote, partner and people names, and all addresses,
+ * emails and links.
  */
 export const BFI = {
   site: 'https://blackfarmersindex.com',
   donateUrl: 'https://pay.blackfarmersindex.com/',
   shopUrl: 'https://blackfarmersindex.com/shop',
   mission: 'Build + Connect + Grow',
-  tagline: 'The largest free directory of Black farmers',
-  status: '501(c)(3) nonprofit · Lafayette, LA',
-  stats: [
-    { value: '~1,300', label: 'growers listed' },
-    { value: '400+', label: 'women-owned farms' },
-    { value: '300+', label: 'organic, natural or regenerative' },
-  ],
-  pillars: [
-    'Increase marketing toward the Black agricultural ecosystem',
-    'Collect and share accurate information on Black growers',
-    'Provide resources for access to capital',
-    'Advocate for pathways to farmland',
-  ],
-  timeline: [
-    ['Apr 2020', 'First list of Black farmers published as a solutions-journalism project on Ark Republic'],
-    ['Jul 2020', 'Established as a nonprofit'],
-    ['Nov 2021', 'Granted 501(c)(3) status'],
-    ['2021–22', 'Awarded SARE grants'],
-    ['Oct 2024', 'Awarded JustFund grant'],
-  ] as const,
-  programs: [
-    'Free online directory',
-    'Workshops',
-    'Food-centered events',
-    'Curated gift boxes',
-    'Farm visits and feature stories',
-    'Data gathering and reporting',
-  ],
+  get tagline() {
+    return bfiCopy().tagline;
+  },
+  get status() {
+    return bfiCopy().status;
+  },
+  get stats() {
+    return bfiCopy().stats;
+  },
+  get pillars() {
+    return bfiCopy().pillars;
+  },
+  get timeline() {
+    return bfiCopy().timeline;
+  },
+  get programs() {
+    return bfiCopy().programs;
+  },
   partners:
     'Ark Republic, Organic Trade Association, Florida Organic Growers, Pennsylvania Certified Growers, Accredited Certifiers Association, IGH Gardens',
-  founder: 'Dr. Kaia Niambi Shivers, President and Founder',
+  get founder() {
+    return bfiCopy().founder;
+  },
   quote: { text: 'If you give him land, he will grow his own food.', by: 'Fannie Lou Hamer, on the Freedom Farm Cooperative' },
-  contacts: [
-    { label: 'General inquiries', value: 'foodculture@blackfarmersindex.com' },
-    { label: 'Collaborations', value: 'cornbread@blackfarmersindex.com' },
-    { label: 'Donor opportunities', value: 'cheddar@blackfarmersindex.com' },
-    { label: 'Press and media', value: 'lettuce@blackfarmersindex.com' },
-    { label: 'Phone', value: '337-357-8321' },
-    { label: 'Mail', value: '1105 Moss St #90391, Lafayette, LA 70509' },
-  ],
+  get contacts() {
+    return bfiCopy().contacts;
+  },
 };
 
 /** BFI's own grower types, used for browsing. Icon names are Ionicons. */

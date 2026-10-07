@@ -1,6 +1,8 @@
 import * as Location from 'expo-location';
 import { useSyncExternalStore } from 'react';
 
+import { tr } from '@/lib/i18n';
+
 export type Point = { lat: number; lon: number };
 
 /** Great-circle distance in miles (matches public.miles in the database). */
@@ -21,7 +23,7 @@ export type LocateResult = { ok: true; point: Point; label: string | null } | { 
 export async function locate(): Promise<LocateResult> {
   try {
     const perm = await Location.requestForegroundPermissionsAsync();
-    if (!perm.granted) return { ok: false, reason: 'Location is off for The Index. You can still browse by region.' };
+    if (!perm.granted) return { ok: false, reason: tr('s_locOff') };
     const last = await Location.getLastKnownPositionAsync({ maxAge: 30 * 60_000 });
     const pos = last ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }));
     const point = { lat: pos.coords.latitude, lon: pos.coords.longitude };
@@ -34,7 +36,7 @@ export async function locate(): Promise<LocateResult> {
     }
     return { ok: true, point, label };
   } catch (e) {
-    return { ok: false, reason: e instanceof Error ? e.message : 'Could not find your location.' };
+    return { ok: false, reason: e instanceof Error ? e.message : tr('s_locFailed') };
   }
 }
 
@@ -42,10 +44,10 @@ export async function locate(): Promise<LocateResult> {
 export async function geocode(place: string): Promise<LocateResult> {
   try {
     const [hit] = await Location.geocodeAsync(place);
-    if (!hit) return { ok: false, reason: `Couldn't find “${place}”. Try a town and state, or a ZIP code.` };
+    if (!hit) return { ok: false, reason: tr('s_geoNotFound', { place }) };
     return { ok: true, point: { lat: hit.latitude, lon: hit.longitude }, label: place };
   } catch {
-    return { ok: false, reason: 'Looking up places by name isn’t available on this device. Use your location instead.' };
+    return { ok: false, reason: tr('s_geoUnavailable') };
   }
 }
 

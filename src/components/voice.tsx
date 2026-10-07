@@ -45,7 +45,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
     starting.current = true;
     try {
       const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) return showAlert('Microphone is off', 'Allow microphone access for The Index in your phone settings to send voice notes.');
+      if (!perm.granted) return showAlert(t('m_micOff'), t('m_allowMic'));
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -53,7 +53,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
       // Stop and send automatically at the time limit.
       limitTimer.current = setTimeout(() => stop(true), MAX_SECONDS * 1000);
     } catch {
-      showAlert('Recording didn’t start', 'Another app may be using the microphone. Try again in a moment.');
+      showAlert(t('m_recordingNotStarted'), t('m_micBusy'));
     } finally {
       starting.current = false;
     }
@@ -74,7 +74,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
     await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
     const uri = recorder.uri;
     if (!send || !uri) return;
-    if (length < 1) return showAlert('Too short', 'Hold on a little longer before you stop.');
+    if (length < 1) return showAlert(t('m_tooShort'), t('m_holdLonger'));
     setBusy(true);
     try {
       // Browsers record webm (the address is a blob: URL with no extension); phones record m4a.
@@ -93,7 +93,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
       supabase.functions.invoke('transcribe', { body: { message_id: data.id } }).catch(() => {});
       onSent?.();
     } catch (e) {
-      showAlert('Voice note not sent', e instanceof Error ? e.message : 'Try again.');
+      showAlert(t('m_voiceNotSent'), e instanceof Error ? e.message : t('m_tryAgainDot'));
     } finally {
       setBusy(false);
     }
@@ -110,7 +110,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
     return (
       <View style={[styles.recording, { borderColor: colors.danger, backgroundColor: colors.surface }]} accessibilityLiveRegion="polite">
         <View style={[styles.dot, { backgroundColor: colors.danger }]} />
-        <Txt variant="mono" style={{ flex: 1 }} accessibilityLabel={`Recording, ${Math.round(seconds)} seconds`}>
+        <Txt variant="mono" style={{ flex: 1 }} accessibilityLabel={Math.round(seconds) === 1 ? t('m_recordingOneSecond') : t('m_recordingSeconds', { n: Math.round(seconds) })}>
           {clock(seconds)} / {clock(MAX_SECONDS)}
         </Txt>
         <Pressable onPress={() => stop(false)} accessibilityRole="button" accessibilityLabel={t('cancel')} hitSlop={8} style={styles.pill}>
@@ -144,6 +144,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
 
 /** Plays a voice note from the private bucket through a short-lived signed link. */
 export function VoicePlayer({ path, tint }: { path: string; tint: string }) {
+  const { t } = useSettings();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const player = useAudioPlayer(url);
@@ -171,7 +172,7 @@ export function VoicePlayer({ path, tint }: { path: string; tint: string }) {
     player.play();
   };
 
-  if (failed) return <Txt variant="small" color={tint}>Recording unavailable</Txt>;
+  if (failed) return <Txt variant="small" color={tint}>{t('m_recordingUnavailable')}</Txt>;
 
   const progress = status.duration > 0 ? Math.min(1, status.currentTime / status.duration) : 0;
   return (
@@ -179,7 +180,7 @@ export function VoicePlayer({ path, tint }: { path: string; tint: string }) {
       onPress={toggle}
       disabled={!url || !status.isLoaded}
       accessibilityRole="button"
-      accessibilityLabel={status.playing ? 'Pause voice note' : `Play voice note, ${clock(status.duration)}`}
+      accessibilityLabel={status.playing ? t('m_pauseVoice') : t('m_playVoice', { length: clock(status.duration) })}
       style={styles.player}>
       <Ionicons name={status.playing ? 'pause' : 'play'} size={18} color={tint} />
       <View style={[styles.track, { borderColor: tint }]}>

@@ -5,12 +5,14 @@ import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import type { Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
+import { tr, type StringKey } from '@/lib/i18n';
 import { useSettings } from '@/providers/settings';
 
-export const AUDIENCES = [
-  { value: 'everyone', label: 'Everyone' },
-  { value: 'growers', label: 'Growers' },
-  { value: 'neighbors', label: 'Neighbors' },
+// `value` is what gets stored; `labelKey` is the translated text shown for it.
+export const AUDIENCES: { value: string; labelKey: StringKey }[] = [
+  { value: 'everyone', labelKey: 'b_audEveryone' },
+  { value: 'growers', labelKey: 'b_audGrowers' },
+  { value: 'neighbors', labelKey: 'b_audNeighbors' },
 ];
 
 export function useRegions() {
@@ -18,11 +20,10 @@ export function useRegions() {
 }
 
 export function audienceLabel(audience: string, regions?: Region[] | null) {
-  return (
-    AUDIENCES.find((a) => a.value === audience)?.label ??
-    regions?.find((r) => `region:${r.id}` === audience)?.name ??
-    audience.replace(/^region:/, 'Region ')
-  );
+  const known = AUDIENCES.find((a) => a.value === audience);
+  if (known) return tr(known.labelKey);
+  if (audience === 'region:intl') return tr('international');
+  return regions?.find((r) => `region:${r.id}` === audience)?.name ?? audience.replace(/^region:/, `${tr('region')} `);
 }
 
 /** Everyone, growers, neighbors or one region: who a broadcast, survey or check-in reaches. */
@@ -30,7 +31,7 @@ export function AudiencePicker({
   value,
   onChange,
   regionsOnly,
-  label = 'Who gets it',
+  label,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -41,11 +42,11 @@ export function AudiencePicker({
   const { t } = useSettings();
   return (
     <View style={{ gap: Space.sm }}>
-      <Txt variant="smallBold">{label}</Txt>
+      <Txt variant="smallBold">{label ?? t('b_whoGetsIt')}</Txt>
       {!regionsOnly ? (
         <Row gap={6}>
           {AUDIENCES.map((a) => (
-            <Chip key={a.value} label={a.label} selected={value === a.value} onPress={() => onChange(a.value)} />
+            <Chip key={a.value} label={t(a.labelKey)} selected={value === a.value} onPress={() => onChange(a.value)} />
           ))}
         </Row>
       ) : null}

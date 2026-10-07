@@ -67,10 +67,10 @@ export default function FarmProfile() {
   const isOwner = session?.user.id === f.owner_id;
   const location =
     f.location_visibility === 'exact'
-      ? `${f.city}, ${f.state}. Address shared by the farm.`
+      ? t('m_locExact', { city: f.city, state: f.state })
       : f.location_visibility === 'pickup_point'
-        ? `Pickup at ${f.pickup_point ?? f.city}. Farm address stays private.`
-        : `${f.city}, ${f.state}. Exact address shared after an order.`;
+        ? t('m_locPickup', { place: f.pickup_point ?? f.city })
+        : t('m_locCity', { city: f.city, state: f.state });
 
   const needSignIn = () => {
     router.push('/sign-in');
@@ -85,7 +85,7 @@ export default function FarmProfile() {
       ? await supabase.from('follows').delete().eq('farm_id', f.id).eq('user_id', session.user.id)
       : await supabase.from('follows').insert({ farm_id: f.id, user_id: session.user.id });
     setBusy(null);
-    if (res.error) showAlert('Could not update', res.error.message);
+    if (res.error) showAlert(t('m_couldNotUpdate'), res.error.message);
     else follow.setData(!following);
   };
 
@@ -96,7 +96,7 @@ export default function FarmProfile() {
       p_farm_id: f.id,
     });
     setBusy(null);
-    if (error) showAlert('Message not started', error.message);
+    if (error) showAlert(t('m_messageNotStarted'), error.message);
     else router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
 
@@ -107,7 +107,7 @@ export default function FarmProfile() {
       target_id: f.id,
       reason: 'Reported from farm profile',
     });
-    showAlert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this listing.');
+    showAlert(error ? t('m_reportNotSent') : t('m_reportSent'), error ? error.message : t('m_reviewListing'));
   };
 
   const readAloud = () =>
@@ -136,7 +136,7 @@ export default function FarmProfile() {
           ) : (
             <GlassChip>
               <Txt variant="smallBold" color="#5f4100" style={{ fontSize: 12.5 }}>
-                Awaiting verification
+                {t('m_awaitingVerification')}
               </Txt>
             </GlassChip>
           )}
@@ -164,8 +164,10 @@ export default function FarmProfile() {
       <Stack.Screen options={{ title: f.name, headerTitle: () => null, headerTransparent: true, headerTintColor: '#ffffff', headerLeft: () => <BackDisc /> }} />
       <Screen hero={hero} style={{ paddingTop: 4, paddingBottom: showBar ? 132 : 48 }}>
         <Txt variant="small" muted>
-          On the Index since {new Date(f.listed_since).getFullYear()}
-          {f.verified_at ? `, verified by BFI ${shortDate(f.verified_at)}` : ''}. {updatedAgo(f.updated_at)}.
+          {f.verified_at
+            ? t('m_onIndexSinceVerified', { year: new Date(f.listed_since).getFullYear(), date: shortDate(f.verified_at, language) })
+            : t('m_onIndexSince', { year: new Date(f.listed_since).getFullYear() })}{' '}
+          {updatedAgo(f.updated_at, undefined, language)}.
         </Txt>
 
         {story.text ? (
@@ -199,7 +201,7 @@ export default function FarmProfile() {
               ))}
             </Row>
           ) : (
-            <Txt muted>Nothing posted this week. Follow the farm to hear when something comes in.</Txt>
+            <Txt muted>{t('m_nothingThisWeek')}</Txt>
           )}
         </View>
 
@@ -216,7 +218,7 @@ export default function FarmProfile() {
                 {f.order_label || t('orderOnline')}
               </Txt>
               <Txt variant="small" color={colors.onHarvest}>
-                On the farm’s own site. Orders and payment go straight to the farm.
+                {t('m_orderOnFarmSite')}
               </Txt>
             </View>
             <Ionicons name="open-outline" size={20} color={colors.onHarvest} />
@@ -224,12 +226,12 @@ export default function FarmProfile() {
         ) : null}
 
         <View style={{ gap: 4 }}>
-          <Fact icon="bag-handle" label={t('howToBuy')} value={f.how_to_buy.join('\n') || 'Message the farm'} />
+          <Fact icon="bag-handle" label={t('howToBuy')} value={f.how_to_buy.join('\n') || t('m_messageTheFarm')} />
           <Fact icon="location" label={t('location')} value={location} />
-          <Fact icon="language" label={t('languages')} value={`${f.languages.join(', ')}${f.replies_by_sms ? '. Replies by text message.' : ''}`} />
+          <Fact icon="language" label={t('languages')} value={f.replies_by_sms ? t('m_langsRepliesSms', { langs: f.languages.join(', ') }) : f.languages.join(', ')} />
           {f.website ? (
             <Pressable onPress={() => WebBrowser.openBrowserAsync(f.website!)} accessibilityRole="link">
-              <Fact icon="globe" label="Website" value={f.website} />
+              <Fact icon="globe" label={t('m_website')} value={f.website} />
             </Pressable>
           ) : null}
         </View>
@@ -258,7 +260,7 @@ export default function FarmProfile() {
 
         {!f.owner_id ? (
           <Card tone="sun">
-            <Txt variant="small">This farm is listed on the Index but hasn’t joined the app yet, so it can’t receive messages here.</Txt>
+            <Txt variant="small">{t('m_farmNotJoinedNote')}</Txt>
           </Card>
         ) : null}
 
@@ -285,7 +287,7 @@ export default function FarmProfile() {
         <View style={[styles.bar, { backgroundColor: colors.surface, paddingBottom: 12 + insets.bottom }]}>
           <View style={[styles.barInner, isTablet && { maxWidth: 760, alignSelf: 'center', width: '100%' }]}>
             {isOwner ? (
-              <Button label="Edit my farm" icon="create-outline" style={{ flex: 1 }} onPress={() => router.push('/my-farm')} />
+              <Button label={t('m_editMyFarm')} icon="create-outline" style={{ flex: 1 }} onPress={() => router.push('/my-farm')} />
             ) : (
               <>
                 <Pressable

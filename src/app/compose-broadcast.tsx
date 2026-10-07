@@ -7,20 +7,22 @@ import { Button, Card, Chip, Field, Row, Screen, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
+import type { StringKey } from '@/lib/i18n';
 import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
 import { StaffOnly } from '@/components/staff-only';
 
-const CHANNELS = [
-  { value: 'push', label: 'Phone notification' },
-  { value: 'email', label: 'Email' },
-  { value: 'sms', label: 'Text message' },
+// `value` is stored with the broadcast; `labelKey` is the chip, `inlineKey` the same word mid-sentence.
+const CHANNELS: { value: string; labelKey: StringKey; inlineKey: StringKey }[] = [
+  { value: 'push', labelKey: 's_chPush', inlineKey: 's_chPushInline' },
+  { value: 'email', labelKey: 's_chEmail', inlineKey: 's_chEmailInline' },
+  { value: 'sms', labelKey: 's_chSms', inlineKey: 's_chSmsInline' },
 ];
 
 /** BFI staff send an announcement to everyone, growers, neighbors or one region. */
 export default function ComposeBroadcast() {
   const { isStaff } = useAuth();
-  const { colors } = useSettings();
+  const { t, colors } = useSettings();
   const regions = useRegions();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -31,7 +33,7 @@ export default function ComposeBroadcast() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (!isStaff) return <StaffOnly>Only BFI staff can send announcements.</StaffOnly>;
+  if (!isStaff) return <StaffOnly>{t('s_broadcastStaffOnly')}</StaffOnly>;
 
   const linkOk = !linkUrl.trim() || /^https:\/\/\S+$/.test(linkUrl.trim());
   const valid = title.trim().length >= 3 && body.trim().length >= 3 && linkOk;
@@ -48,56 +50,64 @@ export default function ComposeBroadcast() {
       link_text: linkUrl.trim() ? linkText.trim() || 'Learn more' : null,
     });
     setBusy(false);
-    if (error) return showAlert('Not sent', error.message);
-    showAlert('Sent', `Your announcement is going out to ${audienceLabel.toLowerCase()}.`);
+    if (error) return showAlert(t('s_notSent'), error.message);
+    showAlert(t('s_sent'), t('s_broadcastGoing', { audience: audienceLabel.toLowerCase() }));
     router.back();
   };
 
   return (
     <Screen>
-      <Txt muted>Announcements appear under Messages → From BFI and go out on the channels you pick. Members can turn each channel off.</Txt>
-      <Field label="Title" value={title} onChangeText={setTitle} placeholder="Collard Green Gala tickets" maxLength={80} />
-      <Field label="Message" value={body} onChangeText={setBody} multiline maxLength={600} placeholder="Keep it short. Texts are cut at about 280 characters." />
+      <Txt muted>{t('s_broadcastIntro')}</Txt>
+      <Field label={t('s_title')} value={title} onChangeText={setTitle} placeholder={t('s_broadcastTitlePlaceholder')} maxLength={80} />
+      <Field label={t('s_message')} value={body} onChangeText={setBody} multiline maxLength={600} placeholder={t('s_broadcastBodyPlaceholder')} />
       <Row>
         <View style={{ flex: 2, minWidth: 200 }}>
-          <Field label="Link (optional)" value={linkUrl} onChangeText={setLinkUrl} autoCapitalize="none" keyboardType="url" placeholder="https://" />
+          <Field label={t('s_linkOptional')} value={linkUrl} onChangeText={setLinkUrl} autoCapitalize="none" keyboardType="url" placeholder="https://" />
         </View>
         <View style={{ flex: 1, minWidth: 140 }}>
-          <Field label="Link label" value={linkText} onChangeText={setLinkText} placeholder="Get tickets" />
+          <Field label={t('s_linkLabel')} value={linkText} onChangeText={setLinkText} placeholder={t('s_linkLabelPlaceholder')} />
         </View>
       </Row>
-      {!linkOk ? <Txt variant="small" color={colors.danger}>Links must start with https://</Txt> : null}
+      {!linkOk ? <Txt variant="small" color={colors.danger}>{t('s_linkHttps')}</Txt> : null}
 
       <AudiencePicker value={audience} onChange={setAudience} />
 
       <View style={{ gap: Space.sm }}>
-        <Txt variant="smallBold">How it’s sent</Txt>
+        <Txt variant="smallBold">{t('s_howSent')}</Txt>
         <Row gap={6}>
           {CHANNELS.map((c) => (
             <Chip
               key={c.value}
-              label={c.label}
+              label={t(c.labelKey)}
               selected={channels.includes(c.value)}
               onPress={() => setChannels((prev) => (prev.includes(c.value) ? prev.filter((x) => x !== c.value) : [...prev, c.value]))}
             />
           ))}
         </Row>
         <Txt variant="small" muted>
-          Text messages cost money per message. Use them for urgent or important news.
+          {t('s_smsCost')}
         </Txt>
       </View>
 
       {!confirming ? (
-        <Button label="Review and send" onPress={() => setConfirming(true)} disabled={!valid} />
+        <Button label={t('s_reviewAndSend')} onPress={() => setConfirming(true)} disabled={!valid} />
       ) : (
         <Card tone="sun">
-          <Txt variant="bodyBold">Send “{title.trim()}” to {audienceLabel.toLowerCase()}?</Txt>
+          <Txt variant="bodyBold">{t('s_confirmSendTo', { title: title.trim(), audience: audienceLabel.toLowerCase() })}</Txt>
           <Txt variant="small">
-            By {channels.length ? channels.map((c) => CHANNELS.find((x) => x.value === c)?.label.toLowerCase()).join(', ') : 'inbox only'}. This can’t be unsent.
+            {channels.length
+              ? t('s_byChannels', {
+                  channels: channels
+                    .map((c) => CHANNELS.find((x) => x.value === c))
+                    .map((x) => (x ? t(x.inlineKey) : ''))
+                    .filter(Boolean)
+                    .join(', '),
+                })
+              : t('s_inboxOnly')}
           </Txt>
           <Row>
-            <Button label="Send now" icon="megaphone-outline" onPress={send} busy={busy} />
-            <Button kind="ghost" label="Edit" onPress={() => setConfirming(false)} />
+            <Button label={t('s_sendNow')} icon="megaphone-outline" onPress={send} busy={busy} />
+            <Button kind="ghost" label={t('s_edit')} onPress={() => setConfirming(false)} />
           </Row>
         </Card>
       )}

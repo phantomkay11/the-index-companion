@@ -20,7 +20,7 @@ export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?:
     const r = await locate();
     setBusy(false);
     if (r.ok) setHere({ point: r.point, label: r.label });
-    else showAlert('Location unavailable', r.reason);
+    else showAlert(t('b_locationUnavailable'), r.reason);
   };
 
   const lookUp = async () => {
@@ -31,17 +31,17 @@ export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?:
     if (r.ok) {
       setHere({ point: r.point, label: r.label });
       setTyping(false);
-    } else showAlert('Place not found', r.reason);
+    } else showAlert(t('b_placeNotFound'), r.reason);
   };
 
   if (here && !typing) {
     return (
       <Row style={{ justifyContent: 'space-between' }}>
         <Txt variant="small" muted style={{ flex: 1 }}>
-          Near {here.label ?? 'your location'}
+          {t('b_nearPlace', { place: here.label ?? t('b_yourLocation') })}
         </Txt>
-        <Button small kind="ghost" label="Change" onPress={() => setTyping(true)} />
-        <Button small kind="ghost" label="Clear" onPress={() => setHere(null)} />
+        <Button small kind="ghost" label={t('b_change')} onPress={() => setTyping(true)} />
+        <Button small kind="ghost" label={t('b_clear')} onPress={() => setHere(null)} />
       </Row>
     );
   }
@@ -55,9 +55,9 @@ export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?:
       {typing ? (
         <Row>
           <View style={{ flex: 1, minWidth: 180 }}>
-            <Field label="Town and state, or ZIP code" value={place} onChangeText={setPlace} onSubmitEditing={lookUp} placeholder="Lafayette, LA" returnKeyType="search" />
+            <Field label={t('b_townOrZip')} value={place} onChangeText={setPlace} onSubmitEditing={lookUp} placeholder="Lafayette, LA" returnKeyType="search" />
           </View>
-          <Button small label="Go" onPress={lookUp} busy={busy} style={{ alignSelf: 'flex-end' }} />
+          <Button small label={t('b_go')} onPress={lookUp} busy={busy} style={{ alignSelf: 'flex-end' }} />
         </Row>
       ) : null}
     </View>

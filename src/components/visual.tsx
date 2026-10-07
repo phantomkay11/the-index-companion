@@ -59,10 +59,11 @@ export function Scrim({ from = 0.35, top }: { from?: number; top?: boolean }) {
 
 /** "Photo: Name / Unsplash", tucked into a corner of the photo it credits. */
 export function Credit({ picture, style, link = true }: { picture: Picture; style?: StyleProp<ViewStyle>; link?: boolean }) {
+  const { t } = useSettings();
   if (!picture.credit) return null;
   const text = (
     <Txt variant="small" color="#ffffff" style={{ fontSize: 11, lineHeight: 14 }}>
-      Photo: {picture.credit}
+      {t('m_photoCredit', { credit: picture.credit })}
     </Txt>
   );
   // Inside a tappable card a nested link can't be reached, so there the credit is plain text.
@@ -126,11 +127,12 @@ export function useLightStatusBar() {
 
 /** A back button that stays readable over photos and white pages, and works even when opened from a link. */
 export function BackDisc() {
+  const { t } = useSettings();
   return (
     <Pressable
       onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
       accessibilityRole="button"
-      accessibilityLabel="Back"
+      accessibilityLabel={t('m_back')}
       hitSlop={6}
       style={({ pressed }) => [styles.disc, { opacity: pressed ? 0.8 : 1 }]}>
       <Icon name="chevron-back" size={24} color="#ffffff" />

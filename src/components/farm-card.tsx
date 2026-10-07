@@ -31,8 +31,8 @@ export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | n
       accessibilityLabel={[
         farm.name,
         `${farm.city}, ${farm.state}`,
-        farm.verified_at ? t('verified') : 'awaiting verification',
-        distance != null ? `${distance} miles away` : '',
+        farm.verified_at ? t('verified') : t('b_awaitingVerification'),
+        distance != null ? t(distance === 1 ? 'b_mileAwayOne' : 'b_milesAway', { n: distance }) : '',
         inSeason.length ? `${t('fresh')}: ${inSeason.join(', ')}` : '',
         farm.is_sample ? t('sample') : '',
       ]
@@ -46,13 +46,13 @@ export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | n
             <GlassChip>
               <Ionicons name="shield-checkmark" size={14} color={colors.leaf} />
               <Txt variant="smallBold" color="#0b4a2f" style={{ fontSize: 12.5 }}>
-                Verified
+                {t('b_verifiedChip')}
               </Txt>
             </GlassChip>
           ) : (
             <GlassChip>
               <Txt variant="smallBold" color="#5f4100" style={{ fontSize: 12.5 }}>
-                Awaiting review
+                {t('b_awaitingReview')}
               </Txt>
             </GlassChip>
           )}
@@ -69,7 +69,7 @@ export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | n
             {farm.name}
           </Txt>
           <Txt variant="small" color="rgba(255,255,255,0.88)">
-            {[`${farm.city}, ${farm.state}`, kind ? categoryLabel(kind, t) : null, distance != null ? `${distance} mi` : null].filter(Boolean).join('  ·  ')}
+            {[`${farm.city}, ${farm.state}`, kind ? categoryLabel(kind, t) : null, distance != null ? t('b_milesShort', { n: distance }) : null].filter(Boolean).join('  ·  ')}
           </Txt>
         </View>
         <Credit picture={cover} link={false} style={{ top: 46, bottom: undefined, right: 12 }} />
@@ -86,7 +86,7 @@ export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | n
         ) : null}
         {farm.harvest_mode ? (
           <Txt variant="small" color={colors.onSun}>
-            In harvest, may reply slowly
+            {t('b_harvestSlow')}
           </Txt>
         ) : null}
       </View>

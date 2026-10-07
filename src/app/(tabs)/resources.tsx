@@ -16,12 +16,33 @@ import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
+import type { StringKey } from '@/lib/i18n';
 
+// Filter values match what's stored on each resource; only their labels are translated.
 const TYPES = ['Any', 'Produce', 'Meat', 'Honey', 'Eggs', 'Seafood'];
 const STAGES = ['Any', 'Starting out', 'Established'];
+const FILTER_LABELS: Record<string, StringKey> = {
+  Any: 'b_rtAny',
+  Produce: 'b_rtProduce',
+  Meat: 'b_rtMeat',
+  Honey: 'b_rtHoney',
+  Eggs: 'b_rtEggs',
+  Seafood: 'b_rtSeafood',
+  'Starting out': 'b_rsStartingOut',
+  Established: 'b_rsEstablished',
+};
+// Known program kinds; anything else shows as stored.
+const KIND_LABELS: Record<string, StringKey> = {
+  'BFI program': 'b_rkBfiProgram',
+  'Cost-share': 'b_rkCostShare',
+  Loan: 'b_rkLoan',
+  Land: 'b_rkLand',
+  Grant: 'b_rkGrant',
+  Support: 'b_rkSupport',
+};
 
 export default function Resources() {
-  const { colors, t } = useSettings();
+  const { colors, t, language } = useSettings();
   const { session, profile } = useAuth();
   const { isTablet } = useLayout();
   const uid = session?.user.id;
@@ -41,13 +62,15 @@ export default function Resources() {
     return okType && okStage && okRegion;
   });
 
+  const kindFrom = (r: Resource) => t('b_kindFrom', { kind: KIND_LABELS[r.kind] ? t(KIND_LABELS[r.kind]) : r.kind, org: r.org });
+
   const toggleSave = async (r: Resource) => {
     if (!uid) return router.push('/sign-in');
     const saved = q.data?.saved.includes(r.id);
     const res = saved
       ? await supabase.from('saved_resources').delete().eq('resource_id', r.id).eq('user_id', uid)
       : await supabase.from('saved_resources').insert({ resource_id: r.id, user_id: uid });
-    if (res.error) showAlert('Not saved', res.error.message);
+    if (res.error) showAlert(t('b_notSaved'), res.error.message);
     q.reload();
   };
 
@@ -73,7 +96,7 @@ export default function Resources() {
           q.error ? null : <Loading />
         ) : !saved.length ? (
           <Txt variant="small" muted>
-            Save a program below to keep it here. When BFI adds a deadline, you get reminders 30, 7 and 1 day before.
+            {t('b_deadlinesEmpty')}
           </Txt>
         ) : (
           saved.map((r) => {
@@ -83,7 +106,7 @@ export default function Resources() {
                 <Txt variant="small" style={{ flex: 1 }}>
                   {r.name}
                 </Txt>
-                <Txt variant="mono">{left === null ? 'No deadline set' : left < 0 ? 'Closed' : `${left} days · ${shortDate(r.deadline!)}`}</Txt>
+                <Txt variant="mono">{left === null ? t('b_noDeadline') : left < 0 ? t('b_closed') : t(left === 1 ? 'b_daysLeftOne' : 'b_daysLeftMany', { n: left, date: shortDate(r.deadline!, language) })}</Txt>
               </Row>
             );
           })
@@ -93,19 +116,19 @@ export default function Resources() {
       <View style={{ gap: Space.sm }}>
         <Txt variant="title">{t('whatFits')}</Txt>
         <Txt variant="small" muted>
-          Farm type
+          {t('b_farmType')}
         </Txt>
         <Row gap={6}>
           {TYPES.map((x) => (
-            <Chip key={x} label={x} selected={type === x} onPress={() => setType(x)} />
+            <Chip key={x} label={t(FILTER_LABELS[x])} selected={type === x} onPress={() => setType(x)} />
           ))}
         </Row>
         <Txt variant="small" muted>
-          Stage
+          {t('b_stage')}
         </Txt>
         <Row gap={6}>
           {STAGES.map((x) => (
-            <Chip key={x} label={x} selected={stage === x} onPress={() => setStage(x)} />
+            <Chip key={x} label={t(FILTER_LABELS[x])} selected={stage === x} onPress={() => setStage(x)} />
           ))}
         </Row>
       </View>
@@ -115,10 +138,10 @@ export default function Resources() {
       {!q.data && !q.error ? <Loading /> : null}
       {q.data && !(q.loading && !fits.length) ? (
         <Txt variant="title" accessibilityLiveRegion="polite">
-          {fits.length} programs fit
+          {t(fits.length === 1 ? 'b_programsFitOne' : 'b_programsFitMany', { n: fits.length })}
         </Txt>
       ) : null}
-      {q.data && !fits.length && !q.loading && !q.error ? <Empty>No programs match. Try “Any”.</Empty> : null}
+      {q.data && !fits.length && !q.loading && !q.error ? <Empty>{t('b_noProgramsMatch')}</Empty> : null}
 
       <Grid>
       {fits.map((r) => {
@@ -128,7 +151,7 @@ export default function Resources() {
           r.is_bfi_program ? (
             <GradientBand key={r.id}>
               <Txt variant="smallBold" color="rgba(255,255,255,0.9)">
-                {r.kind} from {r.org}
+                {kindFrom(r)}
               </Txt>
               <Txt variant="title" color="#ffffff">
                 {r.name}
@@ -142,7 +165,7 @@ export default function Resources() {
           ) : (
             <Card key={r.id}>
               <Txt variant="smallBold" color={colors.forest}>
-                {r.kind} from {r.org}
+                {kindFrom(r)}
               </Txt>
               <Txt variant="title">{r.name}</Txt>
               <Txt muted>{r.summary}</Txt>
@@ -160,7 +183,7 @@ export default function Resources() {
       })}
       </Grid>
       <Txt variant="small" muted>
-        Summaries are in plain language. Each program sets its own rules and deadlines, so check the official site before applying.
+        {t('b_resourcesFooter')}
       </Txt>
     </Screen>
   );

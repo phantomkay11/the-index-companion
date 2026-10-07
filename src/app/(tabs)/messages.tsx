@@ -17,7 +17,8 @@ import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 
 type Tab = 'direct' | 'channels' | 'bfi';
-type ThreadRow = Conversation & { unread: boolean; preview: string };
+type LastMessage = { kind: string; body: string; inquiry: { product: string; amount: string } | null };
+type ThreadRow = Conversation & { unread: boolean; last: LastMessage | null };
 
 export default function Messages() {
   const { t, colors } = useSettings();
@@ -56,7 +57,7 @@ export default function Messages() {
             <View style={styles.placeholder}>
               <Ionicons name="chatbubbles-outline" size={48} color={colors.line} />
               <Txt muted style={{ textAlign: 'center' }}>
-                {tab === 'direct' ? 'Choose a conversation to read it here.' : 'Choose a channel to read it here.'}
+                {tab === 'direct' ? t('b_chooseConversation') : t('b_chooseChannel')}
               </Txt>
             </View>
           )}
@@ -84,7 +85,14 @@ function Threads({
   selectedId?: string | null;
   onSelect?: (id: string) => void;
 }) {
-  const { colors } = useSettings();
+  const { colors, t, language } = useSettings();
+  // Built at render time so the preview follows the current language.
+  const previewOf = (c: ThreadRow) =>
+    !c.last
+      ? t('b_noMessagesYet')
+      : c.last.kind === 'inquiry' && c.last.inquiry
+        ? t('b_inquiryPreview', { product: c.last.inquiry.product, amount: c.last.inquiry.amount })
+        : c.last.body;
   const threads = useQuery(async () => {
     let q = supabase.from('conversations').select('*').eq('kind', kind).order(kind === 'channel' ? 'title' : 'last_message_at', { ascending: kind === 'channel' });
     if (kind === 'direct') {
@@ -108,10 +116,9 @@ function Threads({
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        const last = data as { kind: string; body: string; inquiry: { product: string; amount: string } | null } | null;
-        const preview = !last ? 'No messages yet' : last.kind === 'inquiry' && last.inquiry ? `Inquiry: ${last.inquiry.product}, ${last.inquiry.amount}` : last.body;
+        const last = data as LastMessage | null;
         const seen = readAt.get(c.id);
-        return { ...c, preview, unread: kind === 'direct' && !!last && !!seen && new Date(c.last_message_at) > new Date(seen) };
+        return { ...c, last, unread: kind === 'direct' && !!last && !!seen && new Date(c.last_message_at) > new Date(seen) };
       }),
     );
     return rows;
@@ -120,14 +127,14 @@ function Threads({
   if (threads.error) return <ErrorNote message={threads.error} onRetry={threads.reload} />;
   if (!threads.data) return <Loading />;
   if (!threads.data.length)
-    return <Empty>{kind === 'direct' ? 'No conversations yet. Open a farm and send an inquiry to start one.' : 'No channels yet.'}</Empty>;
+    return <Empty>{kind === 'direct' ? t('b_noConversations') : t('b_noChannels')}</Empty>;
 
   return (
     <View>
       {kind === 'channel' ? (
         <Row style={{ justifyContent: 'space-between', marginBottom: Space.sm }}>
           <Txt variant="small" muted>
-            One channel per BFI region, plus topic groups
+            {t('b_channelsIntro')}
           </Txt>
           <Provenance sample={false} />
         </Row>
@@ -140,7 +147,7 @@ function Threads({
           accessibilityState={{ selected: selectedId === c.id }}
           aria-current={selectedId === c.id ? 'true' : undefined}
           // Starts with the visible title so voice control ("tap Okra Growers") matches.
-          accessibilityLabel={`${c.title ?? 'Conversation'}. ${(kind === 'channel' ? c.subtitle : c.preview) ?? ''}${c.unread ? '. Unread' : ''}`}
+          accessibilityLabel={`${c.title ?? t('b_conversation')}. ${(kind === 'channel' ? c.subtitle : previewOf(c)) ?? ''}${c.unread ? `. ${t('b_unread')}` : ''}`}
           style={[
             styles.row,
             { borderBottomColor: colors.line },
@@ -163,29 +170,29 @@ function Threads({
               {c.unread ? <View style={[styles.dot, { backgroundColor: colors.danger }]} /> : null}
             </Row>
             <Txt variant="small" muted numberOfLines={1}>
-              {kind === 'channel' ? c.subtitle : c.preview}
+              {kind === 'channel' ? c.subtitle : previewOf(c)}
             </Txt>
           </View>
           <Txt variant="mono" muted>
-            {threadTime(c.last_message_at)}
+            {threadTime(c.last_message_at, undefined, language)}
           </Txt>
         </Pressable>
       ))}
       <Txt variant="small" muted style={{ marginTop: Space.md }}>
         {kind === 'channel'
-          ? 'Anyone signed in can read channels. Verified growers and BFI staff can post. Every message can be reported.'
-          : 'Buyers can message only farms that accept messages.'}
+          ? t('b_channelsRules')
+          : t('b_directRules')}
       </Txt>
     </View>
   );
 }
 
 function Broadcasts() {
-  const { colors } = useSettings();
+  const { colors, t, language } = useSettings();
   const list = useQuery(async () => must(await supabase.from('broadcasts').select('*').order('created_at', { ascending: false }).limit(30)) as Broadcast[], [], { cacheKey: 'broadcasts' });
   if (list.error) return <ErrorNote message={list.error} onRetry={list.reload} />;
   if (!list.data) return <Loading />;
-  if (!list.data.length) return <Empty>No announcements from BFI yet.</Empty>;
+  if (!list.data.length) return <Empty>{t('b_noAnnouncements')}</Empty>;
   return (
     <Grid gap={Space.md}>
       {list.data.map((b) => (
@@ -200,13 +207,13 @@ function Broadcasts() {
                 <Row gap={4}>
                   <Ionicons name="shield-checkmark" size={13} color={colors.leaf} />
                   <Txt variant="small" color={colors.leaf}>
-                    Official account
+                    {t('b_officialAccount')}
                   </Txt>
                 </Row>
               </View>
             </Row>
             <Txt variant="mono" muted>
-              {shortDate(b.created_at)}
+              {shortDate(b.created_at, language)}
             </Txt>
           </Row>
           <Txt variant="heading">{b.title}</Txt>
@@ -214,7 +221,7 @@ function Broadcasts() {
           {b.link_url ? (
             <Pressable onPress={() => WebBrowser.openBrowserAsync(b.link_url!)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
               <Txt variant="bodyBold" color={colors.leaf}>
-                {b.link_text ?? 'Open link'}
+                {b.link_text ?? t('b_openLink')}
               </Txt>
             </Pressable>
           ) : null}

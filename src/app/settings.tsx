@@ -81,7 +81,7 @@ export default function Settings() {
         />
         ) : null}
         <Txt variant="small" muted>
-          This works on top of your phone’s own text size setting.
+          {s.t('m_textSizeHint')}
         </Txt>
       </Card>
 
@@ -97,7 +97,7 @@ export default function Settings() {
           ))}
         </Row>
         <Txt variant="small" muted>
-          Messages and listings can be translated into your language with the Translate button.
+          {s.t('m_translateHint')}
         </Txt>
       </View>
 
@@ -108,7 +108,7 @@ export default function Settings() {
       </Txt>
       {session ? (
         <Card>
-          <Txt variant="bodyBold">{profile?.display_name ?? 'Member'}</Txt>
+          <Txt variant="bodyBold">{profile?.display_name ?? s.t('m_member')}</Txt>
           <Txt variant="small" muted>
             {session.user.email}
           </Txt>
@@ -123,7 +123,7 @@ export default function Settings() {
               onPress={async () => {
                 await unregisterPush(session.user.id).catch(() => {});
                 await signOut();
-                showAlert('Signed out');
+                showAlert(s.t('m_signedOut'));
               }}
             />
           </Row>
@@ -134,7 +134,7 @@ export default function Settings() {
 
       {isStaff ? (
         <Card tone="soft">
-          <Txt variant="label">BFI staff</Txt>
+          <Txt variant="label">{s.t('m_bfiStaff')}</Txt>
           <Row>
             <Button small label={s.t('broadcast')} icon="megaphone-outline" onPress={() => router.push('/compose-broadcast')} />
             <Button small kind="ghost" label={s.t('review')} icon="shield-checkmark-outline" onPress={() => router.push('/review')} />
@@ -167,7 +167,7 @@ function NotificationPrefs({ userId }: { userId: string }) {
     const { phone_verified_at: _localOnly, ...serverPatch } = patch;
     const { error } = await supabase.from('contact_prefs').update(serverPatch).eq('user_id', userId);
     if (error) {
-      showAlert('Not saved', error.message);
+      showAlert(t('m_notSaved'), error.message);
       prefs.reload();
     }
   };
@@ -177,7 +177,7 @@ function NotificationPrefs({ userId }: { userId: string }) {
     setBusy(true);
     const result = await registerForPush(userId);
     setBusy(false);
-    if (!result.ok) showAlert('Phone notifications are off', result.reason);
+    if (!result.ok) showAlert(t('m_pushOff'), result.reason);
     prefs.reload();
   };
 
@@ -204,15 +204,15 @@ function NotificationPrefs({ userId }: { userId: string }) {
     setBusy(true);
     const { error } = await supabase.rpc('request_phone_code');
     setBusy(false);
-    if (error) return showAlert('Code not sent', error.message);
+    if (error) return showAlert(t('m_codeNotSent'), error.message);
     setCodeSent(true);
   };
   const confirmCode = async () => {
     setBusy(true);
     const { data, error } = await supabase.rpc('confirm_phone_code', { p_code: code.trim() });
     setBusy(false);
-    if (error) return showAlert('Not confirmed', error.message);
-    if (!data) return showAlert('That code didn’t match', 'Check the text and try again.');
+    if (error) return showAlert(t('m_notConfirmed'), error.message);
+    if (!data) return showAlert(t('m_codeNoMatch'), t('m_checkTextTryAgain'));
     setCode('');
     setCodeSent(false);
     prefs.reload();
@@ -223,15 +223,15 @@ function NotificationPrefs({ userId }: { userId: string }) {
       <Txt variant="label">{t('notificationSettings')}</Txt>
       <ToggleRow
         label={t('pushNotifications')}
-        hint={Platform.OS === 'web' ? 'Available in the iPhone and Android apps.' : busy ? 'Turning on…' : 'Replies, fresh products, reminders and BFI news.'}
+        hint={Platform.OS === 'web' ? t('m_pushWebHint') : busy ? t('m_turningOn') : t('m_pushHint')}
         value={!!p.push_token}
         onChange={togglePush}
       />
-      <ToggleRow label={t('email')} hint="Event reminders, deadlines and BFI announcements." value={p.email_opt_in} onChange={(v) => save({ email_opt_in: v })} />
+      <ToggleRow label={t('email')} hint={t('m_emailHint')} value={p.email_opt_in} onChange={(v) => save({ email_opt_in: v })} />
       <Card>
         <Txt variant="bodyBold">{t('textMessages')}</Txt>
         <Txt variant="small" muted>
-          For members who prefer texts. Message rates may apply. Reply STOP to any text to opt out.
+          {t('m_smsIntro')}
         </Txt>
         <Row>
           <View style={{ flex: 1, minWidth: 180 }}>
@@ -249,7 +249,7 @@ function NotificationPrefs({ userId }: { userId: string }) {
         ) : p.phone && phoneValue === p.phone ? (
           <View style={{ gap: Space.sm }}>
             <Txt variant="small" muted>
-              {t('confirmNumber')}. {t('codeWillBeSent')} {p.phone}.
+              {t('m_confirmNumberCode', { phone: p.phone })}
             </Txt>
             {!codeSent ? (
               <Button small label={t('sendCode')} icon="chatbubble-ellipses-outline" busy={busy} onPress={sendCode} style={{ alignSelf: 'flex-start' }} />
@@ -275,7 +275,7 @@ function NotificationPrefs({ userId }: { userId: string }) {
           label={t('sendMeTexts')}
           hint={p.phone_verified_at ? undefined : t('textsStartHint')}
           value={p.sms_opt_in}
-          onChange={(v) => (v && !p.phone ? showAlert('Add your number first') : save({ sms_opt_in: v }))}
+          onChange={(v) => (v && !p.phone ? showAlert(t('m_addNumberFirst')) : save({ sms_opt_in: v }))}
         />
       </Card>
       <Txt variant="smallBold" style={{ marginTop: Space.sm }}>
@@ -287,7 +287,7 @@ function NotificationPrefs({ userId }: { userId: string }) {
       <ToggleRow label={t('notifyDeadlines')} value={p.notify_deadlines} onChange={(v) => save({ notify_deadlines: v })} />
       <ToggleRow label={t('notifyBroadcasts')} value={p.notify_broadcasts} onChange={(v) => save({ notify_broadcasts: v })} />
       <Txt variant="small" muted>
-        Everything also appears in your notifications inbox, whichever channels you choose.
+        {t('m_inboxHint')}
       </Txt>
     </View>
   );

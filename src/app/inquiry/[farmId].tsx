@@ -70,7 +70,7 @@ export default function Inquiry() {
       p_note: note.trim() || null,
     });
     setBusy(false);
-    if (error) return showAlert('Inquiry not sent', error.message);
+    if (error) return showAlert(t('m_inquiryNotSent'), error.message);
     router.dismiss();
     router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
@@ -78,7 +78,7 @@ export default function Inquiry() {
   return (
     <Screen>
       <View style={{ gap: 4 }}>
-        <Txt variant="label">To {f.name}</Txt>
+        <Txt variant="label">{t('m_toFarm', { name: f.name })}</Txt>
         <Txt muted>{t('inquiryIntro')}</Txt>
       </View>
 
@@ -89,17 +89,17 @@ export default function Inquiry() {
             <Chip key={p} label={p} selected={product === p} onPress={() => setProduct(p)} />
           ))}
         </Row>
-        {!products.length ? <Field label="What are you looking for?" value={product} onChangeText={setProduct} maxLength={80} /> : null}
+        {!products.length ? <Field label={t('m_lookingFor')} value={product} onChangeText={setProduct} maxLength={80} /> : null}
       </View>
 
       <Field label={t('amount')} value={amount} onChangeText={setAmount} placeholder={t('amountPlaceholder')} maxLength={80} />
       <Field
-        label={`${t('when')} (year-month-day)`}
+        label={t('m_whenYmd')}
         value={date}
         onChangeText={setDate}
         placeholder="2026-10-10"
         keyboardType="numbers-and-punctuation"
-        hint={dateProblem === 'far' ? t('dateTooFar') : dateProblem ? `${t('dateHint')} ${today}.` : undefined}
+        hint={dateProblem === 'far' ? t('dateTooFar') : dateProblem ? t('m_dateHintToday', { today }) : undefined}
       />
 
       <View style={{ gap: Space.sm }}>

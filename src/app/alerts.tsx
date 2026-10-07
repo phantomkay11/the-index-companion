@@ -31,7 +31,7 @@ export default function Alerts() {
   if (!session) return <Screen><SignInPrompt /></Screen>;
 
   const add = async () => {
-    if (!here) return showAlert('Choose a place first', 'Use your location or enter a town so we know what “near” means.');
+    if (!here) return showAlert(t('m_choosePlaceFirst'), t('m_choosePlaceHint'));
     setBusy(true);
     const { error } = await supabase.from('saved_alerts').insert({
       user_id: session.user.id,
@@ -42,50 +42,50 @@ export default function Alerts() {
       radius_miles: radius,
     });
     setBusy(false);
-    if (error) return showAlert('Alert not saved', error.message);
+    if (error) return showAlert(t('m_alertNotSaved'), error.message);
     setKeyword('');
     alerts.reload();
   };
 
   const remove = async (a: SavedAlert) => {
     const { error } = await supabase.from('saved_alerts').delete().eq('id', a.id);
-    if (error) showAlert('Not removed', error.message);
+    if (error) showAlert(t('m_notRemoved'), error.message);
     alerts.reload();
   };
 
   return (
     <Screen>
-      <Txt muted>We’ll tell you when a farm near you marks something fresh. Your location is saved only with the alert, and only you can see it.</Txt>
+      <Txt muted>{t('m_alertsIntro')}</Txt>
 
       <Card>
-        <Txt variant="label">New alert</Txt>
-        <Field label="What are you looking for?" value={keyword} onChangeText={setKeyword} placeholder="Honey, okra, pastured eggs…" maxLength={60} />
+        <Txt variant="label">{t('m_newAlert')}</Txt>
+        <Field label={t('m_lookingFor')} value={keyword} onChangeText={setKeyword} placeholder={t('m_alertPlaceholder')} maxLength={60} />
         <View style={{ gap: Space.sm }}>
-          <Txt variant="smallBold">Within</Txt>
+          <Txt variant="smallBold">{t('m_within')}</Txt>
           <Row gap={6}>
             {RADII.map((r) => (
-              <Chip key={r} label={`${r} miles`} selected={radius === r} onPress={() => setRadius(r)} />
+              <Chip key={r} label={t('m_nMiles', { n: r })} selected={radius === r} onPress={() => setRadius(r)} />
             ))}
           </Row>
         </View>
         <PlacePicker compact />
-        <Button label="Save alert" icon="notifications-outline" onPress={add} busy={busy} disabled={keyword.trim().length < 2 || !here} />
+        <Button label={t('m_saveAlert')} icon="notifications-outline" onPress={add} busy={busy} disabled={keyword.trim().length < 2 || !here} />
       </Card>
 
       <Txt variant="label">{t('nearMeAlerts')}</Txt>
       {alerts.error ? <ErrorNote message={alerts.error} onRetry={alerts.reload} /> : null}
       {!alerts.data && !alerts.error ? <Loading /> : null}
-      {alerts.data && !alerts.data.length ? <Empty>No alerts yet.</Empty> : null}
+      {alerts.data && !alerts.data.length ? <Empty>{t('m_noAlerts')}</Empty> : null}
       {alerts.data?.map((a) => (
         <Card key={a.id}>
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Txt variant="heading">{a.keyword}</Txt>
               <Txt variant="small" muted>
-                Within {a.radius_miles} miles of {a.place_label ?? 'your saved location'}
+                {t('m_withinMilesOf', { n: a.radius_miles, place: a.place_label ?? t('m_yourSavedLocation') })}
               </Txt>
             </View>
-            <Button small kind="ghost" label="Remove" onPress={() => remove(a)} />
+            <Button small kind="ghost" label={t('m_remove')} onPress={() => remove(a)} />
           </Row>
         </Card>
       ))}

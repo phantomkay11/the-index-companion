@@ -17,7 +17,7 @@ import { showAlert } from '@/lib/alert';
 export default function SurveyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session, isStaff } = useAuth();
-  const { t } = useSettings();
+  const { t, language } = useSettings();
 
   const survey = useQuery(async () => must(await supabase.from('surveys').select('*').eq('id', id).maybeSingle()) as Survey | null, [id]);
   const mine = useQuery(
@@ -33,23 +33,27 @@ export default function SurveyScreen() {
   if (mine.error) return <Screen><ErrorNote message={mine.error} onRetry={mine.reload} /></Screen>;
   if ((survey.loading && !survey.data) || mine.data === undefined) return <Loading />;
   const s = survey.data;
-  if (!s) return <Screen><Empty>This survey isn’t for you, or it has been removed.</Empty></Screen>;
+  if (!s) return <Screen><Empty>{t('s_surveyMissing')}</Empty></Screen>;
 
   return (
     <Screen>
       <Stack.Screen options={{ title: t('surveys') }} />
       <View style={{ gap: Space.xs }}>
-        <Txt variant="label">Survey from BFI</Txt>
+        <Txt variant="label">{t('s_surveyFromBfi')}</Txt>
         <Txt variant="title">{s.title}</Txt>
         {s.intro ? <Txt>{s.intro}</Txt> : null}
         <Txt variant="mono" muted>
-          {s.questions.length} question{s.questions.length === 1 ? '' : 's'}
-          {s.closes_at ? ` · open until ${shortDate(s.closes_at)}` : ''}
-          {s.status === 'draft' ? ' · draft, only staff can see it' : ''}
+          {[
+            s.questions.length === 1 ? t('s_questionsOne') : t('s_questionsN', { n: s.questions.length }),
+            s.closes_at ? t('s_openUntil', { date: shortDate(s.closes_at, language) }) : null,
+            s.status === 'draft' ? t('s_draftStaffOnly') : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Txt>
       </View>
       {isStaff ? (
-        <Button small kind="ghost" label="See results" icon="stats-chart-outline" style={{ alignSelf: 'flex-start' }}
+        <Button small kind="ghost" label={t('s_seeResults')} icon="stats-chart-outline" style={{ alignSelf: 'flex-start' }}
           onPress={() => router.push({ pathname: '/survey-results/[id]', params: { id: s.id } })} />
       ) : null}
       <Form
@@ -96,19 +100,19 @@ function Form({
     });
 
   const submit = async () => {
-    if (missing) return showAlert('One more', `Please answer: ${missing.prompt}`);
+    if (missing) return showAlert(t('s_oneMore'), t('s_pleaseAnswer', { question: missing.prompt }));
     setBusy(true);
     const { error } = await supabase
       .from('survey_responses')
       .upsert({ survey_id: survey.id, answers, consent_share: consent }, { onConflict: 'survey_id,user_id' });
     setBusy(false);
-    if (error) return showAlert('Not sent', error.message);
+    if (error) return showAlert(t('s_notSent'), error.message);
     onSaved();
   };
 
   const withdraw = async () => {
     const { error } = await supabase.from('survey_responses').delete().eq('survey_id', survey.id).eq('user_id', userId);
-    if (error) return showAlert('Not removed', error.message);
+    if (error) return showAlert(t('s_notRemoved'), error.message);
     onSaved();
   };
 
@@ -116,11 +120,11 @@ function Form({
     <View style={{ gap: Space.lg }}>
       {mine ? (
         <Card tone="leaf">
-          <Txt variant="bodyBold">Thank you. Your answers are in.</Txt>
-          <Txt variant="small">{open ? 'You can change them until the survey closes.' : 'This survey has closed.'}</Txt>
+          <Txt variant="bodyBold">{t('s_thanksAnswers')}</Txt>
+          <Txt variant="small">{open ? t('s_canChangeUntilClose') : t('s_surveyClosed')}</Txt>
         </Card>
       ) : !open ? (
-        <Empty>This survey has closed.</Empty>
+        <Empty>{t('s_surveyClosed')}</Empty>
       ) : null}
 
       {survey.questions.map((q, i) => (
@@ -128,13 +132,12 @@ function Form({
       ))}
 
       <Card>
-        <Txt variant="smallBold">How BFI uses your answers</Txt>
+        <Txt variant="smallBold">{t('s_howBfiUses')}</Txt>
         <Txt variant="small" color={colors.muted}>
-          BFI staff can see your answers with your name, so they can follow up if you ask for help. In reports and when speaking up for
-          growers, BFI shares totals only. Your written answers are never quoted unless you say yes below, and even then without your name.
+          {t('s_howBfiUsesBody')}
         </Txt>
         <ToggleRow
-          label="BFI may quote my written answers without my name"
+          label={t('s_consentQuote')}
           value={consent}
           onChange={setConsent}
         />
@@ -142,8 +145,8 @@ function Form({
 
       {open ? (
         <Row>
-          <Button label={mine ? 'Update my answers' : t('submitAnswers')} icon="send-outline" busy={busy} onPress={submit} />
-          {mine ? <Button kind="ghost" label="Withdraw my answers" onPress={withdraw} /> : null}
+          <Button label={mine ? t('s_updateAnswers') : t('submitAnswers')} icon="send-outline" busy={busy} onPress={submit} />
+          {mine ? <Button kind="ghost" label={t('s_withdrawAnswers')} onPress={withdraw} /> : null}
         </Row>
       ) : null}
     </View>
@@ -163,6 +166,7 @@ function Question({
   onChange: (a: SurveyAnswer | undefined) => void;
   disabled: boolean;
 }) {
+  const { t } = useSettings();
   const prompt = `${n}. ${q.prompt}${q.required ? ' *' : ''}`;
   if (q.type === 'text') {
     return (
@@ -187,7 +191,7 @@ function Question({
             ))}
           </Row>
           <Txt variant="small" muted>
-            1 is poor, 5 is excellent
+            {t('s_scaleHint')}
           </Txt>
         </>
       ) : (
@@ -207,7 +211,7 @@ function Question({
       )}
       {q.type === 'multi' ? (
         <Txt variant="small" muted>
-          Pick any that apply
+          {t('s_pickAnyHint')}
         </Txt>
       ) : null}
     </View>

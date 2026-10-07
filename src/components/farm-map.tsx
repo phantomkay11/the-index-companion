@@ -14,7 +14,7 @@ import { useSettings } from '@/providers/settings';
  * expo-maps needs a development or store build, so Expo Go falls back to the sketch map.
  */
 export function FarmMap(props: MapProps) {
-  const { colors, scheme } = useSettings();
+  const { colors, scheme, t } = useSettings();
   const { farms, here, height = 320 } = props;
   // The blue "you are here" dot needs location permission. A typed town sets `here` without it,
   // and turning the dot on without permission crashes Google Maps on Android.
@@ -37,7 +37,7 @@ export function FarmMap(props: MapProps) {
   const camera = { coordinates: { latitude: center.lat, longitude: center.lon }, zoom };
 
   return (
-    <View style={{ height, borderRadius: Radius.xl, overflow: 'hidden' }} accessibilityLabel={`Map of ${pts.length} farms`}>
+    <View style={{ height, borderRadius: Radius.xl, overflow: 'hidden' }} accessibilityLabel={t(pts.length === 1 ? 'b_mapOfFarmsOne' : 'b_mapOfFarmsMany', { n: pts.length })}>
       {Platform.OS === 'ios' ? (
         <AppleMaps.View
           style={{ flex: 1 }}
@@ -56,7 +56,7 @@ export function FarmMap(props: MapProps) {
           colorScheme={scheme === 'dark' ? GoogleMaps.MapColorScheme.DARK : GoogleMaps.MapColorScheme.LIGHT}
         />
       ) : (
-        <Txt>Maps aren’t available here.</Txt>
+        <Txt>{t('b_mapsUnavailable')}</Txt>
       )}
     </View>
   );

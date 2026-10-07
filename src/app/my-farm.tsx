@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Chip, ErrorNote, Field, Loading, Pill, Row, Screen, SignInPrompt, ToggleRow, Txt, Verified } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
-import { CATEGORIES } from '@/lib/bfi';
+import { CATEGORIES, categoryLabel } from '@/lib/bfi';
 import { extensionOf, randomId, readBytes } from '@/lib/files';
 import { updatedAgo } from '@/lib/format';
 import { photoUrl } from '@/components/farm-card';
@@ -28,7 +28,7 @@ export default function MyFarm() {
 
 /** For a farm the member already owns: what's fresh, harvest mode, messages. */
 function ManageFarm() {
-  const { t } = useSettings();
+  const { t, language } = useSettings();
   const { myFarm, refresh } = useAuth();
   const farm = myFarm!;
   const [newProduct, setNewProduct] = useState('');
@@ -40,7 +40,7 @@ function ManageFarm() {
 
   const toggleProduct = async (p: FarmProduct) => {
     const { error } = await supabase.from('farm_products').update({ in_season: !p.in_season, updated_at: new Date().toISOString() }).eq('id', p.id);
-    if (error) showAlert('Not updated', error.message);
+    if (error) showAlert(t('m_notUpdated'), error.message);
     products.reload();
     refresh();
   };
@@ -49,7 +49,7 @@ function ManageFarm() {
     const name = newProduct.trim();
     if (!name) return;
     const { error } = await supabase.from('farm_products').insert({ farm_id: farm.id, name });
-    if (error) return showAlert('Not added', error.message);
+    if (error) return showAlert(t('m_notAdded'), error.message);
     setNewProduct('');
     products.reload();
     refresh();
@@ -57,7 +57,7 @@ function ManageFarm() {
 
   const setFarm = async (patch: Record<string, unknown>) => {
     const { error } = await supabase.from('farms').update(patch).eq('id', farm.id);
-    if (error) showAlert('Not saved', error.message);
+    if (error) showAlert(t('m_notSaved'), error.message);
     refresh();
   };
 
@@ -67,20 +67,20 @@ function ManageFarm() {
         <Txt variant="label">{t('myFarm')}</Txt>
         <Txt variant="title">{farm.name}</Txt>
         <Row>
-          {farm.status === 'approved' && farm.verified_at ? <Verified /> : <Pill label="Waiting for BFI review" tone="sun" />}
+          {farm.status === 'approved' && farm.verified_at ? <Verified /> : <Pill label={t('m_waitingReview')} tone="sun" />}
           <Txt variant="mono" muted>
-            {updatedAgo(farm.updated_at)}
+            {updatedAgo(farm.updated_at, undefined, language)}
           </Txt>
         </Row>
         {farm.status !== 'approved' ? (
-          <Txt variant="small">BFI reviews every new listing. You can set up your products now; your farm goes live once it’s approved.</Txt>
+          <Txt variant="small">{t('m_reviewsNewListing')}</Txt>
         ) : null}
       </Card>
 
       {farm.status === 'approved' ? <Insights farmId={farm.id} /> : null}
 
       <View style={{ gap: Space.sm }}>
-        <Txt variant="label">What’s fresh this week · tap to turn on or off</Txt>
+        <Txt variant="label">{t('m_freshTapToggle')}</Txt>
         <Row gap={6}>
           {(products.data ?? []).map((p) => (
             <Chip key={p.id} label={p.name} selected={p.in_season} onPress={() => toggleProduct(p)} />
@@ -88,25 +88,25 @@ function ManageFarm() {
         </Row>
         <Row>
           <View style={{ flex: 1, minWidth: 180 }}>
-            <Field label="Add a product" value={newProduct} onChangeText={setNewProduct} placeholder="For example: Turnip greens" onSubmitEditing={addProduct} />
+            <Field label={t('m_addProduct')} value={newProduct} onChangeText={setNewProduct} placeholder={t('m_addProductPlaceholder')} onSubmitEditing={addProduct} />
           </View>
-          <Button small label="Add" onPress={addProduct} disabled={!newProduct.trim()} style={{ alignSelf: 'flex-end' }} />
+          <Button small label={t('m_add')} onPress={addProduct} disabled={!newProduct.trim()} style={{ alignSelf: 'flex-end' }} />
         </Row>
         <Txt variant="small" muted>
-          Followers get a notification when you mark something fresh.
+          {t('m_followersNotified')}
         </Txt>
       </View>
 
       <ToggleRow
         label={t('harvestMode')}
-        hint="Shows buyers you're in harvest and may reply slowly."
+        hint={t('m_harvestModeHint')}
         value={farm.harvest_mode}
         onChange={(v) => setFarm({ harvest_mode: v })}
       />
-      <ToggleRow label="Accept messages from buyers" value={farm.accepts_messages} onChange={(v) => setFarm({ accepts_messages: v })} />
+      <ToggleRow label={t('m_acceptMessages')} value={farm.accepts_messages} onChange={(v) => setFarm({ accepts_messages: v })} />
       <ToggleRow
-        label="I reply by text message"
-        hint="Messages reach you by text when you’ve turned on text messages in Settings. Reply to the text to answer, starting with the code in it (like #K7P). For an inquiry, add YES, PART or NO after the code."
+        label={t('m_replyByText')}
+        hint={t('m_replyByTextHint')}
         value={farm.replies_by_sms}
         onChange={(v) => setFarm({ replies_by_sms: v })}
       />
@@ -118,7 +118,7 @@ function ManageFarm() {
         onSave={setFarm}
       />
       <FarmPhotos farmId={farm.id} />
-      <Button kind="ghost" label="View my public profile" onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })} />
+      <Button kind="ghost" label={t('m_viewPublicProfile')} onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })} />
     </Screen>
   );
 }
@@ -161,16 +161,15 @@ function OrderLink({
     <Card>
       <Txt variant="heading">{t('orderOnline')}</Txt>
       <Txt variant="small" muted>
-        Have an online store, CSA sign-up or market page? Add it and buyers see an “{t('orderOnline')}” button on your profile.
-        Orders and payment go straight to you.
+        {t('m_orderLinkIntro', { button: t('orderOnline') })}
       </Txt>
-      <Field label="Link" value={url} onChangeText={setUrl} placeholder="https://yourfarm.com/shop" autoCapitalize="none" keyboardType="url" />
+      <Field label={t('m_link')} value={url} onChangeText={setUrl} placeholder="https://yourfarm.com/shop" autoCapitalize="none" keyboardType="url" />
       {!valid ? (
         <Txt variant="small" color={colors.danger}>
-          That doesn’t look like a web address yet.
+          {t('m_notWebAddress')}
         </Txt>
       ) : null}
-      <Field label="Button text (optional)" value={label} onChangeText={setLabel} placeholder="For example: Join our CSA" maxLength={40} />
+      <Field label={t('m_buttonTextOptional')} value={label} onChangeText={setLabel} placeholder={t('m_buttonTextPlaceholder')} maxLength={40} />
       <Button small label={t('save')} onPress={save} busy={busy} disabled={!valid || !changed} />
     </Card>
   );
@@ -178,6 +177,7 @@ function OrderLink({
 
 /** For a member who wants to list a farm. Every new listing is reviewed by BFI. */
 function ListFarm() {
+  const { t } = useSettings();
   const { refresh } = useAuth();
   const regions = useQuery(async () => must(await supabase.from('regions').select('*').order('sort_order')) as Region[]);
   const [name, setName] = useState('');
@@ -212,40 +212,40 @@ function ListFarm() {
       pickup_point: visibility === 'pickup_point' ? pickup.trim() || null : null,
     });
     setBusy(false);
-    if (error) return showAlert('Listing not sent', error.message);
+    if (error) return showAlert(t('m_listingNotSent'), error.message);
     await refresh();
-    showAlert('Sent to BFI', 'BFI will review your listing. You can add your products while you wait.');
+    showAlert(t('m_sentToBfi'), t('m_listingSentBody'));
   };
 
   return (
     <Screen>
-      <Txt muted>Listing on the Index is free. BFI reviews every farm before it goes live and marks it verified.</Txt>
-      <Field label="Farm name" value={name} onChangeText={setName} />
+      <Txt muted>{t('m_listingFreeVerified')}</Txt>
+      <Field label={t('m_farmName')} value={name} onChangeText={setName} />
       <Row>
         <View style={{ flex: 2, minWidth: 160 }}>
-          <Field label="City or town" value={city} onChangeText={setCity} />
+          <Field label={t('m_cityOrTown')} value={city} onChangeText={setCity} />
         </View>
         <View style={{ flex: 1, minWidth: 120 }}>
-          <Field label="State" value={state} onChangeText={setState} placeholder="Louisiana" />
+          <Field label={t('m_state')} value={state} onChangeText={setState} placeholder="Louisiana" />
         </View>
       </Row>
 
       <View style={{ gap: Space.sm }}>
-        <Txt variant="smallBold">BFI region</Txt>
+        <Txt variant="smallBold">{t('m_bfiRegion')}</Txt>
         <Row gap={6}>
           {(regions.data ?? []).map((r) => (
-            <Chip key={r.id} label={r.id === 'intl' ? 'International' : r.name} selected={region === r.id} onPress={() => setRegion(r.id)} />
+            <Chip key={r.id} label={r.id === 'intl' ? t('international') : r.name} selected={region === r.id} onPress={() => setRegion(r.id)} />
           ))}
         </Row>
       </View>
 
       <View style={{ gap: Space.sm }}>
-        <Txt variant="smallBold">What do you grow or raise?</Txt>
+        <Txt variant="smallBold">{t('m_whatGrow')}</Txt>
         <Row gap={6}>
           {CATEGORIES.map((c) => (
             <Chip
               key={c.id}
-              label={c.id}
+              label={categoryLabel(c.id, t)}
               selected={categories.includes(c.id)}
               onPress={() => setCategories((prev) => (prev.includes(c.id) ? prev.filter((x) => x !== c.id) : [...prev, c.id]))}
             />
@@ -253,23 +253,23 @@ function ListFarm() {
         </Row>
       </View>
 
-      <Field label="Your story (optional)" value={story} onChangeText={setStory} multiline placeholder="A few sentences about your farm" />
-      <Field label="How people can buy (one per line)" value={howToBuy} onChangeText={setHowToBuy} multiline placeholder={'Farm stand, Saturdays\nCSA boxes'} />
+      <Field label={t('m_storyOptional')} value={story} onChangeText={setStory} multiline placeholder={t('m_storyPlaceholder')} />
+      <Field label={t('m_howBuyLines')} value={howToBuy} onChangeText={setHowToBuy} multiline placeholder={t('m_howBuyPlaceholder')} />
 
       <View style={{ gap: Space.sm }}>
-        <Txt variant="smallBold">How much location to show</Txt>
+        <Txt variant="smallBold">{t('m_howMuchLocation')}</Txt>
         <Row gap={6}>
-          <Chip label="City only" selected={visibility === 'city'} onPress={() => setVisibility('city')} />
-          <Chip label="A pickup point" selected={visibility === 'pickup_point'} onPress={() => setVisibility('pickup_point')} />
-          <Chip label="Exact address" selected={visibility === 'exact'} onPress={() => setVisibility('exact')} />
+          <Chip label={t('m_cityOnly')} selected={visibility === 'city'} onPress={() => setVisibility('city')} />
+          <Chip label={t('m_aPickupPoint')} selected={visibility === 'pickup_point'} onPress={() => setVisibility('pickup_point')} />
+          <Chip label={t('m_exactAddress')} selected={visibility === 'exact'} onPress={() => setVisibility('exact')} />
         </Row>
-        {visibility === 'pickup_point' ? <Field label="Pickup point" value={pickup} onChangeText={setPickup} placeholder="For example: Saturday market, Main St" /> : null}
+        {visibility === 'pickup_point' ? <Field label={t('m_pickupPoint')} value={pickup} onChangeText={setPickup} placeholder={t('m_pickupPlaceholder')} /> : null}
         <Txt variant="small" muted>
-          Your street address is never shown unless you choose “Exact address”.
+          {t('m_addressNeverShown', { option: t('m_exactAddress') })}
         </Txt>
       </View>
 
-      <Button label="Send to BFI for review" onPress={submit} busy={busy} disabled={!valid} />
+      <Button label={t('m_sendForReview')} onPress={submit} busy={busy} disabled={!valid} />
     </Screen>
   );
 }
@@ -284,9 +284,9 @@ function Insights({ farmId }: { farmId: string }) {
   }, [farmId]);
   if (!q.data) return null;
   const stats: [string, number][] = [
-    ['Profile views', q.data.views_30d],
-    ['Followers', q.data.followers],
-    ['Inquiries', q.data.inquiries_30d],
+    [t('m_profileViews'), q.data.views_30d],
+    [t('m_followers'), q.data.followers],
+    [t('m_inquiries'), q.data.inquiries_30d],
   ];
   return (
     <Card>
@@ -304,7 +304,7 @@ function Insights({ farmId }: { farmId: string }) {
         ))}
       </View>
       {q.data.open_inquiries ? (
-        <Button small label={`Answer ${q.data.open_inquiries} open ${q.data.open_inquiries === 1 ? 'inquiry' : 'inquiries'}`} icon="chatbubbles-outline" onPress={() => router.push('/messages')} />
+        <Button small label={q.data.open_inquiries === 1 ? t('m_answerOpenInquiry') : t('m_answerOpenInquiries', { n: q.data.open_inquiries })} icon="chatbubbles-outline" onPress={() => router.push('/messages')} />
       ) : null}
     </Card>
   );
@@ -325,7 +325,7 @@ function FarmPhotos({ farmId }: { farmId: string }) {
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return showAlert('Photos are off', 'Allow photo access for The Index in your phone settings.');
+    if (!perm.granted) return showAlert(t('m_photosOff'), t('m_allowPhotoAccess'));
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [16, 9], quality: 0.7 });
     if (!res.canceled && res.assets[0]) setPicked(res.assets[0]);
   };
@@ -353,7 +353,7 @@ function FarmPhotos({ farmId }: { farmId: string }) {
       photos.reload();
       refresh();
     } catch (e) {
-      showAlert('Photo not added', e instanceof Error ? e.message : 'Try again.');
+      showAlert(t('m_photoNotAdded'), e instanceof Error ? e.message : t('m_tryAgainDot'));
     } finally {
       setBusy(false);
     }
@@ -362,7 +362,7 @@ function FarmPhotos({ farmId }: { farmId: string }) {
   const remove = async (p: FarmPhoto) => {
     await supabase.storage.from('farm-photos').remove([p.path]);
     const { error } = await supabase.from('farm_photos').delete().eq('id', p.id);
-    if (error) showAlert('Not removed', error.message);
+    if (error) showAlert(t('m_notRemoved'), error.message);
     photos.reload();
     refresh();
   };
@@ -382,25 +382,25 @@ function FarmPhotos({ farmId }: { farmId: string }) {
           <View key={p.id} style={{ gap: 4, width: 150 }}>
             <Image source={{ uri: photoUrl(p.path) }} alt={p.alt_text} accessibilityLabel={p.alt_text} contentFit="cover" style={styles.thumb} />
             <Row gap={4}>
-              {i > 0 ? <Button small kind="ghost" label="Make first" onPress={() => makeFirst(p)} /> : <Txt variant="small" muted>Cover photo</Txt>}
-              <Button small kind="ghost" label="Remove" onPress={() => remove(p)} accessibilityLabel={`Remove photo: ${p.alt_text}`} />
+              {i > 0 ? <Button small kind="ghost" label={t('m_makeFirst')} onPress={() => makeFirst(p)} /> : <Txt variant="small" muted>{t('m_coverPhoto')}</Txt>}
+              <Button small kind="ghost" label={t('m_remove')} onPress={() => remove(p)} accessibilityLabel={t('m_removePhoto', { alt: p.alt_text })} />
             </Row>
           </View>
         ))}
       </Row>
       {picked ? (
         <Card>
-          <Image source={{ uri: picked.uri }} contentFit="cover" style={[styles.thumb, { width: '100%', height: 180 }]} accessibilityLabel="Selected photo" />
+          <Image source={{ uri: picked.uri }} contentFit="cover" style={[styles.thumb, { width: '100%', height: 180 }]} accessibilityLabel={t('m_selectedPhoto')} />
           <Field
-            label="Describe the photo"
-            hint="Read aloud for people who can't see it. For example: Rows of collards at sunrise."
+            label={t('m_describePhoto')}
+            hint={t('m_describePhotoHint')}
             value={alt}
             onChangeText={setAlt}
             maxLength={200}
           />
-          <ToggleRow label="I took this photo or have permission, and BFI may show it in the app" value={consent} onChange={setConsent} />
+          <ToggleRow label={t('m_photoConsent')} value={consent} onChange={setConsent} />
           <Row>
-            <Button label="Add photo" onPress={upload} busy={busy} disabled={alt.trim().length < 3 || !consent} />
+            <Button label={t('m_addPhotoBtn')} onPress={upload} busy={busy} disabled={alt.trim().length < 3 || !consent} />
             <Button kind="ghost" label={t('cancel')} onPress={() => setPicked(null)} />
           </Row>
         </Card>
@@ -409,7 +409,7 @@ function FarmPhotos({ farmId }: { farmId: string }) {
       )}
       {!(photos.data ?? []).length && !picked ? (
         <Txt variant="small" muted>
-          Farms with photos get more visits. Your first photo is the cover on your listing.
+          {t('m_photosGetVisits')}
         </Txt>
       ) : null}
       <View style={{ height: 1, backgroundColor: colors.line, marginVertical: Space.sm }} />

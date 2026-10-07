@@ -6,15 +6,25 @@ import { Button, Chip, Field, Row, Screen, SignInPrompt, Txt } from '@/component
 import { Space } from '@/constants/theme';
 import { parseLocalDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
+import type { StringKey } from '@/lib/i18n';
 import { useAuth } from '@/providers/auth';
+import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
 
-const TYPES = ['Farm day', 'Market', 'Workshop', 'Volunteer', 'Town hall'];
+// The stored event type stays in English; this is only what the member sees.
+const TYPES: { value: string; label: StringKey }[] = [
+  { value: 'Farm day', label: 'm_evFarmDay' },
+  { value: 'Market', label: 'm_evMarket' },
+  { value: 'Workshop', label: 'm_evWorkshop' },
+  { value: 'Volunteer', label: 'm_evVolunteer' },
+  { value: 'Town hall', label: 'm_evTownHall' },
+];
 
 export default function PostEvent() {
+  const { t } = useSettings();
   const { session, myFarm, profile } = useAuth();
   const [title, setTitle] = useState('');
-  const [type, setType] = useState(TYPES[0]);
+  const [type, setType] = useState(TYPES[0].value);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('10:00');
   const [place, setPlace] = useState(myFarm ? `${myFarm.name} · ${myFarm.city}, ${myFarm.state}` : '');
@@ -30,8 +40,8 @@ export default function PostEvent() {
   const startsAt = day && timeOk ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), Number(hm![1]), Number(hm![2])) : null;
   // eslint-disable-next-line react-hooks/purity
   const future = !!startsAt && startsAt.getTime() > Date.now();
-  const dateHint = !date.trim() ? undefined : !day ? 'Use a real date, like 2026-10-24.' : startsAt && !future ? 'Pick a date and time that hasn’t passed yet.' : undefined;
-  const timeHint = time.trim() && !timeOk ? 'Use a 24-hour time, like 10:00 or 14:30.' : undefined;
+  const dateHint = !date.trim() ? undefined : !day ? t('m_useRealDate') : startsAt && !future ? t('m_pickFutureDateTime') : undefined;
+  const timeHint = time.trim() && !timeOk ? t('m_use24h') : undefined;
   const valid = title.trim() && place.trim() && future;
 
   const submit = async () => {
@@ -48,34 +58,34 @@ export default function PostEvent() {
       host_farm_id: myFarm?.id ?? null,
     });
     setBusy(false);
-    if (error) return showAlert('Event not sent', error.message);
-    showAlert('Sent to BFI', 'Your event will appear for everyone once BFI approves it.');
+    if (error) return showAlert(t('m_eventNotSent'), error.message);
+    showAlert(t('m_sentToBfi'), t('m_eventSentBody'));
     router.back();
   };
 
   return (
     <Screen>
-      <Txt muted>BFI or a regional coordinator approves events before they go public.</Txt>
-      <Field label="Event name" value={title} onChangeText={setTitle} placeholder="U-pick sweet potatoes" />
+      <Txt muted>{t('m_eventsApproved')}</Txt>
+      <Field label={t('m_eventName')} value={title} onChangeText={setTitle} placeholder={t('m_eventNamePlaceholder')} />
       <View style={{ gap: Space.sm }}>
-        <Txt variant="smallBold">Type</Txt>
+        <Txt variant="smallBold">{t('m_type')}</Txt>
         <Row gap={6}>
           {TYPES.map((x) => (
-            <Chip key={x} label={x} selected={type === x} onPress={() => setType(x)} />
+            <Chip key={x.value} label={t(x.label)} selected={type === x.value} onPress={() => setType(x.value)} />
           ))}
         </Row>
       </View>
       <Row>
         <View style={{ flex: 2, minWidth: 160 }}>
-          <Field label="Date (year-month-day)" value={date} onChangeText={setDate} placeholder="2026-10-24" keyboardType="numbers-and-punctuation" hint={dateHint} />
+          <Field label={t('m_dateYmd')} value={date} onChangeText={setDate} placeholder="2026-10-24" keyboardType="numbers-and-punctuation" hint={dateHint} />
         </View>
         <View style={{ flex: 1, minWidth: 100 }}>
-          <Field label="Start time" value={time} onChangeText={setTime} placeholder="10:00" keyboardType="numbers-and-punctuation" hint={timeHint} />
+          <Field label={t('m_startTime')} value={time} onChangeText={setTime} placeholder="10:00" keyboardType="numbers-and-punctuation" hint={timeHint} />
         </View>
       </Row>
-      <Field label="Where" value={place} onChangeText={setPlace} />
-      <Field label="Details (optional)" value={description} onChangeText={setDescription} multiline />
-      <Button label="Send for approval" onPress={submit} busy={busy} disabled={!valid} />
+      <Field label={t('m_where')} value={place} onChangeText={setPlace} />
+      <Field label={t('m_detailsOptional')} value={description} onChangeText={setDescription} multiline />
+      <Button label={t('m_sendForApproval')} onPress={submit} busy={busy} disabled={!valid} />
     </Screen>
   );
 }

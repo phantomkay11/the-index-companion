@@ -28,11 +28,11 @@ export function NetworkBanner() {
 
 /** Small note on screens showing a saved copy. */
 export function SavedCopyNote({ at }: { at: string | null }) {
-  const { t } = useSettings();
+  const { t, language } = useSettings();
   if (!at) return null;
   return (
     <Txt variant="mono" muted>
-      {t('savedCopy')} · {shortDate(at)} {timeOfDay(at)}
+      {t('savedCopy')} · {shortDate(at, language)} {timeOfDay(at, language)}
     </Txt>
   );
 }

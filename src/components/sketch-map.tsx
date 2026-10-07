@@ -15,7 +15,7 @@ export type MapProps = { farms: Farm[]; here: Point | null; height?: number };
  * Farms are placed by their public coordinates inside the bounds of what's shown.
  */
 export function SketchMap({ farms, here, height = 280 }: MapProps) {
-  const { colors } = useSettings();
+  const { colors, t } = useSettings();
   const [w, setW] = useState(0);
   const pts = farms.filter((f) => f.lat != null && f.lon != null);
   const all = [...pts.map((f) => ({ lat: f.lat!, lon: f.lon! })), ...(here ? [here] : [])];
@@ -24,7 +24,7 @@ export function SketchMap({ farms, here, height = 280 }: MapProps) {
       <View
         style={[styles.box, { height: 120, borderColor: colors.line, backgroundColor: colors.sunk, alignItems: 'center', justifyContent: 'center' }]}>
         <Txt variant="small" muted>
-          None of these farms share map coordinates yet.
+          {t('b_noCoords')}
         </Txt>
       </View>
     );
@@ -41,7 +41,7 @@ export function SketchMap({ farms, here, height = 280 }: MapProps) {
     <View
       onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)}
       style={[styles.box, { height, borderColor: colors.line, backgroundColor: colors.sunk }]}
-      accessibilityLabel={`Map of ${pts.length} farms`}>
+      accessibilityLabel={t(pts.length === 1 ? 'b_mapOfFarmsOne' : 'b_mapOfFarmsMany', { n: pts.length })}>
       {w > 0 &&
         [0.25, 0.5, 0.75].map((f) => (
           <View key={`h${f}`} style={[styles.grid, { top: height * f, left: 0, right: 0, height: 1, backgroundColor: colors.line }]} />
@@ -53,7 +53,7 @@ export function SketchMap({ farms, here, height = 280 }: MapProps) {
       {w > 0 && here ? (
         <View
           style={[styles.here, { left: x(here.lon) - 9, top: y(here.lat) - 9, backgroundColor: colors.sun, borderColor: colors.surface }]}
-          accessibilityLabel="You are here"
+          accessibilityLabel={t('b_youAreHere')}
         />
       ) : null}
       {w > 0 &&

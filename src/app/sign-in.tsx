@@ -5,10 +5,12 @@ import { useState } from 'react';
 import { Button, Field, Screen, Txt } from '@/components/ui';
 import { isConfigured, supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
+import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
 
 /** Email one-time code sign-in: no passwords to remember or reset. */
 export default function SignIn() {
+  const { t } = useSettings();
   const { refresh } = useAuth();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
@@ -23,7 +25,7 @@ export default function SignIn() {
       options: { shouldCreateUser: true, data: name.trim() ? { display_name: name.trim() } : undefined },
     });
     setBusy(false);
-    if (error) return showAlert('Code not sent', error.message);
+    if (error) return showAlert(t('m_codeNotSent'), error.message);
     setSent(true);
   };
 
@@ -31,7 +33,7 @@ export default function SignIn() {
     setBusy(true);
     const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
     setBusy(false);
-    if (error) return showAlert('That code did not work', 'Check the code in your email, or send a new one.');
+    if (error) return showAlert(t('m_codeDidNotWork'), t('m_checkEmailCode'));
     await refresh();
     router.back();
   };
@@ -39,19 +41,19 @@ export default function SignIn() {
   if (!isConfigured) {
     return (
       <Screen>
-        <Txt>This build isn’t connected to a database yet. See the README to add the Supabase settings.</Txt>
+        <Txt>{t('m_notConfigured')}</Txt>
       </Screen>
     );
   }
 
   return (
     <Screen>
-      <Txt muted>We’ll email you a 6-digit code. No password needed.</Txt>
+      <Txt muted>{t('m_emailCodeIntro')}</Txt>
       {!sent ? (
         <>
-          <Field label="Your name" value={name} onChangeText={setName} autoComplete="name" placeholder="How you'd like to appear to others" />
+          <Field label={t('m_yourName')} value={name} onChangeText={setName} autoComplete="name" placeholder={t('m_yourNamePlaceholder')} />
           <Field
-            label="Email"
+            label={t('email')}
             value={email}
             onChangeText={setEmail}
             autoCapitalize="none"
@@ -59,13 +61,13 @@ export default function SignIn() {
             keyboardType="email-address"
             placeholder="you@example.com"
           />
-          <Button label="Email me a code" onPress={sendCode} busy={busy} disabled={!/^\S+@\S+\.\S+$/.test(email.trim())} />
+          <Button label={t('m_emailMeCode')} onPress={sendCode} busy={busy} disabled={!/^\S+@\S+\.\S+$/.test(email.trim())} />
         </>
       ) : (
         <>
-          <Txt>Enter the code we sent to {email.trim()}.</Txt>
+          <Txt>{t('m_enterCodeSentTo', { email: email.trim() })}</Txt>
           <Field
-            label="6-digit code"
+            label={t('m_sixDigitCode')}
             value={code}
             onChangeText={setCode}
             keyboardType="number-pad"
@@ -73,12 +75,12 @@ export default function SignIn() {
             textContentType="oneTimeCode"
             maxLength={6}
           />
-          <Button label="Sign in" onPress={verify} busy={busy} disabled={code.trim().length < 6} />
-          <Button kind="ghost" label="Use a different email" onPress={() => setSent(false)} />
+          <Button label={t('signIn')} onPress={verify} busy={busy} disabled={code.trim().length < 6} />
+          <Button kind="ghost" label={t('m_differentEmail')} onPress={() => setSent(false)} />
         </>
       )}
       <Txt variant="small" muted>
-        By signing in you agree that BFI may contact you about your account. Your email is never shown to other members.
+        {t('m_signInConsent')}
       </Txt>
     </Screen>
   );

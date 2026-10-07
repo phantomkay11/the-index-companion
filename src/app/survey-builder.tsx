@@ -14,6 +14,7 @@ import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
 import { StaffOnly } from '@/components/staff-only';
 
+// Starter questions are saved and sent to members as written, so they stay the same whatever language staff use.
 const STARTER: SurveyQuestion[] = [
   { id: 'q1', type: 'scale', prompt: 'How was this growing season for you?', required: true },
   { id: 'q2', type: 'multi', prompt: 'What would help your farm most next year?', options: ['Land access', 'Equipment', 'Cold storage', 'Buyers', 'Funding and grants', 'Training'] },
@@ -25,7 +26,7 @@ const WEEKS = [1, 2, 4];
 /** BFI staff write a survey, pick who gets it, and save it as a draft or open it right away. */
 export default function SurveyBuilder() {
   const { isStaff } = useAuth();
-  const { colors } = useSettings();
+  const { t, colors } = useSettings();
   const regions = useRegions();
   const [title, setTitle] = useState('');
   const [intro, setIntro] = useState('');
@@ -34,7 +35,7 @@ export default function SurveyBuilder() {
   const [questions, setQuestions] = useState<SurveyQuestion[]>(STARTER);
   const [busy, setBusy] = useState<'draft' | 'open' | null>(null);
 
-  if (!isStaff) return <StaffOnly>Only BFI staff can write surveys.</StaffOnly>;
+  if (!isStaff) return <StaffOnly>{t('s_builderStaffOnly')}</StaffOnly>;
 
   const update = (id: string, patch: Partial<SurveyQuestion>) => setQuestions((qs) => qs.map((q) => (q.id === id ? { ...q, ...patch } : q)));
   const move = (i: number, d: -1 | 1) =>
@@ -45,11 +46,11 @@ export default function SurveyBuilder() {
     });
 
   const problems = [
-    title.trim().length < 3 && 'Add a title.',
-    !questions.length && 'Add at least one question.',
-    questions.some((q) => !q.prompt.trim()) && 'Every question needs wording.',
+    title.trim().length < 3 && t('s_needTitle'),
+    !questions.length && t('s_needQuestion'),
+    questions.some((q) => !q.prompt.trim()) && t('s_needWording'),
     questions.some((q) => (q.type === 'single' || q.type === 'multi') && (q.options ?? []).filter((o) => o.trim()).length < 2) &&
-      'Pick-one and pick-any questions need at least two choices.',
+      t('s_needChoices'),
   ].filter(Boolean) as string[];
 
   const save = async (status: 'draft' | 'open') => {
@@ -72,57 +73,55 @@ export default function SurveyBuilder() {
       .select('id')
       .single();
     setBusy(null);
-    if (error) return showAlert('Not saved', error.message);
+    if (error) return showAlert(t('s_notSaved'), error.message);
     router.replace({ pathname: '/survey/[id]', params: { id: data.id } });
   };
 
   return (
     <Screen>
-      <Txt muted>
-        Members get a phone notification and email when the survey opens. Keep it short: five questions or fewer gets the most answers.
-      </Txt>
-      <Field label="Title" value={title} onChangeText={setTitle} maxLength={120} placeholder="2026 growing season check-in" />
-      <Field label="Why you’re asking (shown at the top)" value={intro} onChangeText={setIntro} multiline maxLength={600}
-        placeholder="Your answers help BFI make the case for cold storage funding in the next farm bill." />
+      <Txt muted>{t('s_builderIntro')}</Txt>
+      <Field label={t('s_title')} value={title} onChangeText={setTitle} maxLength={120} placeholder={t('s_surveyTitlePlaceholder')} />
+      <Field label={t('s_whyAsking')} value={intro} onChangeText={setIntro} multiline maxLength={600}
+        placeholder={t('s_whyAskingPlaceholder')} />
       <AudiencePicker value={audience} onChange={setAudience} />
       <View style={{ gap: Space.sm }}>
-        <Txt variant="smallBold">Open for</Txt>
+        <Txt variant="smallBold">{t('s_openFor')}</Txt>
         <Row gap={6}>
           {WEEKS.map((w) => (
-            <Chip key={w} label={`${w} week${w > 1 ? 's' : ''}`} selected={weeks === w} onPress={() => setWeeks(w)} />
+            <Chip key={w} label={w === 1 ? t('s_weekOne') : t('s_weeksN', { n: w })} selected={weeks === w} onPress={() => setWeeks(w)} />
           ))}
         </Row>
       </View>
 
-      <Txt variant="heading">Questions</Txt>
+      <Txt variant="heading">{t('s_questions')}</Txt>
       {questions.map((q, i) => (
         <Card key={q.id}>
           <Row style={{ justifyContent: 'space-between' }}>
-            <Txt variant="label">Question {i + 1}</Txt>
+            <Txt variant="label">{t('s_questionN', { n: i + 1 })}</Txt>
             <Row gap={4} style={{ flexShrink: 1, maxWidth: '100%' }}>
-              <Button small kind="ghost" label="Up" icon="arrow-up" accessibilityLabel={`Move question ${i + 1} up`} disabled={i === 0} onPress={() => move(i, -1)} />
-              <Button small kind="ghost" label="Down" icon="arrow-down" accessibilityLabel={`Move question ${i + 1} down`} disabled={i === questions.length - 1} onPress={() => move(i, 1)} />
-              <Button small kind="ghost" label="Remove" icon="trash-outline" accessibilityLabel={`Remove question ${i + 1}`} onPress={() => setQuestions((qs) => qs.filter((x) => x.id !== q.id))} />
+              <Button small kind="ghost" label={t('s_up')} icon="arrow-up" accessibilityLabel={t('s_moveUpA11y', { n: i + 1 })} disabled={i === 0} onPress={() => move(i, -1)} />
+              <Button small kind="ghost" label={t('s_down')} icon="arrow-down" accessibilityLabel={t('s_moveDownA11y', { n: i + 1 })} disabled={i === questions.length - 1} onPress={() => move(i, 1)} />
+              <Button small kind="ghost" label={t('s_remove')} icon="trash-outline" accessibilityLabel={t('s_removeA11y', { n: i + 1 })} onPress={() => setQuestions((qs) => qs.filter((x) => x.id !== q.id))} />
             </Row>
           </Row>
-          <Field label="Question" value={q.prompt} onChangeText={(v) => update(q.id, { prompt: v })} maxLength={240} />
+          <Field label={t('s_question')} value={q.prompt} onChangeText={(v) => update(q.id, { prompt: v })} maxLength={240} />
           <Row gap={6}>
             {QUESTION_TYPES.map((qt) => (
-              <Chip key={qt.id} label={qt.label} selected={q.type === qt.id} onPress={() => update(q.id, { type: qt.id, options: q.options ?? ['', ''] })} />
+              <Chip key={qt.id} label={t(qt.labelKey)} selected={q.type === qt.id} onPress={() => update(q.id, { type: qt.id, options: q.options ?? ['', ''] })} />
             ))}
           </Row>
           {q.type === 'single' || q.type === 'multi' ? (
             <Field
-              label="Choices, one per line"
+              label={t('s_choicesPerLine')}
               value={(q.options ?? []).join('\n')}
               onChangeText={(v) => update(q.id, { options: v.split('\n') })}
               multiline
             />
           ) : null}
-          <ToggleRow label="Required" value={!!q.required} onChange={(v) => update(q.id, { required: v })} />
+          <ToggleRow label={t('s_required')} value={!!q.required} onChange={(v) => update(q.id, { required: v })} />
         </Card>
       ))}
-      <Button kind="ghost" label="Add a question" icon="add-circle-outline" style={{ alignSelf: 'flex-start' }}
+      <Button kind="ghost" label={t('s_addQuestion')} icon="add-circle-outline" style={{ alignSelf: 'flex-start' }}
         onPress={() => setQuestions((qs) => [...qs, { id: `q${randomId().slice(0, 6)}`, type: 'single', prompt: '', options: ['', ''] }])} />
 
       {problems.length ? (
@@ -132,12 +131,14 @@ export default function SurveyBuilder() {
       ) : null}
       <Card tone="soft">
         <Txt variant="small">
-          Goes to {audienceLabel(audience, regions.data).toLowerCase()} for {weeks} week{weeks > 1 ? 's' : ''}. Answers stay private to BFI staff;
-          written answers are only quoted when the member agrees.
+          {t('s_goesTo', {
+            audience: audienceLabel(audience, regions.data).toLowerCase(),
+            duration: weeks === 1 ? t('s_weekOne') : t('s_weeksN', { n: weeks }),
+          })}
         </Txt>
         <Row>
-          <Button label="Open survey now" icon="send-outline" busy={busy === 'open'} disabled={!!problems.length} onPress={() => save('open')} />
-          <Button kind="ghost" label="Save as draft" busy={busy === 'draft'} disabled={!!problems.length} onPress={() => save('draft')} />
+          <Button label={t('s_openSurveyNow')} icon="send-outline" busy={busy === 'open'} disabled={!!problems.length} onPress={() => save('open')} />
+          <Button kind="ghost" label={t('s_saveDraft')} busy={busy === 'draft'} disabled={!!problems.length} onPress={() => save('draft')} />
         </Row>
       </Card>
     </Screen>

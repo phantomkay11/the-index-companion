@@ -48,7 +48,7 @@ export function BfiAsks() {
         <Pressable
           key={x.id}
           accessibilityRole="button"
-          accessibilityLabel={`${t('checkIn')}: ${x.title}. Tap to answer.`}
+          accessibilityLabel={`${t('checkIn')}: ${x.title}. ${t('b_tapToAnswer')}`}
           onPress={() => router.push({ pathname: '/checkin/[id]', params: { id: x.id } })}>
           <Card tone="sun">
             <Row>
@@ -68,7 +68,7 @@ export function BfiAsks() {
         <Pressable
           key={x.id}
           accessibilityRole="button"
-          accessibilityLabel={`${t('surveys')}: ${x.title}. ${x.questions.length} questions.`}
+          accessibilityLabel={`${t('surveys')}: ${x.title}. ${t(x.questions.length === 1 ? 'b_questionsOne' : 'b_questionsMany', { n: x.questions.length })}`}
           onPress={() => router.push({ pathname: '/survey/[id]', params: { id: x.id } })}>
           <Card tone="soft">
             <Row>
@@ -76,7 +76,8 @@ export function BfiAsks() {
               <View style={{ flex: 1 }}>
                 <Txt variant="smallBold">{x.title}</Txt>
                 <Txt variant="small" muted>
-                  {x.questions.length} quick questions from BFI{s.length > 1 ? ` · ${s.length - 1} more waiting` : ''}
+                  {t(x.questions.length === 1 ? 'b_quickQuestionsOne' : 'b_quickQuestionsMany', { n: x.questions.length })}
+                  {s.length > 1 ? ` · ${t(s.length - 1 === 1 ? 'b_moreWaitingOne' : 'b_moreWaitingMany', { n: s.length - 1 })}` : ''}
                 </Txt>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.muted} />

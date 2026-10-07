@@ -10,7 +10,7 @@ const cache = new Map<string, string>();
 
 /** Translate text into the member's language on request, via the translate function. */
 export function useTranslation(text: string) {
-  const { language } = useSettings();
+  const { language, t } = useSettings();
   const key = `${language}:${text}`;
   const [translated, setTranslated] = useState<string | null>(cache.get(key) ?? null);
   const [showing, setShowing] = useState(false);
@@ -46,7 +46,7 @@ export function useTranslation(text: string) {
     }
     setBusy(false);
     if (err || !data?.translation) {
-      setError('Translation isn’t available right now.');
+      setError(t('m_translationUnavailable'));
       return;
     }
     cache.set(key, data.translation);

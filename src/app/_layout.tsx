@@ -15,6 +15,7 @@ import { Dimensions, Platform, Pressable, Text, useColorScheme, View } from 'rea
 
 import { Icon } from '@/components/icon';
 import { Fonts } from '@/constants/theme';
+import { tr } from '@/lib/i18n';
 import { AuthProvider } from '@/providers/auth';
 import { NotificationsProvider } from '@/providers/notifications';
 import { SettingsProvider, useSettings } from '@/providers/settings';
@@ -33,14 +34,14 @@ export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
   return (
     <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16, backgroundColor: dark ? '#0b1310' : '#ffffff' }}>
       <Text accessibilityRole="header" style={{ fontSize: 22, fontWeight: '700', color: ink, textAlign: 'center' }}>
-        Something went wrong on this screen
+        {tr('m_errorTitle')}
       </Text>
-      <Text style={{ fontSize: 16, color: dark ? '#9db0a4' : '#55665c', textAlign: 'center' }}>Try again, or go back to Discover.</Text>
+      <Text style={{ fontSize: 16, color: dark ? '#9db0a4' : '#55665c', textAlign: 'center' }}>{tr('m_errorHint')}</Text>
       <Pressable accessibilityRole="button" onPress={retry} style={{ minHeight: 48, paddingHorizontal: 24, borderRadius: 999, backgroundColor: '#007640', justifyContent: 'center' }}>
-        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Try again</Text>
+        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>{tr('tryAgain')}</Text>
       </Pressable>
       <Pressable accessibilityRole="link" onPress={() => router.replace('/')} style={{ minHeight: 44, justifyContent: 'center' }}>
-        <Text style={{ color: dark ? '#4fc78c' : '#007640', fontSize: 16, fontWeight: '700' }}>Go to Discover</Text>
+        <Text style={{ color: dark ? '#4fc78c' : '#007640', fontSize: 16, fontWeight: '700' }}>{tr('goDiscover')}</Text>
       </Pressable>
     </View>
   );
@@ -51,7 +52,7 @@ function HeaderBack({ color, label }: { color: string; label: string }) {
     <Pressable
       onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
       accessibilityRole="button"
-      accessibilityLabel={router.canGoBack() ? 'Back' : `Back to ${label}`}
+      accessibilityLabel={router.canGoBack() ? tr('m_back') : tr('m_backTo', { label })}
       hitSlop={4}
       style={({ pressed }) => ({ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
       <Icon name="chevron-back" size={26} color={color} />

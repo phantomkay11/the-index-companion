@@ -1,10 +1,30 @@
+import { tr, type StringKey } from '@/lib/i18n';
 import type { SurveyAnswer, SurveyQuestion, SurveyResponse } from '@/lib/types';
 
-export const QUESTION_TYPES: { id: SurveyQuestion['type']; label: string }[] = [
-  { id: 'single', label: 'Pick one' },
-  { id: 'multi', label: 'Pick any' },
-  { id: 'scale', label: '1 to 5' },
-  { id: 'text', label: 'Written answer' },
+export type QuestionTypeInfo = {
+  /** Stored in the survey's questions; never translated. */
+  id: SurveyQuestion['type'];
+  /** Translation key: inside components prefer t(qt.labelKey). */
+  labelKey: StringKey;
+  /** The label in the current language (read at call time). */
+  readonly label: string;
+};
+
+function questionType(id: SurveyQuestion['type'], labelKey: StringKey): QuestionTypeInfo {
+  return {
+    id,
+    labelKey,
+    get label() {
+      return tr(labelKey);
+    },
+  };
+}
+
+export const QUESTION_TYPES: QuestionTypeInfo[] = [
+  questionType('single', 's_qtSingle'),
+  questionType('multi', 's_qtMulti'),
+  questionType('scale', 's_qtScale'),
+  questionType('text', 's_qtText'),
 ];
 
 export const SCALE = [1, 2, 3, 4, 5];
@@ -57,7 +77,8 @@ function cell(raw: string) {
 }
 
 /**
- * One row per response, no names or member ids. Written answers from members who did not agree
+ * One row per response, no names or member ids. Column names and the "(not shared)" marker stay in English
+ * on purpose: this is a data file for spreadsheets and BFI's reports, and it should read the same whoever exports it. Written answers from members who did not agree
  * to be quoted are left out.
  */
 export function toCsv(questions: SurveyQuestion[], responses: SurveyResponse[]) {

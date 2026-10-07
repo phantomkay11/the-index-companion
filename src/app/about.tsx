@@ -6,16 +6,17 @@ import { Button, Card, Pill, Provenance, Row, Screen, Txt } from '@/components/u
 import { Photo, Scrim } from '@/components/visual';
 import { sectionImage } from '@/lib/imagery';
 import { Space } from '@/constants/theme';
-import { BFI } from '@/lib/bfi';
+import { BFI, bfiCopy } from '@/lib/bfi';
 import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
 
 export default function About() {
-  const { colors } = useSettings();
+  const { colors, t, language } = useSettings();
+  const bfi = bfiCopy(t, language);
 
-  const copy = async (value: string) => {
+  const copyText = async (value: string) => {
     await Clipboard.setStringAsync(value);
-    showAlert('Copied', value);
+    showAlert(t('m_copied'), value);
   };
 
   const hero = (
@@ -35,20 +36,20 @@ export default function About() {
   return (
     <Screen hero={hero}>
       <Row style={{ justifyContent: 'space-between' }}>
-        <Pill label={BFI.status} tone="leaf" />
+        <Pill label={bfi.status} tone="leaf" />
         <Provenance sample={false} />
       </Row>
 
       <View style={[styles.quote, { borderLeftColor: colors.sun }]}>
         <Txt variant="title">{BFI.quote.text}</Txt>
         <Txt variant="small" muted>
-          {BFI.quote.by} · quoted on BFI’s home page
+          {t('m_quotedOnBfi', { name: BFI.quote.by })}
         </Txt>
       </View>
 
       <View style={{ gap: 6 }}>
-        <Txt variant="title">What BFI works toward</Txt>
-        {BFI.pillars.map((p, i) => (
+        <Txt variant="title">{t('m_bfiWorksToward')}</Txt>
+        {bfi.pillars.map((p, i) => (
           <Txt key={p}>
             {i + 1}. {p}
           </Txt>
@@ -56,8 +57,8 @@ export default function About() {
       </View>
 
       <View style={{ gap: 4 }}>
-        <Txt variant="label">How it started</Txt>
-        {BFI.timeline.map(([when, what]) => (
+        <Txt variant="label">{t('m_howItStarted')}</Txt>
+        {bfi.timeline.map(([when, what]) => (
           <View key={when} style={[styles.timeline, { borderTopColor: colors.line }]}>
             <Txt variant="mono" color={colors.leaf} style={{ width: 80 }}>
               {when}
@@ -70,27 +71,27 @@ export default function About() {
       </View>
 
       <View style={{ gap: 6 }}>
-        <Txt variant="label">Programs</Txt>
+        <Txt variant="label">{t('m_programs')}</Txt>
         <Row gap={6}>
-          {BFI.programs.map((p) => (
+          {bfi.programs.map((p) => (
             <Pill key={p} label={p} />
           ))}
         </Row>
       </View>
 
       <View style={{ gap: 4 }}>
-        <Txt variant="label">Partners</Txt>
+        <Txt variant="label">{t('m_partners')}</Txt>
         <Txt variant="small">{BFI.partners}</Txt>
       </View>
 
       <View style={{ gap: 4 }}>
-        <Txt variant="label">Founded by</Txt>
-        <Txt variant="small">{BFI.founder}</Txt>
+        <Txt variant="label">{t('m_foundedBy')}</Txt>
+        <Txt variant="small">{bfi.founder}</Txt>
       </View>
 
       <Card>
-        <Txt variant="label">Contact</Txt>
-        {BFI.contacts.map((c) => (
+        <Txt variant="label">{t('m_contact')}</Txt>
+        {bfi.contacts.map((c) => (
           <View key={c.label} style={[styles.contact, { borderTopColor: colors.line }]}>
             <View style={{ flex: 1 }}>
               <Txt variant="small" muted>
@@ -100,18 +101,18 @@ export default function About() {
                 {c.value}
               </Txt>
             </View>
-            <Button small kind="ghost" label="Copy" accessibilityLabel={`Copy ${c.label}`} onPress={() => copy(c.value)} />
+            <Button small kind="ghost" label={t('m_copy')} accessibilityLabel={t('m_copyItem', { label: c.label })} onPress={() => copyText(c.value)} />
           </View>
         ))}
       </Card>
 
       <Row>
-        <Button label="Donate" icon="heart-outline" onPress={() => WebBrowser.openBrowserAsync(BFI.donateUrl)} />
-        <Button kind="ghost" label="Shop" onPress={() => WebBrowser.openBrowserAsync(BFI.shopUrl)} />
-        <Button kind="ghost" label="Visit the website" icon="open-outline" onPress={() => WebBrowser.openBrowserAsync(BFI.site)} />
+        <Button label={t('m_donate')} icon="heart-outline" onPress={() => WebBrowser.openBrowserAsync(BFI.donateUrl)} />
+        <Button kind="ghost" label={t('m_shop')} onPress={() => WebBrowser.openBrowserAsync(BFI.shopUrl)} />
+        <Button kind="ghost" label={t('m_visitWebsite')} icon="open-outline" onPress={() => WebBrowser.openBrowserAsync(BFI.site)} />
       </Row>
       <Txt variant="mono" muted>
-        Content from blackfarmersindex.com, checked Oct 4, 2026.
+        {t('m_contentFrom')}
       </Txt>
     </Screen>
   );

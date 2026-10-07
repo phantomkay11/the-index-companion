@@ -119,7 +119,7 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
     setSending(true);
     const { data, error } = await supabase.from('messages').insert({ conversation_id: id, sender_id: session.user.id, body }).select(SELECT).single();
     setSending(false);
-    if (error) return showAlert('Message not sent', error.message);
+    if (error) return showAlert(t('m_messageNotSent'), error.message);
     setDraft('');
     // Show it right away; the live update (if any) replaces it by id.
     if (data) noteArrival((data as Message).id);
@@ -128,7 +128,7 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={embedded ? 0 : 90}>
-      {!embedded ? <Stack.Screen options={{ title: c.title ?? 'Conversation' }} /> : null}
+      {!embedded ? <Stack.Screen options={{ title: c.title ?? t('m_conversation') }} /> : null}
       <FlatList
         ref={listRef}
         data={messages}
@@ -137,14 +137,14 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         ListHeaderComponent={
           <View style={{ gap: Space.sm, marginBottom: Space.sm }}>
-            {embedded ? <Txt variant="title">{c.title ?? 'Conversation'}</Txt> : null}
+            {embedded ? <Txt variant="title">{c.title ?? t('m_conversation')}</Txt> : null}
             {c.subtitle ? <Txt variant="small" muted>{c.subtitle}</Txt> : null}
             {c.farm_id && !ownsThisFarm ? (
-              <Button small kind="ghost" label="View farm profile" icon="storefront-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push({ pathname: '/farm/[id]', params: { id: c.farm_id! } })} />
+              <Button small kind="ghost" label={t('m_viewFarmProfile')} icon="storefront-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push({ pathname: '/farm/[id]', params: { id: c.farm_id! } })} />
             ) : null}
           </View>
         }
-        ListEmptyComponent={<Txt variant="small" muted style={{ textAlign: 'center' }}>No messages yet.</Txt>}
+        ListEmptyComponent={<Txt variant="small" muted style={{ textAlign: 'center' }}>{t('m_noMessages')}</Txt>}
         renderItem={({ item }) => <MessageRow m={item} mine={item.sender_id === session.user.id} canAnswer={ownsThisFarm} isStaff={isStaff} />}
       />
       {canPost.data ? (
@@ -176,7 +176,7 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
             </View>
           ) : canPost.data === undefined ? null : (
             <Txt variant="small" muted style={{ flex: 1 }}>
-              {c.kind === 'channel' ? 'Only verified growers and BFI staff can post in channels.' : 'You can read this conversation but not reply.'}
+              {c.kind === 'channel' ? t('m_channelPostOnly') : t('m_readOnlyConversation')}
             </Txt>
           )}
         </View>
@@ -187,51 +187,51 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
 
 function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean; canAnswer: boolean; isStaff: boolean }) {
   const { colors, t, language } = useSettings();
-  const name = mine ? 'You' : m.sender?.display_name ?? 'Member';
+  const name = mine ? t('m_you') : m.sender?.display_name ?? t('m_member');
   const staff = m.sender?.role === 'coordinator' || m.sender?.role === 'admin';
   const text = m.kind === 'voice' ? m.transcript ?? '' : m.body;
   const tr = useTranslation(text);
 
   const answer = async (status: InquiryStatus) => {
     const reply = {
-      ready: "Yes, it's ready. See you then!",
-      partial: 'I have part of that this week. Want me to hold what I have?',
-      unavailable: "Not this week, sorry. I'll message you when it's back.",
+      ready: t('m_replyReady'),
+      partial: t('m_replyPartial'),
+      unavailable: t('m_replyUnavailable'),
       open: '',
     }[status];
     const { error } = await supabase.rpc('answer_inquiry', { p_message_id: m.id, p_status: status, p_reply: reply });
-    if (error) showAlert('Reply not sent', error.message);
+    if (error) showAlert(t('m_replyNotSent'), error.message);
   };
 
   const report = async () => {
     const { error } = await supabase.from('reports').insert({ target_type: 'message', target_id: m.id, reason: 'Reported from thread' });
-    showAlert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this message.');
+    showAlert(error ? t('m_reportNotSent') : t('m_reportSent'), error ? error.message : t('m_reviewMessage'));
   };
 
   const hide = async () => {
     const { error } = await supabase.from('messages').update({ hidden: true }).eq('id', m.id);
-    if (error) showAlert('Not hidden', error.message);
+    if (error) showAlert(t('m_notHidden'), error.message);
   };
 
   if (m.kind === 'inquiry' && m.inquiry) {
     return (
       <View style={[styles.inquiry, { borderColor: colors.harvest, backgroundColor: colors.sunSoft, alignSelf: mine ? 'flex-end' : 'flex-start' }]}>
-        <Txt variant="label">{mine ? 'Your inquiry' : `Inquiry from ${name}`}</Txt>
-        <InquiryRow label="Product" value={m.inquiry.product} />
-        <InquiryRow label="Amount" value={m.inquiry.amount} />
-        <InquiryRow label="When" value={shortDate(m.inquiry.wanted_on)} />
-        <InquiryRow label="How" value={m.inquiry.how} />
+        <Txt variant="label">{mine ? t('m_yourInquiry') : t('m_inquiryFrom', { name })}</Txt>
+        <InquiryRow label={t('product')} value={m.inquiry.product} />
+        <InquiryRow label={t('amount')} value={m.inquiry.amount} />
+        <InquiryRow label={t('when')} value={shortDate(m.inquiry.wanted_on, language)} />
+        <InquiryRow label={t('how')} value={m.inquiry.how} />
         {m.body ? <Txt variant="small">{m.body}</Txt> : null}
         {m.inquiry_status && m.inquiry_status !== 'open' ? (
           <Txt variant="smallBold" color={colors.leaf}>
-            {{ ready: 'Farmer says: ready', partial: 'Farmer says: partly available', unavailable: 'Farmer says: not this week' }[m.inquiry_status]}
+            {{ ready: t('m_farmerReady'), partial: t('m_farmerPartial'), unavailable: t('m_farmerUnavailable') }[m.inquiry_status]}
           </Txt>
         ) : null}
         {canAnswer && !mine && m.inquiry_status === 'open' ? (
           <Row gap={6}>
-            <Button small label="Yes, it's ready" onPress={() => answer('ready')} />
-            <Button small kind="ghost" label="I have part of it" onPress={() => answer('partial')} />
-            <Button small kind="ghost" label="Not this week" onPress={() => answer('unavailable')} />
+            <Button small label={t('m_answerReady')} onPress={() => answer('ready')} />
+            <Button small kind="ghost" label={t('m_answerPartial')} onPress={() => answer('partial')} />
+            <Button small kind="ghost" label={t('m_answerUnavailable')} onPress={() => answer('unavailable')} />
           </Row>
         ) : null}
       </View>
@@ -253,9 +253,9 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
           <Txt variant="smallBold" color={colors.leaf}>
             {name}
           </Txt>
-          {staff ? <Txt variant="small" color={colors.leaf}>· BFI staff</Txt> : null}
-          {m.pinned ? <Txt variant="small" muted>· pinned</Txt> : null}
-          {m.hidden ? <Txt variant="small" muted>· hidden by a moderator</Txt> : null}
+          {staff ? <Txt variant="small" color={colors.leaf}>· {t('m_bfiStaff')}</Txt> : null}
+          {m.pinned ? <Txt variant="small" muted>· {t('m_pinned')}</Txt> : null}
+          {m.hidden ? <Txt variant="small" muted>· {t('m_hiddenByMod')}</Txt> : null}
         </Row>
       ) : null}
       {m.kind === 'voice' && m.audio_path ? <VoicePlayer path={m.audio_path} tint={fg} /> : null}
@@ -264,10 +264,10 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
           {t('transcript')}
         </Txt>
       ) : null}
-      {text ? <Txt color={fg}>{tr.text}</Txt> : m.kind === 'voice' ? <Txt variant="small" color={fg}>Transcript on its way…</Txt> : null}
+      {text ? <Txt color={fg}>{tr.text}</Txt> : m.kind === 'voice' ? <Txt variant="small" color={fg}>{t('m_transcriptComing')}</Txt> : null}
       <Row gap={14}>
         <Txt variant="mono" color={mine ? colors.onLeaf : colors.muted} style={{ fontSize: 11 }}>
-          {timeOfDay(m.created_at)}
+          {timeOfDay(m.created_at, language)}
           {m.via === 'sms' ? ` · ${t('byText')}` : ''}
         </Txt>
         {text ? (
@@ -286,9 +286,9 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
           </Pressable>
         ) : null}
         {isStaff && !mine && !m.hidden ? (
-          <Pressable onPress={hide} accessibilityRole="button" accessibilityLabel={`Hide message from ${name}`} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Pressable onPress={hide} accessibilityRole="button" accessibilityLabel={t('m_hideMessageFrom', { name })} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
             <Txt variant="small" color={colors.danger} style={{ textDecorationLine: 'underline' }}>
-              Hide
+              {t('m_hide')}
             </Txt>
           </Pressable>
         ) : null}

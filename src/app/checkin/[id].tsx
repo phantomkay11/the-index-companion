@@ -18,7 +18,7 @@ import { showAlert } from '@/lib/alert';
 export default function CheckinScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session, isStaff } = useAuth();
-  const { t, colors } = useSettings();
+  const { t, colors, language } = useSettings();
   const regions = useRegions();
 
   const checkin = useQuery(async () => must(await supabase.from('checkins').select('*').eq('id', id).maybeSingle()) as Checkin | null, [id]);
@@ -34,7 +34,7 @@ export default function CheckinScreen() {
   if (checkin.loading && !checkin.data) return <Loading />;
   if (checkin.error) return <Screen><ErrorNote message={checkin.error} onRetry={checkin.reload} /></Screen>;
   const c = checkin.data;
-  if (!c) return <Screen><Empty>This check-in isn’t for your area, or it has been removed.</Empty></Screen>;
+  if (!c) return <Screen><Empty>{t('s_checkinMissing')}</Empty></Screen>;
   const open = new Date(c.closes_at) > new Date();
 
   return (
@@ -48,7 +48,9 @@ export default function CheckinScreen() {
         <Txt variant="title">{c.title}</Txt>
         {c.message ? <Txt>{c.message}</Txt> : null}
         <Txt variant="mono" muted>
-          From BFI · {shortDate(c.created_at)} · {open ? `open until ${shortDate(c.closes_at)}` : 'closed'}
+          {open
+            ? t('s_checkinMetaOpen', { date: shortDate(c.created_at, language), until: shortDate(c.closes_at, language) })
+            : t('s_checkinMetaClosed', { date: shortDate(c.created_at, language) })}
         </Txt>
       </Card>
 
@@ -91,7 +93,7 @@ function Answer({
   open: boolean;
   onSaved: () => void;
 }) {
-  const { t, colors } = useSettings();
+  const { t, colors, language } = useSettings();
   const [status, setStatus] = useState(initialStatus);
   const [note, setNote] = useState(initialNote);
   const [busy, setBusy] = useState(false);
@@ -102,15 +104,15 @@ function Answer({
       .from('checkin_responses')
       .upsert({ checkin_id: checkin.id, status: next, note: next === 'need_help' ? note.trim() : '', via: 'app' }, { onConflict: 'checkin_id,user_id' });
     setBusy(false);
-    if (error) return showAlert('Not sent', error.message);
+    if (error) return showAlert(t('s_notSent'), error.message);
     onSaved();
   };
 
   if (!open) {
     return mine ? (
-      <Txt>You answered: {mine.status === 'ok' ? t('imSafe') : t('needHelp')}.</Txt>
+      <Txt>{t('s_youAnswered', { answer: mine.status === 'ok' ? t('imSafe') : t('needHelp') })}</Txt>
     ) : (
-      <Empty>This check-in has closed. If you still need help, message BFI.</Empty>
+      <Empty>{t('s_checkinClosedEmpty')}</Empty>
     );
   }
 
@@ -122,8 +124,9 @@ function Answer({
             {mine.status === 'ok' ? t('thanksOk') : t('thanksHelp')}
           </Txt>
           <Txt variant="mono" muted>
-            Sent {shortDate(mine.updated_at)} {timeOfDay(mine.updated_at)}
-            {mine.via === 'sms' ? ` ${t('byText')}` : ''} · you can change it below
+            {t(mine.via === 'sms' ? 's_sentByTextCanChange' : 's_sentCanChange', {
+              when: `${shortDate(mine.updated_at, language)} ${timeOfDay(mine.updated_at, language)}`,
+            })}
           </Txt>
         </Card>
       ) : null}
@@ -145,11 +148,11 @@ function Answer({
             onChangeText={setNote}
             multiline
             maxLength={1000}
-            placeholder="For example: a chainsaw to clear the road, a generator for the cooler, help moving animals"
+            placeholder={t('s_needPlaceholder')}
           />
           <Button label={t('sendToBfi')} icon="send-outline" busy={busy} onPress={() => save('need_help')} />
           <Txt variant="small" color={colors.muted}>
-            BFI staff will see your name, this note and the phone number in your settings so they can call you.
+            {t('s_needPrivacy')}
           </Txt>
         </View>
       ) : null}
@@ -158,7 +161,7 @@ function Answer({
 }
 
 function Report({ checkinId }: { checkinId: string }) {
-  const { colors } = useSettings();
+  const { t, colors, language } = useSettings();
   const report = useQuery(async () => {
     const { data, error } = await supabase.rpc('checkin_report', { p_checkin: checkinId });
     if (error) throw new Error(error.message);
@@ -173,13 +176,13 @@ function Report({ checkinId }: { checkinId: string }) {
   return (
     <View style={{ gap: Space.md }}>
       <Row style={{ justifyContent: 'space-between' }}>
-        <Txt variant="heading">Results (BFI staff only)</Txt>
-        <Button small kind="ghost" label="Refresh" icon="refresh-outline" onPress={report.reload} />
+        <Txt variant="heading">{t('s_checkinResults')}</Txt>
+        <Button small kind="ghost" label={t('s_refresh')} icon="refresh-outline" onPress={report.reload} />
       </Row>
       <Row>
-        <Stat n={r.need_help} label="need help" color={colors.danger} />
-        <Stat n={r.ok} label="are OK" color={colors.leaf} />
-        <Stat n={noAnswer} label="haven’t answered" color={colors.muted} />
+        <Stat n={r.need_help} label={t('s_statNeedHelp')} color={colors.danger} />
+        <Stat n={r.ok} label={t('s_statOk')} color={colors.leaf} />
+        <Stat n={noAnswer} label={t('s_statNoAnswer')} color={colors.muted} />
       </Row>
       {r.needs.length ? (
         r.needs.map((n) => (
@@ -187,25 +190,25 @@ function Report({ checkinId }: { checkinId: string }) {
             <Row style={{ justifyContent: 'space-between' }}>
               <Txt variant="bodyBold">{n.name}</Txt>
               <Txt variant="mono" muted>
-                {shortDate(n.updated_at)} {timeOfDay(n.updated_at)}
-                {n.via === 'sms' ? ' · by text' : ''}
+                {shortDate(n.updated_at, language)} {timeOfDay(n.updated_at, language)}
+                {n.via === 'sms' ? ` · ${t('s_byTextShort')}` : ''}
               </Txt>
             </Row>
-            <Txt>{n.note || 'No details given.'}</Txt>
+            <Txt>{n.note || t('s_noDetails')}</Txt>
             {n.phone ? (
               <Row>
-                <Button small label="Call" icon="call-outline" onPress={() => Linking.openURL(`tel:${n.phone}`)} />
-                <Button small kind="ghost" label="Text" icon="chatbubble-outline" onPress={() => Linking.openURL(`sms:${n.phone}`)} />
+                <Button small label={t('s_call')} icon="call-outline" onPress={() => Linking.openURL(`tel:${n.phone}`)} />
+                <Button small kind="ghost" label={t('s_text')} icon="chatbubble-outline" onPress={() => Linking.openURL(`sms:${n.phone}`)} />
               </Row>
             ) : (
               <Txt variant="small" muted>
-                No phone number on file. Message them in the app.
+                {t('s_noPhone')}
               </Txt>
             )}
           </Card>
         ))
       ) : (
-        <Empty>No one has asked for help yet.</Empty>
+        <Empty>{t('s_noOneNeedsHelp')}</Empty>
       )}
     </View>
   );

@@ -18,11 +18,21 @@ import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
+import type { StringKey } from '@/lib/i18n';
+
+// Event types are stored in English; only the chip text is translated.
+const TYPE_LABELS: Record<string, StringKey> = {
+  'Farm day': 'b_evtFarmDay',
+  Market: 'b_evtMarket',
+  Workshop: 'b_evtWorkshop',
+  Volunteer: 'b_evtVolunteer',
+  'Town hall': 'b_evtTownHall',
+};
 
 type Data = { events: EventRow[]; rsvps: Rsvp[]; shifts: Shift[]; mySignups: string[] };
 
 export default function Events() {
-  const { colors, t } = useSettings();
+  const { colors, t, language } = useSettings();
   const { session } = useAuth();
   const { isTablet } = useLayout();
   const uid = session?.user.id;
@@ -66,13 +76,13 @@ export default function Events() {
     const res = going
       ? await supabase.from('event_rsvps').delete().eq('event_id', e.id).eq('user_id', uid)
       : await supabase.from('event_rsvps').insert({ event_id: e.id, user_id: uid });
-    if (res.error) showAlert('RSVP not saved', res.error.message);
+    if (res.error) showAlert(t('b_rsvpNotSaved'), res.error.message);
     await q.reload();
   });
 
   const setReminder = (r: Rsvp, key: 'remind_push' | 'remind_sms' | 'remind_email') => once(`r:${r.event_id}:${key}`, async () => {
     const { error } = await supabase.from('event_rsvps').update({ [key]: !r[key] }).eq('event_id', r.event_id).eq('user_id', r.user_id);
-    if (error) showAlert('Reminder not saved', error.message);
+    if (error) showAlert(t('b_reminderNotSaved'), error.message);
     await q.reload();
   });
 
@@ -82,7 +92,7 @@ export default function Events() {
     const res = mine
       ? await supabase.from('shift_signups').delete().eq('shift_id', s.id).eq('user_id', uid)
       : await supabase.from('shift_signups').insert({ shift_id: s.id, user_id: uid });
-    if (res.error) showAlert('Sign-up not saved', res.error.message);
+    if (res.error) showAlert(t('b_signupNotSaved'), res.error.message);
     await q.reload();
   });
 
@@ -106,10 +116,10 @@ export default function Events() {
       <SavedCopyNote at={q.cachedAt} />
       {q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : null}
       {!q.data && !q.error ? <Loading /> : null}
-      {q.data && !q.data.events.length ? <Empty>No upcoming events yet.</Empty> : null}
+      {q.data && !q.data.events.length ? <Empty>{t('b_noEvents')}</Empty> : null}
       <Grid gap={Space.xl}>
         {q.data?.events.map((e) => {
-          const { month, day } = monthDay(e.starts_at);
+          const { month, day } = monthDay(e.starts_at, language);
           const rsvp = q.data!.rsvps.find((r) => r.event_id === e.id);
           const shifts = q.data!.shifts.filter((s) => s.event_id === e.id);
           return (
@@ -127,7 +137,7 @@ export default function Events() {
                 <View style={styles.chips}>
                   <GlassChip>
                     <Txt variant="smallBold" color="#0b4a2f" style={{ fontSize: 12.5 }}>
-                      {e.type}
+                      {TYPE_LABELS[e.type] ? t(TYPE_LABELS[e.type]) : e.type}
                     </Txt>
                   </GlassChip>
                   {e.is_sample ? (
@@ -146,15 +156,15 @@ export default function Events() {
                   )}
                 </View>
                 <Txt variant="small" color="rgba(255,255,255,0.95)" style={styles.place}>
-                  {e.place}, {timeOfDay(e.starts_at)}
+                  {e.place}, {timeOfDay(e.starts_at, language)}
                 </Txt>
               </Photo>
               <View style={{ gap: 6, paddingHorizontal: 4 }}>
-                {e.status === 'pending' ? <Pill label="Waiting for BFI approval" tone="sun" /> : null}
+                {e.status === 'pending' ? <Pill label={t('b_waitingApproval')} tone="sun" /> : null}
                 <Txt variant="title">{e.title}</Txt>
                 {e.description ? <Txt muted>{e.description}</Txt> : null}
                 <Txt variant="small" muted>
-                  Hosted by {e.host_name}
+                  {t('b_hostedBy', { name: e.host_name })}
                 </Txt>
                 <Row style={{ marginTop: 4 }}>
                   {e.status === 'approved' ? (
@@ -167,7 +177,7 @@ export default function Events() {
                     />
                   ) : null}
                   {e.ticket_url ? (
-                    <Button small kind="ghost" icon="ticket-outline" label={e.ticket_label ?? 'Tickets'} onPress={() => WebBrowser.openBrowserAsync(e.ticket_url!)} />
+                    <Button small kind="ghost" icon="ticket-outline" label={e.ticket_label ?? t('b_tickets')} onPress={() => WebBrowser.openBrowserAsync(e.ticket_url!)} />
                   ) : null}
                 </Row>
                 {rsvp ? (
@@ -175,9 +185,9 @@ export default function Events() {
                     <Txt variant="small" muted>
                       {t('remindMe')}
                     </Txt>
-                    <Chip label="Push" selected={rsvp.remind_push} onPress={() => setReminder(rsvp, 'remind_push')} />
-                    <Chip label="Text" selected={rsvp.remind_sms} onPress={() => setReminder(rsvp, 'remind_sms')} />
-                    <Chip label="Email" selected={rsvp.remind_email} onPress={() => setReminder(rsvp, 'remind_email')} />
+                    <Chip label={t('b_remindPush')} selected={rsvp.remind_push} onPress={() => setReminder(rsvp, 'remind_push')} />
+                    <Chip label={t('b_remindText')} selected={rsvp.remind_sms} onPress={() => setReminder(rsvp, 'remind_sms')} />
+                    <Chip label={t('email')} selected={rsvp.remind_email} onPress={() => setReminder(rsvp, 'remind_email')} />
                   </Row>
                 ) : null}
                 {shifts.length ? (
@@ -188,7 +198,7 @@ export default function Events() {
                       return (
                         <Row key={s.id} style={{ justifyContent: 'space-between' }}>
                           <Txt variant="small" style={{ flex: 1 }}>
-                            <Txt variant="smallBold">{s.label}</Txt>, {s.open_spots} open
+                            <Txt variant="smallBold">{s.label}</Txt>, {t(s.open_spots === 1 ? 'b_spotsOpenOne' : 'b_spotsOpenMany', { n: s.open_spots })}
                           </Txt>
                           <Button small kind={mine ? 'primary' : 'inverse'} label={mine ? t('signedUp') : t('signUp')} disabled={!mine && s.open_spots <= 0} onPress={() => toggleShift(s)} />
                         </Row>
@@ -202,7 +212,7 @@ export default function Events() {
         })}
       </Grid>
       <Txt variant="small" muted>
-        Farmers post their own events. BFI or a regional coordinator approves them before they go public.
+        {t('b_eventsFooter')}
       </Txt>
     </Screen>
   );

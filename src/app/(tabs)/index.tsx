@@ -12,7 +12,7 @@ import { PlacePicker } from '@/components/place-picker';
 import { Button, Card, Chip, Empty, ErrorNote, Grid, Loading, Pill, Row, Screen, Segmented, Txt } from '@/components/ui';
 import { GradientBand, Photo, Scrim, useLightStatusBar } from '@/components/visual';
 import { Fonts, Radius, Space } from '@/constants/theme';
-import { BFI, CATEGORIES, categoryLabel, regionLabel } from '@/lib/bfi';
+import { bfiCopy, CATEGORIES, categoryLabel, regionLabel } from '@/lib/bfi';
 import { useLayout } from '@/lib/layout';
 import { categoryImage, sectionImage } from '@/lib/imagery';
 import { locate, miles, setHere, useHere } from '@/lib/location';
@@ -25,7 +25,8 @@ import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
 
 export default function Discover() {
-  const { colors, t, textScale, saveData } = useSettings();
+  const { colors, t, textScale, saveData, language } = useSettings();
+  const copy = bfiCopy(t, language);
   const { myFarm, isStaff } = useAuth();
   const here = useHere();
   const [query, setQuery] = useState('');
@@ -85,7 +86,7 @@ export default function Discover() {
     const r = await locate();
     setLocating(false);
     if (r.ok) setHere({ point: r.point, label: r.label });
-    else showAlert('Location unavailable', r.reason);
+    else showAlert(t('b_locationUnavailable'), r.reason);
   };
 
   const hero = (
@@ -151,9 +152,9 @@ export default function Discover() {
               </Txt>
               <Txt variant="title">{myFarm.name}</Txt>
             </View>
-            {myFarm.status !== 'approved' ? <Pill label="Waiting for BFI review" tone="sun" /> : null}
+            {myFarm.status !== 'approved' ? <Pill label={t('b_waitingReview')} tone="sun" /> : null}
           </Row>
-          <Button small label="Update what's fresh" icon="leaf-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/my-farm')} />
+          <Button small label={t('b_updateFresh')} icon="leaf-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/my-farm')} />
         </Card>
       ) : null}
 
@@ -216,10 +217,10 @@ export default function Discover() {
         <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <View style={{ gap: 2 }}>
             <Txt variant="title" accessibilityRole="header" accessibilityLiveRegion="polite">
-              {visible.length} {visible.length === 1 ? 'grower' : 'growers'}
+              {t(visible.length === 1 ? 'b_growerOne' : 'b_growerMany', { n: visible.length })}
             </Txt>
             <Txt variant="small" muted>
-              {here ? `Nearest first, from ${here.label ?? 'your location'}` : category ? categoryLabel(category, t) : 'Verified by BFI, newest first'}
+              {here ? t('b_nearestFrom', { place: here.label ?? t('b_yourLocation') }) : category ? categoryLabel(category, t) : t('b_verifiedNewest')}
             </Txt>
             <SavedCopyNote at={farms.cachedAt} />
           </View>
@@ -265,10 +266,10 @@ export default function Discover() {
 
       <GradientBand>
         <Txt variant="display" color="#ffffff">
-          {BFI.tagline}
+          {copy.tagline}
         </Txt>
         <View style={styles.stats}>
-          {BFI.stats.map((x) => (
+          {copy.stats.map((x) => (
             <View key={x.label} style={styles.stat}>
               <Txt variant="display" color="#ffffff">
                 {x.value}
