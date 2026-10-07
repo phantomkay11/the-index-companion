@@ -2,19 +2,13 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
+import { AudiencePicker, audienceLabel as labelFor, useRegions } from '@/components/audience-picker';
 import { Button, Card, Chip, Empty, Field, Row, Screen, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
-import type { Region } from '@/lib/types';
-import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 
-const AUDIENCES = [
-  { value: 'everyone', label: 'Everyone' },
-  { value: 'growers', label: 'Growers' },
-  { value: 'neighbors', label: 'Neighbors' },
-];
 const CHANNELS = [
   { value: 'push', label: 'Phone notification' },
   { value: 'email', label: 'Email' },
@@ -25,7 +19,7 @@ const CHANNELS = [
 export default function ComposeBroadcast() {
   const { isStaff } = useAuth();
   const { colors } = useSettings();
-  const regions = useQuery(async () => must(await supabase.from('regions').select('*').order('sort_order')) as Region[]);
+  const regions = useRegions();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [audience, setAudience] = useState('everyone');
@@ -39,8 +33,7 @@ export default function ComposeBroadcast() {
 
   const linkOk = !linkUrl.trim() || /^https:\/\/\S+$/.test(linkUrl.trim());
   const valid = title.trim().length >= 3 && body.trim().length >= 3 && linkOk;
-  const audienceLabel =
-    AUDIENCES.find((a) => a.value === audience)?.label ?? regions.data?.find((r) => `region:${r.id}` === audience)?.name ?? audience;
+  const audienceLabel = labelFor(audience, regions.data);
 
   const send = async () => {
     setBusy(true);
@@ -73,19 +66,7 @@ export default function ComposeBroadcast() {
       </Row>
       {!linkOk ? <Txt variant="small" color={colors.danger}>Links must start with https://</Txt> : null}
 
-      <View style={{ gap: Space.sm }}>
-        <Txt variant="smallBold">Who gets it</Txt>
-        <Row gap={6}>
-          {AUDIENCES.map((a) => (
-            <Chip key={a.value} label={a.label} selected={audience === a.value} onPress={() => setAudience(a.value)} />
-          ))}
-        </Row>
-        <Row gap={6}>
-          {(regions.data ?? []).map((r) => (
-            <Chip key={r.id} label={r.id === 'intl' ? 'International' : r.name} selected={audience === `region:${r.id}`} onPress={() => setAudience(`region:${r.id}`)} />
-          ))}
-        </Row>
-      </View>
+      <AudiencePicker value={audience} onChange={setAudience} />
 
       <View style={{ gap: Space.sm }}>
         <Txt variant="smallBold">How it’s sent</Txt>

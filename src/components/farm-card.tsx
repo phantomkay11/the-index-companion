@@ -1,7 +1,7 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { Pill, Provenance, Row, Txt, Verified } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
@@ -13,7 +13,28 @@ import type { Farm, FarmPhoto } from '@/lib/types';
 import { useSettings } from '@/providers/settings';
 
 export function photoUrl(path: string) {
+  // Sample farms may link a credited stock photo directly; everything else lives in the farm-photos bucket.
+  if (/^https:\/\//.test(path)) return path;
   return supabase.storage.from('farm-photos').getPublicUrl(path).data.publicUrl;
+}
+
+/** "Photo: Jane Doe / Unsplash" — shown on any photo that needs a credit. */
+export function PhotoCredit({ photo, onDark }: { photo: FarmPhoto; onDark?: boolean }) {
+  const { colors } = useSettings();
+  if (!photo.credit) return null;
+  const label = `Photo: ${photo.credit}`;
+  return (
+    <View style={[styles.credit, { backgroundColor: onDark ? 'rgba(0,0,0,0.55)' : colors.surface }]}>
+      <Txt
+        variant="mono"
+        style={{ fontSize: 10 }}
+        color={onDark ? '#fff' : colors.muted}
+        onPress={photo.credit_url ? () => Linking.openURL(photo.credit_url!) : undefined}
+        accessibilityRole={photo.credit_url ? 'link' : 'text'}>
+        {label}
+      </Txt>
+    </View>
+  );
 }
 
 export function firstPhoto(farm: Farm): FarmPhoto | undefined {
@@ -43,6 +64,9 @@ export function PhotoSlot({ farm, tall, photo }: { farm: Farm; tall?: boolean; p
             <Provenance sample />
           </View>
         ) : null}
+        <View style={styles.creditSpot}>
+          <PhotoCredit photo={shown} onDark />
+        </View>
       </View>
     );
   }
@@ -120,4 +144,6 @@ const styles = StyleSheet.create({
   photo: { width: '100%', alignItems: 'center', justifyContent: 'center' },
   caption: { position: 'absolute', left: 10, bottom: 8, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   corner: { position: 'absolute', right: 10, top: 8 },
+  creditSpot: { position: 'absolute', left: 8, bottom: 6 },
+  credit: { borderRadius: 4, paddingHorizontal: 6, paddingVertical: 1 },
 });

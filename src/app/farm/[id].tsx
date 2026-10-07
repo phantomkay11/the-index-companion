@@ -5,7 +5,7 @@ import { useEffect, useState, type ComponentProps } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 
-import { PhotoSlot, photoUrl } from '@/components/farm-card';
+import { PhotoCredit, PhotoSlot, photoUrl } from '@/components/farm-card';
 import { SavedCopyNote } from '@/components/network-banner';
 import { TranslateToggle, useTranslation } from '@/components/translate';
 import { Button, Card, ErrorNote, Loading, Pill, Provenance, Row, Screen, Txt, Verified } from '@/components/ui';
@@ -147,14 +147,18 @@ export default function FarmProfile() {
                 .sort((a, b) => a.sort_order - b.sort_order)
                 .slice(1)
                 .map((p) => (
-                  <Image
-                    key={p.id}
-                    source={{ uri: photoUrl(p.path) }}
-                    alt={p.alt_text}
-                    accessibilityLabel={p.alt_text}
-                    contentFit="cover"
-                    style={{ width: 160, height: 110, borderRadius: Radius.md }}
-                  />
+                  <View key={p.id} style={{ width: 160, height: 110, borderRadius: Radius.md, overflow: 'hidden' }}>
+                    <Image
+                      source={{ uri: photoUrl(p.path) }}
+                      alt={p.alt_text}
+                      accessibilityLabel={p.alt_text}
+                      contentFit="cover"
+                      style={{ flex: 1 }}
+                    />
+                    <View style={{ position: 'absolute', left: 4, bottom: 4 }}>
+                      <PhotoCredit photo={p} onDark />
+                    </View>
+                  </View>
                 ))}
             </ScrollView>
           ) : null}
@@ -183,6 +187,25 @@ export default function FarmProfile() {
                 <Pill key={x} label={x} />
               ))}
           </Row>
+
+          {f.order_url ? (
+            <Card>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <View style={{ flex: 1, minWidth: 180, gap: 2 }}>
+                  <Txt variant="smallBold">{f.order_label || t('orderOnline')}</Txt>
+                  <Txt variant="small" muted>
+                    Opens the farm’s own page. Orders and payment go straight to the farm.
+                  </Txt>
+                </View>
+                <Button
+                  label={t('orderOnline')}
+                  icon="cart-outline"
+                  accessibilityLabel={`${f.order_label || t('orderOnline')} with ${f.name}`}
+                  onPress={() => WebBrowser.openBrowserAsync(f.order_url!)}
+                />
+              </Row>
+            </Card>
+          ) : null}
 
           {!isOwner ? (
             <Row>

@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       results.push({ id: d.id, ok: false, skip: true, error: 'sms not configured or not opted in' });
       continue;
     }
-    const text = `${d.notification.title}: ${d.notification.body}`.slice(0, 280) + ' (The Index. Reply STOP to opt out.)';
+    const text = smsText(d.notification);
     try {
       const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
         method: 'POST',
@@ -169,6 +169,17 @@ Deno.serve(async (req) => {
     failed: results.filter((r) => !r.ok && !r.skip).length,
   });
 });
+
+/** Texts about a conversation invite a reply; the sms-line function posts the reply in that thread. */
+function smsText(n: Delivery['notification']) {
+  const hint =
+    n.kind === 'inquiry'
+      ? ' Reply YES, PART or NO to answer.'
+      : n.kind === 'message' || n.kind === 'board'
+        ? ' Reply to this text to answer.'
+        : '';
+  return `${n.title}: ${n.body}`.slice(0, 280) + hint + ' (The Index. Reply STOP to opt out.)';
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });

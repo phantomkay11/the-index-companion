@@ -90,6 +90,12 @@ const en = {
   broadcast: 'Send an announcement',
   impact: 'Impact report',
   close: 'Close',
+  orderOnline: 'Order online',
+  surveys: 'Surveys from BFI',
+  checkIn: 'Storm check-in',
+  imSafe: 'I’m OK',
+  needHelp: 'I need help',
+  submitAnswers: 'Send my answers',
 };
 
 type Strings = typeof en;
@@ -176,6 +182,12 @@ const es: Strings = {
   broadcast: 'Enviar un anuncio',
   impact: 'Informe de impacto',
   close: 'Cerrar',
+  orderOnline: 'Pedir en línea',
+  surveys: 'Encuestas de BFI',
+  checkIn: 'Control por tormenta',
+  imSafe: 'Estoy bien',
+  needHelp: 'Necesito ayuda',
+  submitAnswers: 'Enviar mis respuestas',
 };
 
 const fr: Strings = {
@@ -260,6 +272,12 @@ const fr: Strings = {
   broadcast: 'Envoyer une annonce',
   impact: "Rapport d'impact",
   close: 'Fermer',
+  orderOnline: 'Commander en ligne',
+  surveys: 'Sondages de BFI',
+  checkIn: 'Point après la tempête',
+  imSafe: 'Je vais bien',
+  needHelp: 'J’ai besoin d’aide',
+  submitAnswers: 'Envoyer mes réponses',
 };
 
 // Haitian Creole and Portuguese: drafted for the pilot. Have native speakers in the Index review before launch.
@@ -345,6 +363,12 @@ const ht: Strings = {
   broadcast: 'Voye yon anons',
   impact: 'Rapò enpak',
   close: 'Fèmen',
+  orderOnline: 'Kòmande sou entènèt',
+  surveys: 'Sondaj BFI',
+  checkIn: 'Nouvèl apre tanpèt',
+  imSafe: 'Mwen byen',
+  needHelp: 'Mwen bezwen èd',
+  submitAnswers: 'Voye repons mwen',
 };
 
 const pt: Strings = {
@@ -429,6 +453,12 @@ const pt: Strings = {
   broadcast: 'Enviar um aviso',
   impact: 'Relatório de impacto',
   close: 'Fechar',
+  orderOnline: 'Pedir online',
+  surveys: 'Pesquisas da BFI',
+  checkIn: 'Notícias após a tempestade',
+  imSafe: 'Estou bem',
+  needHelp: 'Preciso de ajuda',
+  submitAnswers: 'Enviar minhas respostas',
 };
 
 export const strings: Record<Lang, Strings> = { en, es, fr, ht, pt };

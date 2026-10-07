@@ -61,7 +61,8 @@
     "test:db": "node supabase/tests/policies.test.mjs",
     "import:directory": "node scripts/import-directory.mjs",
     "check:functions": "for f in supabase/functions/*/index.ts; do npx --yes deno@2 check $f || exit 1; done",
-    "build:setup-sql": "node scripts/build-setup-sql.mjs"
+    "build:setup-sql": "node scripts/build-setup-sql.mjs",
+    "test:functions": "npx --yes deno@2 test supabase/functions"
   },
   "private": true
 }

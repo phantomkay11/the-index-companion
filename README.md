@@ -11,7 +11,7 @@ Built as a gift to Black Farmers Index by Kerry Laster. The intent is for BFI to
 | Area | What works |
 | --- | --- |
 | **Discover** | Browse approved farms by BFI's grower types and its 11 regions plus International. Search by name, town or product. Sort nearest first from your location or a typed town or ZIP. Switch between a list and a map (Apple Maps on iPhone, Google Maps on Android, a plotted map on the web). |
-| **Farm profiles** | What's fresh this week, how to buy, languages, a privacy-safe location, farm photos with descriptions for screen readers, and a Translate button on the farm's story. |
+| **Farm profiles** | What's fresh this week, how to buy, languages, a privacy-safe location, farm photos with descriptions for screen readers and photo credits, an "Order online" button for the farm's own store or CSA sign-up, and a Translate button on the farm's story. |
 | **Trust** | "Verified by BFI" marks, last-updated stamps, "listed since" dates, report buttons on listings, messages and posts, "Sample" labels on demo data, and staff tools to hide messages. |
 | **Messaging** | Structured inquiries that farmers answer in one tap, live direct threads, voice notes with transcripts, Translate and Listen on every message, one channel per BFI region plus topic groups, and an official "From BFI" feed. |
 | **Notifications** | An in-app inbox plus phone notifications, texts and email for new messages, inquiries, fresh products from followed farms, near-me alerts, event reminders, program deadlines, review decisions and BFI announcements. Members choose channels and topics. |
@@ -21,10 +21,12 @@ Built as a gift to Black Farmers Index by Kerry Laster. The intent is for BFI to
 | **Resources** | BFI's own programs first, then public programs, filtered by farm type and stage, with a deadline tracker and reminders. |
 | **Growers** | List a farm (reviewed by BFI), toggle what's fresh, add photos, harvest mode, and a monthly snapshot of profile views, followers and inquiries. |
 | **BFI staff** | A review queue, an announcement composer (by audience and channel), and an impact report for funders that can be shared as CSV. |
+| **Surveys** | BFI writes short surveys (pick one, pick any, 1 to 5, written answers) for everyone, growers, neighbors or one region. Members answer in the app and can change or withdraw answers until it closes. Written answers are only quoted with the member's yes. Staff see totals and download a CSV with no names. |
+| **Storm check-ins** | After a hurricane, flood, fire or freeze, BFI asks a region "Are you OK?" by phone notification and text. Members tap "I'm OK" or "I need help" (or reply SAFE or NEED to the text). Staff see counts and a list of who needs help with a Call button. |
 | **iPad** | Tabs become a sidebar. Messages shows conversations and the open chat side by side. Farms, events, programs, posts and announcements lay out in a grid. In landscape the map sits beside the list, and farm profiles show the photo beside the details. iPads rotate freely; phones stay upright. The same layout applies on wide web browsers. |
 | **Accessibility** | Atkinson Hyperlegible type, text size up to 160% on top of the phone's setting, high contrast, reduce motion, save-data mode, read-aloud, five languages (English, Spanish, French, Haitian Creole, Portuguese), 44-point tap targets and screen-reader labels throughout. |
 | **Offline** | The directory, farm profiles, events, resources, announcements and board are saved on the phone and shown when there's no signal, with an offline banner. |
-| **Text line** | A Supabase function that answers SMS searches ("HONEY LA", "EVENTS") through Twilio, for people without smartphones. |
+| **Text line** | A Supabase function that answers SMS searches ("HONEY LA", "EVENTS") through Twilio, for people without smartphones. It's two-way: members who get a text about a message can reply to it, and farmers can answer an inquiry with YES, PART or NO. |
 
 Content that comes from blackfarmersindex.com (regions, stats, mission, timeline, programs, contacts, the Collard Green Gala) lives in `src/lib/bfi.ts` and `supabase/migrations/20261004000100_bfi_reference_data.sql`. BFI should review it and keep it current. The Haitian Creole and Portuguese text was drafted for the pilot; have native speakers in the Index review it before launch.
 
@@ -89,12 +91,13 @@ The review queue then appears on the Discover screen. See [docs/ADMIN.md](docs/A
 
 ```bash
 npm run typecheck        # TypeScript
-npm run test:db          # runs every migration in an in-memory Postgres and checks 75+ rules
+npm run test:db          # runs every migration in an in-memory Postgres and checks nearly 100 rules
 npm run check:functions  # type-checks the Supabase functions with Deno
+npm run test:functions   # unit tests for the functions (how the text line reads a text)
 npx expo lint
 ```
 
-`test:db` checks things like: new listings can't approve themselves, members can't make themselves staff, private threads and voice notes stay private, only verified growers post in channels, notifications go only to the right people on the channels they allowed, harvest mode holds pushes, reminders send once, photos need consent and a description, and only staff see impact numbers.
+`test:db` checks things like: new listings can't approve themselves, members can't make themselves staff, private threads and voice notes stay private, only verified growers post in channels, notifications go only to the right people on the channels they allowed, harvest mode holds pushes, reminders send once, photos need consent and a description, linked photos need a credit, only staff see impact numbers, text replies land in the right thread and answer inquiries, unknown or opted-out numbers fall back to search, survey answers stay private and lock when a survey closes, and check-ins reach only their region with a staff-only report.
 
 ## How it's put together
 

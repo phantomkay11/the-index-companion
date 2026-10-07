@@ -92,6 +92,7 @@ export default function Settings() {
           <Row>
             <Button small kind="ghost" label={s.t('myFarm')} onPress={() => router.push('/my-farm')} />
             <Button small kind="ghost" label={s.t('nearMeAlerts')} onPress={() => router.push('/alerts')} />
+            <Button small kind="ghost" label={s.t('surveys')} onPress={() => router.push('/surveys')} />
             <Button
               small
               kind="ghost"
@@ -115,6 +116,8 @@ export default function Settings() {
             <Button small label={s.t('broadcast')} icon="megaphone-outline" onPress={() => router.push('/compose-broadcast')} />
             <Button small kind="ghost" label={s.t('review')} icon="shield-checkmark-outline" onPress={() => router.push('/review')} />
             <Button small kind="ghost" label={s.t('impact')} icon="stats-chart-outline" onPress={() => router.push('/impact')} />
+            <Button small kind="ghost" label={s.t('surveys')} icon="clipboard-outline" onPress={() => router.push('/surveys')} />
+            <Button small kind="ghost" label={s.t('checkIn')} icon="thunderstorm-outline" onPress={() => router.push('/checkins')} />
           </Row>
         </Card>
       ) : null}

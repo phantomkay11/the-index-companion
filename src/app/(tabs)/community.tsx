@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 
+import { BfiAsks } from '@/components/bfi-asks';
 import { SavedCopyNote } from '@/components/network-banner';
 import { TranslateToggle, useTranslation } from '@/components/translate';
 import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Pill, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
@@ -52,6 +53,7 @@ export default function Community() {
 
   return (
     <Screen width="wide">
+      <BfiAsks />
       <Button label={t('newPost')} icon="add-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/new-post')} />
       <View style={{ gap: Space.sm }}>
         <Row gap={6}>
