@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Alert, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Chip, Field, Pill, Row, Screen, SignInPrompt, ToggleRow, Txt, Verified } from '@/components/ui';
+import { Button, Card, Chip, ErrorNote, Field, Pill, Row, Screen, SignInPrompt, ToggleRow, Txt, Verified } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { CATEGORIES } from '@/lib/bfi';
 import { extensionOf, randomId, readBytes } from '@/lib/files';
@@ -28,6 +28,7 @@ function ManageFarm() {
   const { myFarm, refresh } = useAuth();
   const farm = myFarm!;
   const [newProduct, setNewProduct] = useState('');
+  const [adding, setAdding] = useState(false);
 
   const products = useQuery(
     async () => must(await supabase.from('farm_products').select('*').eq('farm_id', farm.id).order('name')) as FarmProduct[],
@@ -42,9 +43,12 @@ function ManageFarm() {
   };
 
   const addProduct = async () => {
-    const name = newProduct.trim();
-    if (!name) return;
-    const { error } = await supabase.from('farm_products').insert({ farm_id: farm.id, name });
+    const name = newProduct.trim().replace(/\s+/g, ' ');
+    if (name.length < 2 || adding) return;
+    if ((products.data ?? []).some((p) => p.name.toLowerCase() === name.toLowerCase())) return Alert.alert('Already listed', name);
+    setAdding(true);
+    const { error } = await supabase.from('farm_products').insert({ farm_id: farm.id, name: name.slice(0, 80) });
+    setAdding(false);
     if (error) return Alert.alert('Not added', error.message);
     setNewProduct('');
     products.reload();
@@ -86,7 +90,7 @@ function ManageFarm() {
           <View style={{ flex: 1, minWidth: 180 }}>
             <Field label="Add a product" value={newProduct} onChangeText={setNewProduct} placeholder="For example: Turnip greens" onSubmitEditing={addProduct} />
           </View>
-          <Button small label="Add" onPress={addProduct} disabled={!newProduct.trim()} style={{ alignSelf: 'flex-end' }} />
+          <Button small label="Add" onPress={addProduct} busy={adding} disabled={newProduct.trim().length < 2} style={{ alignSelf: 'flex-end' }} />
         </Row>
         <Txt variant="small" muted>
           Followers get a notification when you mark something fresh.
@@ -205,6 +209,7 @@ function ListFarm() {
 
       <View style={{ gap: Space.sm }}>
         <Txt variant="smallBold">BFI region</Txt>
+        {regions.error ? <ErrorNote message={regions.error} onRetry={regions.reload} /> : null}
         <Row gap={6}>
           {(regions.data ?? []).map((r) => (
             <Chip key={r.id} label={r.id === 'intl' ? 'International' : r.name} selected={region === r.id} onPress={() => setRegion(r.id)} />
@@ -333,9 +338,10 @@ function FarmPhotos({ farmId }: { farmId: string }) {
   };
 
   const remove = async (p: FarmPhoto) => {
-    await supabase.storage.from('farm-photos').remove([p.path]);
+    // Remove the listing row first: if that fails nothing changes, and a leftover file is harmless.
     const { error } = await supabase.from('farm_photos').delete().eq('id', p.id);
-    if (error) Alert.alert('Not removed', error.message);
+    if (error) return Alert.alert('Not removed', error.message);
+    if (!/^https:\/\//.test(p.path)) await supabase.storage.from('farm-photos').remove([p.path]);
     photos.reload();
     refresh();
   };

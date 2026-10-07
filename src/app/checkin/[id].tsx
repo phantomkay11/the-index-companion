@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Alert, View } from 'react-native';
 
 import { audienceLabel, useRegions } from '@/components/audience-picker';
 import { Icon as Ionicons } from '@/components/icon';
@@ -12,6 +12,7 @@ import type { Checkin, CheckinReport, CheckinResponse } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { contact } from '@/lib/links';
 
 /** "Are you OK?" after a storm: members answer in one tap; BFI staff see who needs help. */
 export default function CheckinScreen() {
@@ -194,8 +195,8 @@ function Report({ checkinId }: { checkinId: string }) {
             <Txt>{n.note || 'No details given.'}</Txt>
             {n.phone ? (
               <Row>
-                <Button small label="Call" icon="call-outline" onPress={() => Linking.openURL(`tel:${n.phone}`)} />
-                <Button small kind="ghost" label="Text" icon="chatbubble-outline" onPress={() => Linking.openURL(`sms:${n.phone}`)} />
+                <Button small label="Call" icon="call-outline" onPress={() => contact('tel', n.phone!)} />
+                <Button small kind="ghost" label="Text" icon="chatbubble-outline" onPress={() => contact('sms', n.phone!)} />
               </Row>
             ) : (
               <Txt variant="small" muted>

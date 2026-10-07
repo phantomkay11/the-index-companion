@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable } from 'react-native';
 
 import { audienceLabel, useRegions } from '@/components/audience-picker';
-import { Button, Card, Empty, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, Empty, ErrorNote, Loading, Pill, Row, Screen, Txt, StaffOnly } from '@/components/ui';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { Checkin } from '@/lib/types';
@@ -17,7 +17,7 @@ export default function Checkins() {
   const regions = useRegions();
   const list = useQuery(async () => must(await supabase.from('checkins').select('*').order('created_at', { ascending: false }).limit(50)) as Checkin[]);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can see check-in results.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly message="Only BFI staff can see check-in results." />;
 
   return (
     <Screen>

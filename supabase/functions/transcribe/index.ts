@@ -27,13 +27,14 @@ Deno.serve(async (req) => {
     const { data: msg } = await admin.from('messages').select('id, sender_id, kind, audio_path, transcript').eq('id', message_id).single();
     if (!msg || msg.kind !== 'voice' || !msg.audio_path) return json({ error: 'Not a voice note' }, 404);
     if (msg.sender_id !== uid) return json({ error: 'Only the sender can request a transcript' }, 403);
-    if (msg.transcript) return json({ transcript: msg.transcript });
+    if (msg.transcript !== null) return json({ transcript: msg.transcript }); // an empty transcript is still done
 
     const key = Deno.env.get('TRANSCRIBE_API_KEY');
     if (!key) return json({ error: 'Transcription is not set up yet' }, 501);
 
     const { data: audio, error: dlErr } = await admin.storage.from('voice-notes').download(msg.audio_path);
     if (dlErr || !audio) return json({ error: 'Could not read the recording' }, 500);
+    if (audio.size > 25 * 1024 * 1024) return json({ error: 'This recording is too long to transcribe' }, 413);
 
     const form = new FormData();
     form.append('file', new File([audio], msg.audio_path.split('/').pop() ?? 'note.m4a', { type: audio.type || 'audio/m4a' }));
@@ -47,10 +48,12 @@ Deno.serve(async (req) => {
     const { text } = await res.json();
     const transcript = String(text ?? '').trim();
 
-    await admin.from('messages').update({ transcript }).eq('id', message_id);
+    // Only the first finished transcript is kept if two requests raced.
+    await admin.from('messages').update({ transcript }).eq('id', message_id).is('transcript', null);
     return json({ transcript });
   } catch (e) {
-    return json({ error: String(e) }, 500);
+    console.error(e);
+    return json({ error: 'Transcription failed. Please try again.' }, 500);
   }
 });
 

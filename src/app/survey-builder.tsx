@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
 import { AudiencePicker, audienceLabel, useRegions } from '@/components/audience-picker';
-import { Button, Card, Chip, Empty, Field, Row, Screen, ToggleRow, Txt } from '@/components/ui';
+import { Button, Card, Chip, Field, Row, Screen, ToggleRow, Txt, StaffOnly } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { randomId } from '@/lib/files';
 import { supabase } from '@/lib/supabase';
@@ -32,7 +32,7 @@ export default function SurveyBuilder() {
   const [questions, setQuestions] = useState<SurveyQuestion[]>(STARTER);
   const [busy, setBusy] = useState<'draft' | 'open' | null>(null);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can write surveys.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly message="Only BFI staff can write surveys." />;
 
   const update = (id: string, patch: Partial<SurveyQuestion>) => setQuestions((qs) => qs.map((q) => (q.id === id ? { ...q, ...patch } : q)));
   const move = (i: number, d: -1 | 1) =>
@@ -48,9 +48,14 @@ export default function SurveyBuilder() {
     questions.some((q) => !q.prompt.trim()) && 'Every question needs wording.',
     questions.some((q) => (q.type === 'single' || q.type === 'multi') && (q.options ?? []).filter((o) => o.trim()).length < 2) &&
       'Pick-one and pick-any questions need at least two choices.',
+    questions.some((q) => {
+      const opts = (q.options ?? []).map((o) => o.trim().toLowerCase()).filter(Boolean);
+      return (q.type === 'single' || q.type === 'multi') && new Set(opts).size !== opts.length;
+    }) && 'Each choice in a question needs different wording.',
   ].filter(Boolean) as string[];
 
   const save = async (status: 'draft' | 'open') => {
+    if (busy) return;
     setBusy(status);
     const clean = questions.map((q) => ({
       ...q,
@@ -134,8 +139,8 @@ export default function SurveyBuilder() {
           written answers are only quoted when the member agrees.
         </Txt>
         <Row>
-          <Button label="Open survey now" icon="send-outline" busy={busy === 'open'} disabled={!!problems.length} onPress={() => save('open')} />
-          <Button kind="ghost" label="Save as draft" busy={busy === 'draft'} disabled={!!problems.length} onPress={() => save('draft')} />
+          <Button label="Open survey now" icon="send-outline" busy={busy === 'open'} disabled={!!problems.length || !!busy} onPress={() => save('open')} />
+          <Button kind="ghost" label="Save as draft" busy={busy === 'draft'} disabled={!!problems.length || !!busy} onPress={() => save('draft')} />
         </Row>
       </Card>
     </Screen>

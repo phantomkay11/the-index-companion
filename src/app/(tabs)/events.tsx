@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { useRef } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Icon as Ionicons } from '@/components/icon';
@@ -16,6 +16,7 @@ import type { EventRow, Rsvp, Shift } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { openLink } from '@/lib/links';
 
 type Data = { events: EventRow[]; rsvps: Rsvp[]; shifts: Shift[]; mySignups: string[] };
 
@@ -45,31 +46,46 @@ export default function Events() {
   const requireSignIn = () => {
     router.push('/sign-in');
   };
-
-  const toggleRsvp = async (e: EventRow) => {
-    if (!uid) return requireSignIn();
-    const going = q.data?.rsvps.some((r) => r.event_id === e.id);
-    const res = going
-      ? await supabase.from('event_rsvps').delete().eq('event_id', e.id).eq('user_id', uid)
-      : await supabase.from('event_rsvps').insert({ event_id: e.id, user_id: uid });
-    if (res.error) Alert.alert('RSVP not saved', res.error.message);
-    q.reload();
+  // One request per button at a time, so a double tap can't send two.
+  const inFlight = useRef(new Set<string>());
+  const once = async (key: string, fn: () => Promise<void>) => {
+    if (inFlight.current.has(key)) return;
+    inFlight.current.add(key);
+    try {
+      await fn();
+    } finally {
+      inFlight.current.delete(key);
+    }
   };
 
-  const setReminder = async (r: Rsvp, key: 'remind_push' | 'remind_sms' | 'remind_email') => {
+  const toggleRsvp = (e: EventRow) => {
+    if (!uid) return requireSignIn();
+    return once(`rsvp:${e.id}`, async () => {
+      const going = q.data?.rsvps.some((r) => r.event_id === e.id);
+      const res = going
+        ? await supabase.from('event_rsvps').delete().eq('event_id', e.id).eq('user_id', uid)
+        : await supabase.from('event_rsvps').upsert({ event_id: e.id, user_id: uid }, { onConflict: 'event_id,user_id', ignoreDuplicates: true });
+      if (res.error) Alert.alert('RSVP not saved', res.error.message);
+      await q.reload();
+    });
+  };
+
+  const setReminder = (r: Rsvp, key: 'remind_push' | 'remind_sms' | 'remind_email') => once(`remind:${r.event_id}:${key}`, async () => {
     const { error } = await supabase.from('event_rsvps').update({ [key]: !r[key] }).eq('event_id', r.event_id).eq('user_id', r.user_id);
     if (error) Alert.alert('Reminder not saved', error.message);
-    q.reload();
-  };
+    await q.reload();
+  });
 
-  const toggleShift = async (s: Shift) => {
+  const toggleShift = (s: Shift) => {
     if (!uid) return requireSignIn();
-    const mine = q.data?.mySignups.includes(s.id);
-    const res = mine
-      ? await supabase.from('shift_signups').delete().eq('shift_id', s.id).eq('user_id', uid)
-      : await supabase.from('shift_signups').insert({ shift_id: s.id, user_id: uid });
-    if (res.error) Alert.alert('Sign-up not saved', res.error.message);
-    q.reload();
+    return once(`shift:${s.id}`, async () => {
+      const mine = q.data?.mySignups.includes(s.id);
+      const res = mine
+        ? await supabase.from('shift_signups').delete().eq('shift_id', s.id).eq('user_id', uid)
+        : await supabase.from('shift_signups').upsert({ shift_id: s.id, user_id: uid }, { onConflict: 'shift_id,user_id', ignoreDuplicates: true });
+      if (res.error) Alert.alert('Sign-up not saved', res.error.message);
+      await q.reload();
+    });
   };
 
   const hero = (
@@ -153,7 +169,7 @@ export default function Events() {
                     />
                   ) : null}
                   {e.ticket_url ? (
-                    <Button small kind="ghost" icon="ticket-outline" label={e.ticket_label ?? 'Tickets'} onPress={() => WebBrowser.openBrowserAsync(e.ticket_url!)} />
+                    <Button small kind="ghost" icon="ticket-outline" label={e.ticket_label ?? 'Tickets'} onPress={() => openLink(e.ticket_url)} />
                   ) : null}
                 </Row>
                 {rsvp ? (

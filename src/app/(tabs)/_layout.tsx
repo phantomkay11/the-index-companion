@@ -83,7 +83,7 @@ export default function TabsLayout() {
           tabBarItemStyle: isTablet ? { minHeight: 72, marginVertical: 2 } : undefined,
           tabBarActiveBackgroundColor: isTablet ? colors.leafSoft : undefined,
           tabBarLabelStyle: { fontFamily: Fonts.ui, fontSize: 11.5 * Math.min(textScale, 1.2) },
-          tabBarActiveTintColor: colors.forest,
+          tabBarActiveTintColor: colors.onSoft,
         }}
         screenLayout={({ children }) => (
           <View style={{ flex: 1 }}>

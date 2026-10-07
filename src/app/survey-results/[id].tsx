@@ -1,9 +1,10 @@
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { Alert, Platform, Share, View } from 'react-native';
 
 import { audienceLabel, useRegions } from '@/components/audience-picker';
-import { Button, Card, Empty, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, ErrorNote, Loading, Pill, Row, Screen, Txt, StaffOnly } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -18,13 +19,14 @@ export default function SurveyResults() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isStaff } = useAuth();
   const regions = useRegions();
+  const [busy, setBusy] = useState(false);
   const survey = useQuery(async () => must(await supabase.from('surveys').select('*').eq('id', id).single()) as Survey, [id]);
   const responses = useQuery(
     async () => must(await supabase.from('survey_responses').select('*').eq('survey_id', id).order('created_at')) as SurveyResponse[],
     [id],
   );
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can see survey results.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly message="Only BFI staff can see survey results." />;
   if (!survey.data || !responses.data) {
     const err = survey.error ?? responses.error;
     return err ? <Screen><ErrorNote message={err} onRetry={() => { survey.reload(); responses.reload(); }} /></Screen> : <Loading />;
@@ -33,7 +35,16 @@ export default function SurveyResults() {
   const rs = responses.data;
 
   const setStatus = async (status: Survey['status']) => {
-    const { error } = await supabase.from('surveys').update({ status }).eq('id', s.id);
+    if (busy) return;
+    // A draft keeps the length it was planned with (say two weeks), counted from the day it opens.
+    const patch: Partial<Survey> = { status };
+    if (status === 'open' && s.status === 'draft' && s.closes_at) {
+      const length = Math.max(86_400_000, new Date(s.closes_at).getTime() - new Date(s.created_at).getTime());
+      patch.closes_at = new Date(Date.now() + length).toISOString();
+    }
+    setBusy(true);
+    const { error } = await supabase.from('surveys').update(patch).eq('id', s.id);
+    setBusy(false);
     if (error) return Alert.alert('Not changed', error.message);
     survey.reload();
   };
@@ -47,7 +58,8 @@ export default function SurveyResults() {
       a.href = url;
       a.download = filename;
       a.click();
-      URL.revokeObjectURL(url);
+      // Revoking straight away can cancel the download in Safari and Firefox.
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
       return;
     }
     try {
@@ -75,8 +87,8 @@ export default function SurveyResults() {
         </Txt>
       </View>
       <Row>
-        {s.status === 'draft' ? <Button label="Open survey" icon="send-outline" onPress={() => setStatus('open')} /> : null}
-        {s.status === 'open' ? <Button kind="ghost" label="Close survey" icon="lock-closed-outline" onPress={() => setStatus('closed')} /> : null}
+        {s.status === 'draft' ? <Button label="Open survey" icon="send-outline" busy={busy} onPress={() => setStatus('open')} /> : null}
+        {s.status === 'open' ? <Button kind="ghost" label="Close survey" icon="lock-closed-outline" busy={busy} onPress={() => setStatus('closed')} /> : null}
         <Button kind="ghost" label="Download CSV" icon="download-outline" disabled={!rs.length} onPress={exportCsv} />
         <Button kind="ghost" label="Refresh" icon="refresh-outline" onPress={responses.reload} />
       </Row>

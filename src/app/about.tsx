@@ -1,5 +1,4 @@
 import * as Clipboard from 'expo-clipboard';
-import * as WebBrowser from 'expo-web-browser';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
@@ -8,6 +7,7 @@ import { sectionImage } from '@/lib/imagery';
 import { Space } from '@/constants/theme';
 import { BFI } from '@/lib/bfi';
 import { useSettings } from '@/providers/settings';
+import { openLink } from '@/lib/links';
 
 export default function About() {
   const { colors } = useSettings();
@@ -105,9 +105,9 @@ export default function About() {
       </Card>
 
       <Row>
-        <Button label="Donate" icon="heart-outline" onPress={() => WebBrowser.openBrowserAsync(BFI.donateUrl)} />
-        <Button kind="ghost" label="Shop" onPress={() => WebBrowser.openBrowserAsync(BFI.shopUrl)} />
-        <Button kind="ghost" label="Visit the website" icon="open-outline" onPress={() => WebBrowser.openBrowserAsync(BFI.site)} />
+        <Button label="Donate" icon="heart-outline" onPress={() => openLink(BFI.donateUrl)} />
+        <Button kind="ghost" label="Shop" onPress={() => openLink(BFI.shopUrl)} />
+        <Button kind="ghost" label="Visit the website" icon="open-outline" onPress={() => openLink(BFI.site)} />
       </Row>
       <Txt variant="mono" muted>
         Content from blackfarmersindex.com, checked Oct 4, 2026.

@@ -95,7 +95,7 @@ export default function Discover() {
       {/* The search floats over the bottom edge of the photo. */}
       <View style={[styles.searchWrap, isTablet && styles.searchWrapTablet]}>
         <View style={[styles.search, { backgroundColor: colors.surface }]}>
-          <Ionicons name="search" size={20} color={colors.forest} />
+          <Ionicons name="search" size={20} color={colors.onSoft} />
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -128,7 +128,7 @@ export default function Discover() {
         <Card tone="soft">
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
-              <Txt variant="label" color={colors.forest}>
+              <Txt variant="label" color={colors.onSoft}>
                 {t('myFarm')}
               </Txt>
               <Txt variant="title">{myFarm.name}</Txt>
@@ -159,7 +159,7 @@ export default function Discover() {
                 <Photo
                   picture={categoryImage(c.id)}
                   rounded={Radius.lg}
-                  style={[styles.tile, isTablet && styles.tileTablet, on && { borderWidth: 3, borderColor: colors.forest }]}>
+                  style={[styles.tile, isTablet && styles.tileTablet, on && { borderWidth: 3, borderColor: colors.onSoft }]}>
                   <Scrim from={0.35} />
                   {on ? (
                     <View style={[styles.tileCheck, { backgroundColor: colors.harvest }]}>

@@ -38,7 +38,7 @@ export function useTranslation(text: string) {
 export function TranslateToggle({ tr, color }: { tr: ReturnType<typeof useTranslation>; color: string }) {
   const { t } = useSettings();
   return (
-    <Pressable onPress={tr.toggle} disabled={tr.busy} accessibilityRole="button" hitSlop={8}>
+    <Pressable onPress={tr.toggle} disabled={tr.busy} accessibilityRole="button" hitSlop={12}>
       <Txt variant="small" color={color} style={{ textDecorationLine: 'underline' }}>
         {tr.busy ? '…' : tr.error ? tr.error : tr.showing ? t('showOriginal') : t('translate')}
       </Txt>

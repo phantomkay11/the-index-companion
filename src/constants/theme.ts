@@ -17,8 +17,15 @@ export type Palette = {
   leafSoft: string;
   /** Deep green for gradients and text on light tints. */
   forest: string;
-  /** Bright fresh green, the light end of the brand gradient. */
+  /** Bright fresh green accent. Never put white text on it. */
   sprout: string;
+  /** Text and icons on soft green tints and plain surfaces (readable in every mode). */
+  onSoft: string;
+  /** Selected chips and toggles. */
+  selected: string;
+  onSelected: string;
+  /** Brand gradient stops; white text passes WCAG AA on every stop. */
+  grad: readonly [string, string, string];
   sun: string;
   sunSoft: string;
   onSun: string;
@@ -42,6 +49,10 @@ const light: Palette = {
   leafSoft: '#e3f3e8',
   forest: '#0b4a2f',
   sprout: '#2fb36b',
+  onSoft: '#0b4a2f',
+  selected: '#0b4a2f',
+  onSelected: '#ffffff',
+  grad: ['#0b4a2f', '#007640', '#16804b'],
   sun: '#e9a91f',
   sunSoft: '#fff4c7',
   onSun: '#5f4100',
@@ -64,6 +75,10 @@ const dark: Palette = {
   leafSoft: '#173627',
   forest: '#0b3a25',
   sprout: '#5fd697',
+  onSoft: '#bfe8cf',
+  selected: '#4fc78c',
+  onSelected: '#06130c',
+  grad: ['#0b3a25', '#0e5c37', '#16804b'],
   sun: '#f2c14e',
   sunSoft: '#3a3014',
   onSun: '#f2c14e',
@@ -84,6 +99,9 @@ const contrastLight: Palette = {
   line: '#000000',
   leaf: '#004a28',
   forest: '#003a20',
+  onSoft: '#003a20',
+  selected: '#003a20',
+  grad: ['#003a20', '#004a28', '#004a28'],
   onSun: '#3f2b00',
   real: '#06335c',
 };
@@ -98,13 +116,17 @@ const contrastDark: Palette = {
   line: '#ffffff',
   leaf: '#7dffbe',
   onLeaf: '#000000',
+  onSoft: '#c8ffe0',
+  selected: '#7dffbe',
+  onSelected: '#000000',
+  grad: ['#000000', '#003a20', '#004a28'],
   onSun: '#ffd76a',
   real: '#b5dcff',
 };
 
-/** The brand gradient: forest into BFI green into fresh sprout. Used sparingly, on bands and buttons. */
+/** The brand gradient: forest into BFI green. Used sparingly, on bands and buttons, always with white text. */
 export function brandGradient(colors: Palette) {
-  return [colors.forest, colors.leaf, colors.sprout] as const;
+  return colors.grad;
 }
 
 /** A dark wash over photos so white text stays readable (bottom of the image). */

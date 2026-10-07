@@ -24,13 +24,17 @@ Members control all of it in Settings → Notification settings: phone notificat
 
 ## 2. Text messages (Twilio)
 
-Use the same Twilio number as the text line or a second one. Register it for A2P 10DLC messaging before sending to US numbers. Members must add their number and switch on "Send me texts". Twilio handles STOP and START automatically.
+Use the same Twilio number as the text line or a second one. Register it for A2P 10DLC messaging before sending to US numbers.
+
+**Numbers are confirmed before anything is texted.** In Settings a member types their number and taps "Text me a code"; `deliver` texts a 6-digit code (it expires in 10 minutes, at most 5 a day per member, one a minute), and the member types it in. Until then nothing is texted to that number and texts from it aren't matched to anyone, so nobody can sign a stranger up for texts or pose as another member by typing their number. A confirmed number belongs to one account. Changing the number un-confirms it.
+
+**STOP and START.** Twilio sends the carrier-required replies and blocks texts after STOP. It also forwards the keyword to `sms-line`, which records it (Settings shows texts as off), and `deliver` turns texting off for anyone Twilio reports as opted out (error 21610).
 
 **Replies come back into the app.** Point the number's "A message comes in" webhook at the `sms-line` function (see the text line steps in the README). When a member who has opted in replies to a text, `sms-line` matches their phone number and:
 
 - if we texted them about a message, inquiry or board reply in the last 3 days, posts their reply in that conversation (marked "by text");
 - if it was an inquiry and they're the farmer, YES, PART or NO answers it (anything after the word becomes the note: "PART I have 3 lb");
-- if a storm check-in is open for them, SAFE or NEED (plus what they need) answers it;
+- if a storm check-in is open for them, SAFE or NEED (plus what they need), or just OK, answers it. Safety comes first: if the text could be either, it answers the check-in, and the confirmation says "Meant for a conversation? Text REPLY and your message." Starting a text with REPLY always sends it to the conversation;
 - otherwise treats the text as a search. Members can always force a search by starting with FIND: "FIND HONEY LA".
 
 Outgoing texts end with "Reply to this text to answer" (or "Reply YES, PART or NO" for inquiries) so people know they can. If you use two numbers, replies only work on the number that sent the text, so send from the text line's number.
@@ -54,7 +58,7 @@ npx supabase secrets set \
   DEEPL_API_KEY=...
 ```
 
-Any channel without its secrets is skipped (marked `skipped`), so you can turn them on one at a time.
+Any channel without its secrets is skipped (marked `skipped`, and not retried later), so you can turn them on one at a time. Set the secrets before telling members a channel is live.
 
 ## 5. Run `deliver` every minute
 
@@ -74,7 +78,7 @@ select cron.schedule(
 );
 ```
 
-Check it's working in Table Editor → `notification_deliveries`: rows should move from `pending` to `sent`. Failures retry up to three times and keep the error in `last_error`.
+Check it's working in Table Editor → `notification_deliveries`: rows should move from `pending` (briefly `sending`) to `sent`. Each run claims its rows first, so two runs that overlap never send the same notification twice, and a run that stops halfway puts unsent rows back after 10 minutes. Failures retry after 2, 4 and 8 minutes (four tries in all) and keep the error in `last_error`. Long texts are trimmed to about two text-message segments.
 
 ## Voice note transcripts
 

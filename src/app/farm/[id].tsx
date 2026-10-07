@@ -1,6 +1,5 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, type ComponentProps } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +17,7 @@ import type { Farm } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { openLink } from '@/lib/links';
 
 export default function FarmProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -73,11 +73,12 @@ export default function FarmProfile() {
 
   const toggleFollow = async () => {
     if (!session) return needSignIn();
+    if (busy) return;
     setBusy('follow');
     const following = follow.data;
     const res = following
       ? await supabase.from('follows').delete().eq('farm_id', f.id).eq('user_id', session.user.id)
-      : await supabase.from('follows').insert({ farm_id: f.id, user_id: session.user.id });
+      : await supabase.from('follows').upsert({ farm_id: f.id, user_id: session.user.id }, { onConflict: 'user_id,farm_id', ignoreDuplicates: true });
     setBusy(null);
     if (res.error) Alert.alert('Could not update', res.error.message);
     else follow.setData(!following);
@@ -85,6 +86,7 @@ export default function FarmProfile() {
 
   const openMessage = async () => {
     if (!session) return needSignIn();
+    if (busy) return;
     setBusy('message');
     const { data, error } = await supabase.rpc('start_conversation', {
       p_farm_id: f.id,
@@ -199,7 +201,7 @@ export default function FarmProfile() {
 
         {f.order_url ? (
           <Pressable
-            onPress={() => WebBrowser.openBrowserAsync(f.order_url!)}
+            onPress={() => openLink(f.order_url)}
             accessibilityRole="link"
             accessibilityLabel={`${f.order_label || t('orderOnline')} with ${f.name}. Opens the farm’s own page.`}
             style={({ pressed }) => [styles.order, { backgroundColor: colors.harvest, opacity: pressed ? 0.9 : 1 }]}>
@@ -223,7 +225,7 @@ export default function FarmProfile() {
           <Fact icon="location" label={t('location')} value={location} />
           <Fact icon="language" label={t('languages')} value={`${f.languages.join(', ')}${f.replies_by_sms ? '. Replies by text message.' : ''}`} />
           {f.website ? (
-            <Pressable onPress={() => WebBrowser.openBrowserAsync(f.website!)} accessibilityRole="link">
+            <Pressable onPress={() => openLink(f.website)} accessibilityRole="link">
               <Fact icon="globe" label="Website" value={f.website} />
             </Pressable>
           ) : null}
@@ -288,7 +290,7 @@ export default function FarmProfile() {
                   accessibilityRole="button"
                   accessibilityLabel={t('message')}
                   style={({ pressed }) => [styles.round, { backgroundColor: colors.leafSoft, opacity: pressed ? 0.8 : 1 }]}>
-                  <Ionicons name="chatbubble-ellipses" size={22} color={colors.forest} />
+                  <Ionicons name="chatbubble-ellipses" size={22} color={colors.onSoft} />
                 </Pressable>
                 <Button
                   label={t('sendInquiry')}
@@ -310,7 +312,7 @@ function Fact({ icon, label, value }: { icon: ComponentProps<typeof Ionicons>['n
   return (
     <View style={styles.fact}>
       <View style={[styles.factIcon, { backgroundColor: colors.leafSoft }]}>
-        <Ionicons name={icon} size={18} color={colors.forest} />
+        <Ionicons name={icon} size={18} color={colors.onSoft} />
       </View>
       <View style={{ flex: 1, gap: 1 }}>
         <Txt variant="smallBold" muted>

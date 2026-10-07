@@ -11,6 +11,9 @@ type AuthContextValue = {
   myFarm: Farm | null;
   isStaff: boolean;
   ready: boolean;
+  /** True once the signed-in member's profile has loaded (or there is no one signed in). */
+  memberLoaded: boolean;
+  memberError: string | null;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -22,19 +25,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myFarm, setMyFarm] = useState<Farm | null>(null);
   const [ready, setReady] = useState(false);
+  const [memberLoaded, setMemberLoaded] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
 
   const loadMember = useCallback(async (s: Session | null) => {
     if (!s) {
       setProfile(null);
       setMyFarm(null);
+      setMemberError(null);
+      setMemberLoaded(true);
       return;
     }
-    const [{ data: p }, { data: f }] = await Promise.all([
+    const [{ data: p, error: pErr }, { data: f }] = await Promise.all([
       supabase.from('profiles').select('id, display_name, role, region_id, language').eq('id', s.user.id).maybeSingle(),
       supabase.from('farms').select('*, farm_products(*), farm_photos(*)').eq('owner_id', s.user.id).limit(1).maybeSingle(),
     ]);
+    if (pErr) {
+      setMemberError(pErr.message);
+      setMemberLoaded(true);
+      return;
+    }
+    setMemberError(null);
     setProfile((p as Profile) ?? null);
     setMyFarm((f as Farm) ?? null);
+    setMemberLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -57,12 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       myFarm,
       isStaff: profile?.role === 'coordinator' || profile?.role === 'admin',
       ready,
+      memberLoaded,
+      memberError,
       refresh: () => loadMember(session),
       signOut: async () => {
         await supabase.auth.signOut();
       },
     }),
-    [session, profile, myFarm, ready, loadMember],
+    [session, profile, myFarm, ready, memberLoaded, memberError, loadMember],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

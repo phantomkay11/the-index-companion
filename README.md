@@ -90,12 +90,18 @@ The review queue then appears on the Discover screen. See [docs/ADMIN.md](docs/A
 ## Checks
 
 ```bash
+npm test                 # all of the below except the web run, in one go
 npm run typecheck        # TypeScript
-npm run test:db          # runs every migration in an in-memory Postgres and checks nearly 100 rules
+npm run lint             # Expo's lint rules
+npm run test:lib         # dates, CSV export and phone numbers, in two US time zones
+npm run test:db          # runs every migration in an in-memory Postgres and checks over 100 rules
+npm run test:redteam     # 200+ attacks on the database: forged senders, role grabs, stolen phone numbers, bad links…
 npm run check:functions  # type-checks the Supabase functions with Deno
-npm run test:functions   # unit tests for the functions (how the text line reads a text)
-npx expo lint
+npm run test:functions   # unit tests for the functions (how the text line reads a text, how long texts get)
+npm run test:web         # builds the web app and clicks through every screen at phone and iPad sizes
 ```
+
+`test:web` loads every screen 220 ways (light and dark, phone and iPad, signed in and out, staff and member, largest text, other languages, bad links, and with the server down) and fails on crashes, console errors, endless spinners or content running off the screen; then it tries double taps, impossible dates, unsafe links and failed saves.
 
 `test:db` checks things like: new listings can't approve themselves, members can't make themselves staff, private threads and voice notes stay private, only verified growers post in channels, notifications go only to the right people on the channels they allowed, harvest mode holds pushes, reminders send once, photos need consent and a description, linked photos need a credit, only staff see impact numbers, text replies land in the right thread and answer inquiries, unknown or opted-out numbers fall back to search, survey answers stay private and lock when a survey closes, and check-ins reach only their region with a staff-only report.
 

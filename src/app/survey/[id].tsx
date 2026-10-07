@@ -4,6 +4,7 @@ import { Alert, View } from 'react-native';
 
 import { Button, Card, Chip, Empty, ErrorNote, Field, Loading, Row, Screen, SignInPrompt, ToggleRow, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
+import { confirmThen } from '@/lib/alert-web';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { missingRequired, SCALE } from '@/lib/survey';
@@ -28,8 +29,11 @@ export default function SurveyScreen() {
   );
 
   if (!session) return <Screen><SignInPrompt /></Screen>;
+  // Errors first: a bad link or no connection must not leave the spinner up forever.
+  if (survey.error || mine.error) {
+    return <Screen><ErrorNote message={survey.error ?? mine.error!} onRetry={() => { survey.reload(); mine.reload(); }} /></Screen>;
+  }
   if ((survey.loading && !survey.data) || mine.data === undefined) return <Loading />;
-  if (survey.error) return <Screen><ErrorNote message={survey.error} onRetry={survey.reload} /></Screen>;
   const s = survey.data;
   if (!s) return <Screen><Empty>This survey isn’t for you, or it has been removed.</Empty></Screen>;
 
@@ -94,6 +98,7 @@ function Form({
     });
 
   const submit = async () => {
+    if (busy) return;
     if (missing) return Alert.alert('One more', `Please answer: ${missing.prompt}`);
     setBusy(true);
     const { error } = await supabase
@@ -104,11 +109,14 @@ function Form({
     onSaved();
   };
 
-  const withdraw = async () => {
-    const { error } = await supabase.from('survey_responses').delete().eq('survey_id', survey.id).eq('user_id', userId);
-    if (error) return Alert.alert('Not removed', error.message);
-    onSaved();
-  };
+  const withdraw = () =>
+    confirmThen('Withdraw your answers?', 'BFI will no longer see or count them. You can answer again while the survey is open.', 'Withdraw', async () => {
+      setBusy(true);
+      const { error } = await supabase.from('survey_responses').delete().eq('survey_id', survey.id).eq('user_id', userId);
+      setBusy(false);
+      if (error) return Alert.alert('Not removed', error.message);
+      onSaved();
+    });
 
   return (
     <View style={{ gap: Space.lg }}>
@@ -141,7 +149,7 @@ function Form({
       {open ? (
         <Row>
           <Button label={mine ? 'Update my answers' : t('submitAnswers')} icon="send-outline" busy={busy} onPress={submit} />
-          {mine ? <Button kind="ghost" label="Withdraw my answers" onPress={withdraw} /> : null}
+          {mine ? <Button kind="ghost" label="Withdraw my answers" disabled={busy} onPress={withdraw} /> : null}
         </Row>
       ) : null}
     </View>

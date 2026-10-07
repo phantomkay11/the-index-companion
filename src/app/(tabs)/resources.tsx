@@ -1,6 +1,5 @@
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 
 import { SavedCopyNote } from '@/components/network-banner';
@@ -15,6 +14,7 @@ import type { Resource } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { openLink } from '@/lib/links';
 
 const TYPES = ['Any', 'Produce', 'Meat', 'Honey', 'Eggs', 'Seafood'];
 const STAGES = ['Any', 'Starting out', 'Established'];
@@ -40,14 +40,18 @@ export default function Resources() {
     return okType && okStage && okRegion;
   });
 
+  const saving = useRef(new Set<string>());
   const toggleSave = async (r: Resource) => {
     if (!uid) return router.push('/sign-in');
+    if (saving.current.has(r.id)) return; // a double tap sends one request
+    saving.current.add(r.id);
     const saved = q.data?.saved.includes(r.id);
     const res = saved
       ? await supabase.from('saved_resources').delete().eq('resource_id', r.id).eq('user_id', uid)
-      : await supabase.from('saved_resources').insert({ resource_id: r.id, user_id: uid });
+      : await supabase.from('saved_resources').upsert({ resource_id: r.id, user_id: uid }, { onConflict: 'user_id,resource_id', ignoreDuplicates: true });
     if (res.error) Alert.alert('Not saved', res.error.message);
-    q.reload();
+    await q.reload();
+    saving.current.delete(r.id);
   };
 
   const saved = (q.data?.resources ?? []).filter((r) => q.data?.saved.includes(r.id));
@@ -132,19 +136,19 @@ export default function Resources() {
               </Txt>
               <Txt color="rgba(255,255,255,0.92)">{r.summary}</Txt>
               <Row>
-                <Button small kind="inverse" icon="open-outline" label="Open on BFI site" onPress={() => WebBrowser.openBrowserAsync(r.url)} />
+                <Button small kind="inverse" icon="open-outline" label="Open on BFI site" onPress={() => openLink(r.url)} />
                 <Button small kind="inverse" icon={isSaved ? 'checkmark' : 'bookmark-outline'} label={isSaved ? t('saved') : t('save')} onPress={() => toggleSave(r)} />
               </Row>
             </GradientBand>
           ) : (
             <Card key={r.id}>
-              <Txt variant="smallBold" color={colors.forest}>
+              <Txt variant="smallBold" color={colors.onSoft}>
                 {r.kind} from {r.org}
               </Txt>
               <Txt variant="title">{r.name}</Txt>
               <Txt muted>{r.summary}</Txt>
               <Row style={{ justifyContent: 'space-between', marginTop: 4 }}>
-                <Pressable onPress={() => WebBrowser.openBrowserAsync(r.url)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
+                <Pressable onPress={() => openLink(r.url)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
                   <Txt variant="bodyBold" color={colors.leaf}>
                     Official site
                   </Txt>

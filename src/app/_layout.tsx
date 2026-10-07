@@ -13,6 +13,7 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
 import { Dimensions, Platform } from 'react-native';
 
+import '@/lib/alert-web';
 import { Fonts } from '@/constants/theme';
 import { AuthProvider } from '@/providers/auth';
 import { NotificationsProvider } from '@/providers/notifications';

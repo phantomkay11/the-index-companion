@@ -131,7 +131,7 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
       <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
         <Row gap={10} style={{ flex: 1, flexWrap: 'nowrap' }}>
           <View style={[styles.avatar, { backgroundColor: colors.leafSoft }]}>
-            <Txt variant="smallBold" color={colors.forest}>
+            <Txt variant="smallBold" color={colors.onSoft}>
               {initials(post.author?.display_name ?? 'Member')}
             </Txt>
           </View>
@@ -168,7 +168,7 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
         )}
         {post.body ? <TranslateToggle tr={body} color={colors.muted} /> : null}
         {!mine ? (
-          <Pressable onPress={report} accessibilityRole="button" hitSlop={8} style={{ minHeight: 36, justifyContent: 'center' }}>
+          <Pressable onPress={report} accessibilityRole="button" hitSlop={12} style={{ minHeight: 44, justifyContent: 'center' }}>
             <Txt variant="small" muted style={{ textDecorationLine: 'underline' }}>
               {t('report')}
             </Txt>

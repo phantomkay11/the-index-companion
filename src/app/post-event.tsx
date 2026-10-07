@@ -6,6 +6,7 @@ import { Button, Chip, Field, Row, Screen, SignInPrompt, Txt } from '@/component
 import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
+import { validDate as isValidDate, validTime } from '@/lib/format';
 
 const TYPES = ['Farm day', 'Market', 'Workshop', 'Volunteer', 'Town hall'];
 
@@ -21,12 +22,14 @@ export default function PostEvent() {
 
   if (!session) return <Screen><SignInPrompt /></Screen>;
 
-  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{1,2}:\d{2}$/.test(time);
-  const valid = title.trim() && place.trim() && validDate;
+  // "2026-02-31" or "24:00" would quietly roll over to another day, so check the date really exists.
+  const whenOk = isValidDate(date, { notPast: true }) && validTime(time);
+  const valid = title.trim() && place.trim() && whenOk;
 
   const submit = async () => {
-    const startsAt = new Date(`${date}T${time.padStart(5, '0')}:00`);
-    if (Number.isNaN(startsAt.getTime())) return Alert.alert('Check the date', 'Use year-month-day, like 2026-10-24, and a time like 10:00.');
+    if (busy) return;
+    if (!whenOk) return Alert.alert('Check the date', 'Use a real date that hasn’t passed, like 2026-10-24, and a time like 10:00.');
+    const startsAt = new Date(`${date.trim()}T${time.trim().padStart(5, '0')}:00`);
     setBusy(true);
     const { error } = await supabase.from('events').insert({
       title: title.trim(),
