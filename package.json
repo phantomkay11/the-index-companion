@@ -62,7 +62,10 @@
     "import:directory": "node scripts/import-directory.mjs",
     "check:functions": "for f in supabase/functions/*/index.ts; do npx --yes deno@2 check $f || exit 1; done",
     "build:setup-sql": "node scripts/build-setup-sql.mjs",
-    "test:functions": "npx --yes deno@2 test supabase/functions"
+    "test:functions": "npx --yes deno@2 test supabase/functions",
+    "store:capture": "npx expo export --platform web && node store/capture.mjs",
+    "store:screenshots": "node store/screenshots.mjs",
+    "store:preview": "node store/preview.mjs iphone && python3 store/preview_compose.py iphone && node store/preview.mjs ipad && python3 store/preview_compose.py ipad"
   },
   "private": true
 }
