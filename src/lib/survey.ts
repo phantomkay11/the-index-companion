@@ -50,8 +50,13 @@ export function summarize(questions: SurveyQuestion[], responses: SurveyResponse
   });
 }
 
+/**
+ * One CSV cell. Text that starts like a formula (= + - @, tab or return) gets a leading apostrophe so
+ * Excel and Sheets show it instead of running it; quotes, commas and line breaks are quoted.
+ */
 function cell(v: string) {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /**
@@ -71,5 +76,6 @@ export function toCsv(questions: SurveyQuestion[], responses: SurveyResponse[]) 
       return Array.isArray(a) ? a.join('; ') : String(a);
     }),
   ]);
-  return [header, ...rows].map((row) => row.map(cell).join(',')).join('\n');
+  // The byte-order mark tells Excel the file is UTF-8, so Kreyòl, español and français open correctly.
+  return '\uFEFF' + [header, ...rows].map((row) => row.map(cell).join(',')).join('\r\n');
 }

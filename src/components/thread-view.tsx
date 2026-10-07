@@ -27,13 +27,13 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadKey, setLoadKey] = useState(0);
   const listRef = useRef<FlatList<Message>>(null);
 
   const conv = useQuery(async () => must(await supabase.from('conversations').select('*').eq('id', id).single()) as Conversation, [id]);
-  const canPost = useQuery(async () => {
-    const { data } = await supabase.rpc('can_post', { c: id });
-    return Boolean(data);
-  }, [id, session?.user.id]);
+  const canPost = useQuery(async () => Boolean(must(await supabase.rpc('can_post', { c: id }))), [id, session?.user.id]);
 
   // Initial load, then live updates for new messages and transcripts.
   useEffect(() => {
@@ -45,18 +45,25 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
       .eq('conversation_id', id)
       .order('created_at', { ascending: true })
       .limit(300)
-      .then(({ data }) => {
-        if (active && data) setMessages(data as Message[]);
+      .then(({ data, error }) => {
+        if (!active) return;
+        if (error) setLoadError(error.message);
+        else {
+          setLoadError(null);
+          setMessages((data ?? []) as Message[]);
+        }
       });
     supabase.rpc('mark_read', { p_conversation_id: id });
 
     const channel = supabase
-      .channel(`thread:${id}`)
+      // A unique name per screen: the same thread can be open twice (pushed again from a farm profile,
+      // a notification, or the iPad split view), and reusing a joined channel throws.
+      .channel(`thread:${id}:${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, async (payload) => {
         const row = payload.new as { id?: string };
         if (!row?.id) return;
-        const { data } = await supabase.from('messages').select(SELECT).eq('id', row.id).maybeSingle();
-        if (!active) return;
+        const { data, error } = await supabase.from('messages').select(SELECT).eq('id', row.id).maybeSingle();
+        if (!active || error) return; // a failed refetch must not look like a moderator hiding the message
         setMessages((prev) => {
           if (!data) return prev.filter((m) => m.id !== row.id); // hidden by a moderator
           const i = prev.findIndex((m) => m.id === row.id);
@@ -72,22 +79,27 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [id, session]);
+  }, [id, session, loadKey]);
 
   if (!session) return <View style={{ padding: Space.lg }}><SignInPrompt /></View>;
   if (conv.error) return <View style={{ padding: Space.lg }}><ErrorNote message={conv.error} onRetry={conv.reload} /></View>;
+  if (loadError) return <View style={{ padding: Space.lg }}><ErrorNote message={loadError} onRetry={() => setLoadKey((k) => k + 1)} /></View>;
   if (!conv.data) return <Loading />;
   const c = conv.data;
   const ownsThisFarm = !!myFarm && c.farm_id === myFarm.id;
 
   const send = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
-    const { error } = await supabase.from('messages').insert({ conversation_id: id, sender_id: session.user.id, body });
+    const { data, error } = await supabase.from('messages').insert({ conversation_id: id, sender_id: session.user.id, body: body.slice(0, 4000) }).select(SELECT).single();
+    sendingRef.current = false;
     setSending(false);
     if (error) return Alert.alert('Message not sent', error.message);
     setDraft('');
+    // Show it straight away; the live update for the same row is merged by id.
+    if (data) setMessages((prev) => (prev.some((m) => m.id === (data as Message).id) ? prev : [...prev, data as Message]));
   };
 
   return (
@@ -117,6 +129,7 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
           <TextInput
             value={draft}
             onChangeText={setDraft}
+            maxLength={4000}
             placeholder={t('writeMessage')}
             placeholderTextColor={colors.muted}
             accessibilityLabel={t('writeMessage')}
@@ -149,8 +162,11 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
   const staff = m.sender?.role === 'coordinator' || m.sender?.role === 'admin';
   const text = m.kind === 'voice' ? m.transcript ?? '' : m.body;
   const tr = useTranslation(text);
+  const [answering, setAnswering] = useState(false);
 
   const answer = async (status: InquiryStatus) => {
+    if (answering) return;
+    setAnswering(true);
     const reply = {
       ready: "Yes, it's ready. See you then!",
       partial: 'I have part of that this week. Want me to hold what I have?',
@@ -158,7 +174,10 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
       open: '',
     }[status];
     const { error } = await supabase.rpc('answer_inquiry', { p_message_id: m.id, p_status: status, p_reply: reply });
-    if (error) Alert.alert('Reply not sent', error.message);
+    if (error) {
+      setAnswering(false);
+      Alert.alert('Reply not sent', error.message);
+    }
   };
 
   const report = async () => {
@@ -185,7 +204,7 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
             {{ ready: 'Farmer says: ready', partial: 'Farmer says: partly available', unavailable: 'Farmer says: not this week' }[m.inquiry_status]}
           </Txt>
         ) : null}
-        {canAnswer && !mine && m.inquiry_status === 'open' ? (
+        {canAnswer && !mine && m.inquiry_status === 'open' && !answering ? (
           <Row gap={6}>
             <Button small label="Yes, it's ready" onPress={() => answer('ready')} />
             <Button small kind="ghost" label="I have part of it" onPress={() => answer('partial')} />
@@ -229,7 +248,7 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
           {m.via === 'sms' ? ' · by text message' : ''}
         </Txt>
         {text ? (
-          <Pressable onPress={() => speak(`${name}: ${tr.text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')}: ${name}`} hitSlop={8}>
+          <Pressable onPress={() => speak(`${name}: ${tr.text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')}: ${name}`} hitSlop={12}>
             <Txt variant="small" color={fg} style={{ textDecorationLine: 'underline' }}>
               {t('listen')}
             </Txt>
@@ -237,14 +256,14 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
         ) : null}
         {text && !mine ? <TranslateToggle tr={tr} color={fg} /> : null}
         {!mine ? (
-          <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`${t('report')}: ${name}`} hitSlop={8}>
+          <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`${t('report')}: ${name}`} hitSlop={12}>
             <Txt variant="small" style={{ textDecorationLine: 'underline' }}>
               {t('report')}
             </Txt>
           </Pressable>
         ) : null}
         {isStaff && !mine && !m.hidden ? (
-          <Pressable onPress={hide} accessibilityRole="button" accessibilityLabel={`Hide message from ${name}`} hitSlop={8}>
+          <Pressable onPress={hide} accessibilityRole="button" accessibilityLabel={`Hide message from ${name}`} hitSlop={12}>
             <Txt variant="small" color={colors.danger} style={{ textDecorationLine: 'underline' }}>
               Hide
             </Txt>

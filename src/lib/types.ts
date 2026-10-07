@@ -132,6 +132,8 @@ export type Resource = {
 export type ContactPrefs = {
   user_id: string;
   phone: string | null;
+  /** Set by the server once the member types in the code we texted. */
+  phone_verified_at: string | null;
   sms_opt_in: boolean;
   email_opt_in: boolean;
   push_token: string | null;

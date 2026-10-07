@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Alert, View } from 'react-native';
 
-import { Button, Card, Empty, ErrorNote, Loading, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, Empty, ErrorNote, Loading, Row, Screen, Txt, StaffOnly } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -22,7 +22,7 @@ export default function Review() {
     return { farms, events, reports };
   }, [isStaff]);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff and regional coordinators can see the review queue.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly message="Only BFI staff and regional coordinators can see the review queue." />;
   if (q.error) return <Screen><ErrorNote message={q.error} onRetry={q.reload} /></Screen>;
   if (!q.data) return <Screen><Loading /></Screen>;
 

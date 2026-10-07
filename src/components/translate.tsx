@@ -4,6 +4,7 @@ import { Pressable } from 'react-native';
 import { Txt } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { useSettings } from '@/providers/settings';
+import { useAuth } from '@/providers/auth';
 
 const cache = new Map<string, string>();
 
@@ -37,8 +38,11 @@ export function useTranslation(text: string) {
 
 export function TranslateToggle({ tr, color }: { tr: ReturnType<typeof useTranslation>; color: string }) {
   const { t } = useSettings();
+  const { session } = useAuth();
+  // Translation is for signed-in members (it has a daily limit per member).
+  if (!session) return null;
   return (
-    <Pressable onPress={tr.toggle} disabled={tr.busy} accessibilityRole="button" hitSlop={8}>
+    <Pressable onPress={tr.toggle} disabled={tr.busy} accessibilityRole="button" hitSlop={12}>
       <Txt variant="small" color={color} style={{ textDecorationLine: 'underline' }}>
         {tr.busy ? '…' : tr.error ? tr.error : tr.showing ? t('showOriginal') : t('translate')}
       </Txt>

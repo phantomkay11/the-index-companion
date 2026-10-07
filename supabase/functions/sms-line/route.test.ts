@@ -15,7 +15,7 @@ Deno.test('commands', () => {
 
 Deno.test('FIND always searches', () => {
   eq(routeText('find honey la'), { type: 'search', keyword: 'honey', state: 'LA' });
-  eq(routeText('FIND sweet potatoes'), { type: 'search', keyword: 'sweet potatoe' });
+  eq(routeText('FIND sweet potatoes'), { type: 'search', keyword: 'sweet potato' });
 });
 
 Deno.test('anything else may be a reply, with search as the fallback', () => {

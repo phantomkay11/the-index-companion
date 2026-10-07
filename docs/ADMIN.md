@@ -8,8 +8,8 @@ Everything here can be done in the app's review queue or the Supabase dashboard.
 | --- | --- |
 | `neighbor` | Browse, follow farms, send inquiries, RSVP, save programs, read channels. |
 | `grower` | Everything above, plus post in channels once their farm is verified. Set automatically when BFI approves their farm. |
-| `coordinator` | Regional volunteers: approve farms and events, read reports, moderate. |
-| `admin` | BFI staff: everything, including managing resources, channels and broadcasts. |
+| `coordinator` | Regional volunteers and staff: approve farms and events, read reports, moderate, send announcements, surveys and check-ins, manage resources and channels. |
+| `admin` | BFI staff: everything a coordinator can do, plus changing anyone's role. Only admins can make someone a coordinator or an admin. |
 
 Make someone a coordinator (in the Supabase SQL editor):
 

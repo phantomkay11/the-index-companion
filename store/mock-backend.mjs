@@ -108,10 +108,11 @@ const SURVEY = { id: 's1', title: 'Growing season check-in', intro: 'Your answer
 
 /**
  * Wire the mock into a Playwright browser context.
- * opts: { signedIn, role: 'neighbor' | 'grower' | 'admin', checkin, survey, settings }
+ * opts: { signedIn, role: 'neighbor' | 'grower' | 'admin', checkin, survey, settings, fail }
+ * fail: every database read returns a server error (to test error states).
  */
 export async function installMock(ctx, opts = {}) {
-  const { signedIn = true, role = 'neighbor', checkin = false, survey = false, settings } = opts;
+  const { signedIn = true, role = 'neighbor', checkin = false, survey = false, settings, fail = false, surveyAnswered = false, evilLinks = false, unverifiedPhone = false } = opts;
   await ctx.addInitScript(([signedIn, uid, exp, settings]) => {
     if (signedIn) {
       localStorage.setItem('sb-localhost-auth-token', JSON.stringify({
@@ -130,7 +131,10 @@ export async function installMock(ctx, opts = {}) {
     switch (table) {
       case 'regions': return regions;
       case 'farms':
-        if (q.get('id')) return farms.find((f) => f.id === eq('id')) ?? null;
+        if (q.get('id')) {
+          const f = farms.find((x) => x.id === eq('id')) ?? null;
+          return f && evilLinks ? { ...f, website: 'javascript:alert(document.cookie)' } : f;
+        }
         if (q.get('owner_id')) return role === 'grower' ? farms[0] : null;
         return farms;
       case 'farm_products': return farms[0].farm_products;
@@ -144,7 +148,7 @@ export async function installMock(ctx, opts = {}) {
       case 'resources': return resources;
       case 'broadcasts': return [{ id: 'b1', title: 'Collard Green Gala', body: 'Join BFI in Los Angeles to celebrate Black farmers.', audience: 'everyone', channels: ['push'], link_url: 'https://www.zeffy.com', link_text: 'Tickets on Zeffy', created_at: iso(-2) }];
       case 'profiles': return { id: ME, display_name: 'Dana', role, region_id: '6', language: 'en' };
-      case 'contact_prefs': return { user_id: ME, phone: '+15555550142', sms_opt_in: true, email_opt_in: true, push_token: null, notify_messages: true, notify_follows: true, notify_events: true, notify_deadlines: true, notify_broadcasts: true };
+      case 'contact_prefs': return { user_id: ME, phone: '+15555550142', phone_verified_at: unverifiedPhone ? null : iso(-10), sms_opt_in: true, email_opt_in: true, push_token: null, notify_messages: true, notify_follows: true, notify_events: true, notify_deadlines: true, notify_broadcasts: true };
       case 'conversation_members':
         return q.get('select')?.includes('last_read_at') ? convs.map((c) => ({ conversation_id: c.id, last_read_at: c.id === 'c1' ? iso(-0.05) : iso(1) })) : convs.map((c) => ({ conversation_id: c.id }));
       case 'conversations': return q.get('id') && !q.get('id').startsWith('in.') ? convs.find((c) => c.id === eq('id')) : convs;
@@ -159,9 +163,10 @@ export async function installMock(ctx, opts = {}) {
       }
       case 'posts': return posts;
       case 'checkins': return checkin ? (q.get('id') ? CHECKIN : [CHECKIN]) : (q.get('id') ? null : []);
-      case 'checkin_responses': return q.get('checkin_id') ? null : [];
+      case 'checkin_responses': return [];
       case 'surveys': return survey ? (q.get('id') ? SURVEY : [SURVEY]) : (q.get('id') ? null : []);
-      case 'survey_responses': return q.get('survey_id') ? null : [];
+      case 'survey_responses':
+        return surveyAnswered ? [{ survey_id: 's1', user_id: ME, answers: { q1: 4 }, consent_share: false, created_at: iso(-0.5), updated_at: iso(-0.5) }] : [];
       default: return [];
     }
   };
@@ -170,13 +175,24 @@ export async function installMock(ctx, opts = {}) {
     const req = route.request();
     const url = req.url();
     if (url.includes('/rest/v1/rpc/')) {
+      if (fail) return route.fulfill({ status: 500, json: { message: 'Server unavailable (test)', code: 'XX000' } });
       if (url.includes('farm_insights')) return route.fulfill({ json: [{ views_30d: 214, followers: 38, inquiries_30d: 17, open_inquiries: 2 }] });
+      if (url.includes('impact_stats')) {
+        return route.fulfill({ json: { generated_at: iso(0), members: 412, growers: 168, farms_live: 131, farms_verified: 117, farms_pending: 9, farms_on_app: 64,
+          inquiries_total: 388, inquiries_30d: 72, inquiries_answered: 301, messages_30d: 940, profile_views_30d: 5120, follows: 1210, events_upcoming: 6,
+          rsvps: 233, volunteer_signups: 41, programs_saved: 187, board_posts_open: 23, farms_by_region: { 6: 31, 4: 22, 5: 19 } } });
+      }
       return route.fulfill({ json: url.includes('can_post') ? true : null });
     }
     if (url.includes('/rest/v1/')) {
+      if (fail) return route.fulfill({ status: 500, json: { message: 'Server unavailable (test)', code: 'XX000' } });
       if (req.method() !== 'GET' && req.method() !== 'HEAD') return route.fulfill({ status: 201, json: [] });
       let body = rest(url);
-      if ((req.headers().accept ?? '').includes('vnd.pgrst.object') && Array.isArray(body)) body = body[0] ?? null;
+      if ((req.headers().accept ?? '').includes('vnd.pgrst.object')) {
+        if (Array.isArray(body)) body = body[0] ?? null;
+        // Like PostgREST: .single() with no matching row is an error, not an empty answer.
+        if (body == null) return route.fulfill({ status: 406, json: { code: 'PGRST116', message: 'The result contains 0 rows', details: null, hint: null } });
+      }
       if (req.method() === 'HEAD' || (req.headers().prefer ?? '').includes('count=exact')) return route.fulfill({ status: 200, headers: { 'content-range': '0-0/0' }, json: [] });
       return route.fulfill({ json: body });
     }

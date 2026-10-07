@@ -13,6 +13,7 @@ import type { ContactPrefs } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { toE164 } from '@/lib/format';
 
 export default function Settings() {
   const s = useSettings();
@@ -55,8 +56,19 @@ export default function Settings() {
           maximumTrackTintColor={s.colors.line}
           thumbTintColor={s.colors.leaf}
           accessibilityLabel={s.t('textSize')}
+          aria-valuemin={100}
+          aria-valuemax={160}
+          aria-valuenow={Math.round(s.textScale * 100)}
+          aria-valuetext={`${Math.round(s.textScale * 100)}%`}
           style={{ height: 44 }}
         />
+        {/* Buttons as well as the slider: easier with a screen reader, a switch control or shaky hands. */}
+        <Row>
+          <Button small kind="ghost" label="Smaller" icon="remove" disabled={s.textScale <= 1}
+            accessibilityLabel="Make text smaller" onPress={() => s.update({ textScale: Math.max(1, Math.round((s.textScale - 0.1) * 10) / 10) })} />
+          <Button small kind="ghost" label="Larger" icon="add" disabled={s.textScale >= 1.6}
+            accessibilityLabel="Make text larger" onPress={() => s.update({ textScale: Math.min(1.6, Math.round((s.textScale + 0.1) * 10) / 10) })} />
+        </Row>
         <Txt variant="small" muted>
           This works on top of your phone’s own text size setting.
         </Txt>
@@ -132,14 +144,19 @@ function NotificationPrefs({ userId }: { userId: string }) {
   const prefs = useQuery(async () => must(await supabase.from('contact_prefs').select('*').eq('user_id', userId).single()) as ContactPrefs, [userId]);
   const [phone, setPhone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [codeBusy, setCodeBusy] = useState(false);
 
   if (!prefs.data) return null;
   const p = prefs.data;
   const phoneValue = phone ?? p.phone ?? '';
+  const verified = !!p.phone && !!p.phone_verified_at;
 
   const save = async (patch: Partial<ContactPrefs>) => {
-    prefs.setData({ ...p, ...patch });
-    const { error } = await supabase.from('contact_prefs').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', userId);
+    // Functional update: two quick toggles must not undo each other on screen.
+    prefs.setData((prev) => (prev ? { ...prev, ...patch } : prev));
+    const { error } = await supabase.from('contact_prefs').update(patch).eq('user_id', userId);
     if (error) {
       Alert.alert('Not saved', error.message);
       prefs.reload();
@@ -147,6 +164,7 @@ function NotificationPrefs({ userId }: { userId: string }) {
   };
 
   const togglePush = async (on: boolean) => {
+    if (busy) return;
     if (!on) return save({ push_token: null });
     setBusy(true);
     const result = await registerForPush(userId);
@@ -155,12 +173,39 @@ function NotificationPrefs({ userId }: { userId: string }) {
     prefs.reload();
   };
 
-  const savePhone = () => {
-    const digits = phoneValue.replace(/[^\d+]/g, '');
-    const e164 = digits.startsWith('+') ? digits : digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : null;
-    if (!e164) return Alert.alert('Check the number', 'Use a 10-digit US number, or include the country code.');
+  const savePhone = async () => {
+    const e164 = toE164(phoneValue);
+    if (!e164) return Alert.alert('Check the number', 'Use a 10-digit US number, or start with + and the country code.');
+    if (e164 === p.phone) return sendCode();
+    setCodeBusy(true);
+    const { error } = await supabase.from('contact_prefs').update({ phone: e164 }).eq('user_id', userId);
+    setCodeBusy(false);
+    if (error) return Alert.alert('Not saved', error.message);
     setPhone(e164);
-    save({ phone: e164 });
+    setCodeSent(false);
+    await prefs.reload();
+    await sendCode();
+  };
+
+  const sendCode = async () => {
+    setCodeBusy(true);
+    const { error } = await supabase.rpc('request_phone_code');
+    setCodeBusy(false);
+    if (error) return Alert.alert('Code not sent', error.message);
+    setCodeSent(true);
+    setCode('');
+  };
+
+  const confirmCode = async () => {
+    if (codeBusy) return;
+    setCodeBusy(true);
+    const { data, error } = await supabase.rpc('confirm_phone_code', { p_code: code });
+    setCodeBusy(false);
+    if (error) return Alert.alert('Not confirmed', error.message);
+    if (!data) return Alert.alert('That code didn’t match', 'Check the text and try again, or ask for a new code.');
+    setCodeSent(false);
+    setCode('');
+    prefs.reload();
   };
 
   return (
@@ -176,15 +221,42 @@ function NotificationPrefs({ userId }: { userId: string }) {
       <Card>
         <Txt variant="bodyBold">{t('textMessages')}</Txt>
         <Txt variant="small" muted>
-          For members who prefer texts. Message rates may apply. Reply STOP to any text to opt out.
+          For members who prefer texts. We text a code first to make sure the number is yours. Message rates may apply. Reply STOP to any
+          text to opt out.
         </Txt>
         <Row>
           <View style={{ flex: 1, minWidth: 180 }}>
             <Field label="Mobile number" value={phoneValue} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="337 555 0100" />
           </View>
-          <Button small kind="ghost" label="Save number" onPress={savePhone} style={{ alignSelf: 'flex-end' }} />
+          <Button
+            small
+            kind="ghost"
+            label={verified && toE164(phoneValue) === p.phone ? 'Confirmed' : 'Text me a code'}
+            icon={verified && toE164(phoneValue) === p.phone ? 'checkmark-circle' : 'chatbubble-outline'}
+            busy={codeBusy && !codeSent}
+            disabled={verified && toE164(phoneValue) === p.phone}
+            onPress={savePhone}
+            style={{ alignSelf: 'flex-end' }}
+          />
         </Row>
-        <ToggleRow label="Send me texts" value={p.sms_opt_in} onChange={(v) => (v && !p.phone ? Alert.alert('Add your number first') : save({ sms_opt_in: v }))} />
+        {codeSent && !verified ? (
+          <Row>
+            <View style={{ flex: 1, minWidth: 140 }}>
+              <Field label="6-digit code" value={code} onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" autoComplete="one-time-code" />
+            </View>
+            <Button small label="Confirm" busy={codeBusy} disabled={code.length !== 6} onPress={confirmCode} style={{ alignSelf: 'flex-end' }} />
+            <Button small kind="ghost" label="New code" disabled={codeBusy} onPress={sendCode} style={{ alignSelf: 'flex-end' }} />
+          </Row>
+        ) : null}
+        {p.phone && !verified && !codeSent ? (
+          <Txt variant="small" muted>Not confirmed yet. Tap “Text me a code” to start getting texts at this number.</Txt>
+        ) : null}
+        <ToggleRow
+          label="Send me texts"
+          hint={p.sms_opt_in && !verified ? 'Texts start once your number is confirmed.' : undefined}
+          value={p.sms_opt_in}
+          onChange={(v) => (v && !p.phone ? Alert.alert('Add your number first') : save({ sms_opt_in: v }))}
+        />
       </Card>
       <Txt variant="smallBold" style={{ marginTop: Space.sm }}>
         Tell me about
@@ -200,3 +272,4 @@ function NotificationPrefs({ userId }: { userId: string }) {
     </View>
   );
 }
+

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
 import { AudiencePicker, audienceLabel, useRegions } from '@/components/audience-picker';
-import { Button, Card, Chip, Empty, Field, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, Chip, Field, Row, Screen, Txt, StaffOnly } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
@@ -21,7 +21,7 @@ export default function SendCheckin() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can send check-ins.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly message="Only BFI staff can send check-ins." />;
 
   const valid = title.trim().length >= 3 && audience;
   const who = audience ? audienceLabel(audience, regions.data) : '';

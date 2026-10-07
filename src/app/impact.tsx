@@ -1,6 +1,6 @@
 import { Alert, Share, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Empty, ErrorNote, Loading, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, ErrorNote, Loading, Row, Screen, Txt, StaffOnly } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -56,7 +56,7 @@ export default function ImpactScreen() {
   const { isStaff } = useAuth();
   const q = useQuery(async () => must(await supabase.rpc('impact_stats')) as Impact, [isStaff]);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can see the impact report.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly message="Only BFI staff can see the impact report." />;
   if (q.error) return <Screen><ErrorNote message={q.error} onRetry={q.reload} /></Screen>;
   if (!q.data) return <Screen><Loading /></Screen>;
   const d = q.data;

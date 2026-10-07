@@ -3,12 +3,13 @@ import { useFocusEffect } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, type ReactNode } from 'react';
-import { Linking, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Txt } from '@/components/ui';
 import { brandGradient, Radius, SCRIM } from '@/constants/theme';
 import type { Picture } from '@/lib/imagery';
 import { useSettings } from '@/providers/settings';
+import { openLink } from '@/lib/links';
 
 /**
  * A photo (or landscape art) that fills its frame. Art is decorative, so screen readers skip it;
@@ -24,9 +25,10 @@ export function Photo({ picture, style, rounded, children }: { picture: Picture;
       ) : (
         <Image
           source={picture.source}
-          alt={picture.art ? undefined : picture.alt}
+          // Illustrations are decorative: an empty alt tells screen readers to skip them.
+          alt={picture.art ? '' : picture.alt}
           accessible={!picture.art}
-          accessibilityLabel={picture.art ? undefined : picture.alt}
+          accessibilityLabel={picture.art ? '' : picture.alt}
           contentFit="cover"
           transition={250}
           style={StyleSheet.absoluteFill}
@@ -58,7 +60,7 @@ export function Credit({ picture, style }: { picture: Picture; style?: StyleProp
         variant="small"
         color="#ffffff"
         style={{ fontSize: 11, lineHeight: 14 }}
-        onPress={picture.creditUrl ? () => Linking.openURL(picture.creditUrl!) : undefined}
+        onPress={picture.creditUrl ? () => openLink(picture.creditUrl) : undefined}
         accessibilityRole={picture.creditUrl ? 'link' : 'text'}>
         Photo: {picture.credit}
       </Txt>
@@ -71,7 +73,7 @@ export function GlassChip({ children, style }: { children: ReactNode; style?: St
   return <View style={[styles.glass, style]}>{children}</View>;
 }
 
-/** The brand gradient, forest into green into sprout, for bands and feature panels. */
+/** The brand gradient for bands and feature panels; white text passes contrast on every stop. */
 export function GradientBand({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const { colors } = useSettings();
   return (

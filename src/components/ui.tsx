@@ -1,6 +1,6 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
-import { Children, useState, type ComponentProps, type ReactNode } from 'react';
+import { Children, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -18,6 +18,7 @@ import {
 
 import { Fonts, Radius, Space, TapTarget } from '@/constants/theme';
 import { useLayout } from '@/lib/layout';
+import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -47,18 +48,31 @@ export function Txt({
   muted,
   style,
   children,
+  fixed,
   ...rest
-}: ComponentProps<typeof Text> & { variant?: TxtVariant; color?: string; muted?: boolean }) {
-  const { colors, textScale } = useSettings();
+}: ComponentProps<typeof Text> & {
+  variant?: TxtVariant;
+  color?: string;
+  muted?: boolean;
+  /** Ignore the in-app text size, for text inside a fixed-size shape such as a badge. */
+  fixed?: boolean;
+}) {
+  const { colors, textScale: scale } = useSettings();
+  const textScale = fixed ? 1 : scale;
   const base = VARIANTS[variant];
+  // A fontSize passed in `style` (tags, timestamps, credits) is scaled too, so the in-app text size
+  // setting reaches every piece of text, not just the variants.
+  const own = StyleSheet.flatten(style) as TextStyle | undefined;
+  const size = (own?.fontSize ?? base.fontSize) * textScale;
+  const lineHeight = own?.lineHeight ? own.lineHeight * textScale : own?.fontSize ? Math.round(size * 1.35) : base.lineHeight * textScale;
   return (
     <Text
       {...rest}
       style={[
         base,
         { color: color ?? (muted || variant === 'label' ? colors.muted : colors.text) },
-        { fontSize: base.fontSize * textScale, lineHeight: base.lineHeight * textScale },
-        style,
+        own,
+        { fontSize: size, lineHeight },
       ]}>
       {children}
     </Text>
@@ -157,7 +171,7 @@ export function Button({
   style,
 }: {
   label: string;
-  onPress: () => void;
+  onPress: () => void | Promise<unknown>;
   kind?: 'primary' | 'ghost' | 'inverse';
   icon?: IconName;
   disabled?: boolean;
@@ -167,13 +181,26 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const { colors } = useSettings();
+  // While an async action is running, further presses are ignored. This catches double taps that land
+  // before React has re-rendered the button as busy or disabled.
+  const running = useRef(false);
+  const press = () => {
+    if (running.current) return;
+    const result = onPress() as unknown;
+    if (result && typeof (result as Promise<unknown>).finally === 'function') {
+      running.current = true;
+      (result as Promise<unknown>).finally(() => {
+        running.current = false;
+      });
+    }
+  };
   // Primary: solid brand green. Ghost: a soft green tint (no outline). Inverse: white on photos and bands.
-  const bg = kind === 'primary' ? colors.leaf : kind === 'inverse' ? colors.onLeaf : colors.leafSoft;
-  const fg = kind === 'primary' ? colors.onLeaf : colors.forest;
+  const bg = kind === 'primary' ? colors.leaf : kind === 'inverse' ? '#ffffff' : colors.leafSoft;
+  const fg = kind === 'primary' ? colors.onLeaf : kind === 'inverse' ? '#0b4a2f' : colors.onSoft;
   const border = bg;
   return (
     <Pressable
-      onPress={onPress}
+      onPress={press}
       disabled={disabled || busy}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
@@ -211,10 +238,10 @@ export function Chip({
       accessibilityState={{ selected: !!selected }}
       style={[
         styles.chip,
-        { backgroundColor: selected ? colors.forest : colors.sunk, borderColor: selected ? colors.forest : colors.sunk },
+        { backgroundColor: selected ? colors.selected : colors.sunk, borderColor: selected ? colors.selected : colors.sunk },
       ]}>
-      {icon ? <Ionicons name={icon} size={16} color={selected ? colors.onLeaf : colors.leaf} /> : null}
-      <Txt variant="smallBold" color={selected ? colors.onLeaf : colors.text}>
+      {icon ? <Ionicons name={icon} size={16} color={selected ? colors.onSelected : colors.leaf} /> : null}
+      <Txt variant="smallBold" color={selected ? colors.onSelected : colors.text}>
         {label}
       </Txt>
     </Pressable>
@@ -359,14 +386,30 @@ export function Loading() {
   );
 }
 
+/** Database wording a member shouldn't have to read, in plain words. */
+export function friendlyError(message: string) {
+  if (/0 rows|invalid input syntax for type uuid|PGRST116/i.test(message)) {
+    return { text: 'We couldn’t find that. It may have been removed, or the link is incomplete.', retry: false };
+  }
+  if (/Failed to fetch|Network request failed|NetworkError|Load failed/i.test(message)) {
+    return { text: 'No connection. Check your signal or Wi-Fi and try again.', retry: true };
+  }
+  if (/JWT|not authenticated|permission denied/i.test(message)) {
+    return { text: 'Please sign in again to see this.', retry: false };
+  }
+  return { text: message, retry: true };
+}
+
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   const { colors, t } = useSettings();
+  const f = friendlyError(message);
   return (
     <View style={[styles.notice, { borderWidth: 1, borderColor: colors.danger }]} accessibilityRole="alert">
       <Txt variant="small" color={colors.danger}>
-        {message}
+        {f.text}
       </Txt>
-      {onRetry ? <Button small kind="ghost" label={t('tryAgain')} onPress={onRetry} /> : null}
+      {onRetry && f.retry ? <Button small kind="ghost" label={t('tryAgain')} onPress={onRetry} /> : null}
+      {!f.retry && router.canGoBack() ? <Button small kind="ghost" label="Go back" onPress={() => router.back()} /> : null}
     </View>
   );
 }
@@ -406,9 +449,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Space.sm,
   },
-  buttonSmall: { minHeight: 38, paddingHorizontal: 16 },
+  buttonSmall: { minHeight: TapTarget, paddingHorizontal: 16 },
   chip: {
-    minHeight: 40,
+    minHeight: TapTarget,
     borderWidth: 1,
     borderRadius: Radius.pill,
     paddingHorizontal: 14,
@@ -427,9 +470,30 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   segment: { flexDirection: 'row', borderRadius: Radius.pill, padding: 3, alignSelf: 'flex-start' },
-  segmentItem: { minHeight: 36, paddingHorizontal: 16, justifyContent: 'center', borderRadius: Radius.pill },
+  segmentItem: { minHeight: TapTarget, paddingHorizontal: 16, justifyContent: 'center', borderRadius: Radius.pill },
   segmentOn: { shadowColor: '#0b2a1b', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, minHeight: TapTarget + 4 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderRadius: Radius.lg, padding: 16 },
   notice: { borderRadius: Radius.lg, padding: 18, gap: Space.sm },
 });
+
+/**
+ * Shown on staff-only screens to anyone who isn't staff. While the member's profile is still loading
+ * it shows a spinner (so staff don't see "only staff" flash), and a retry if it failed to load.
+ */
+export function StaffOnly({ message }: { message: string }) {
+  const { memberLoaded, memberError, refresh, session } = useAuth();
+  if (session && !memberLoaded) return <Loading />;
+  if (session && memberError) {
+    return (
+      <Screen>
+        <ErrorNote message={memberError} onRetry={refresh} />
+      </Screen>
+    );
+  }
+  return (
+    <Screen>
+      <Empty>{message}</Empty>
+    </Screen>
+  );
+}

@@ -92,7 +92,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
         <Txt variant="mono" style={{ flex: 1 }} accessibilityLabel={`Recording, ${Math.round(seconds)} seconds`}>
           {clock(seconds)} / {clock(MAX_SECONDS)}
         </Txt>
-        <Pressable onPress={() => stop(false)} accessibilityRole="button" accessibilityLabel={t('cancel')} hitSlop={8} style={styles.pill}>
+        <Pressable onPress={() => stop(false)} accessibilityRole="button" accessibilityLabel={t('cancel')} hitSlop={12} style={styles.pill}>
           <Txt variant="smallBold" muted>
             {t('cancel')}
           </Txt>
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   recording: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.sm, borderWidth: 1, borderRadius: 22, paddingLeft: 14, minHeight: 44 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   pill: { paddingHorizontal: 8, minHeight: 44, justifyContent: 'center' },
-  player: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, minHeight: 36, minWidth: 180 },
+  player: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, minHeight: 44, minWidth: 180 },
   track: { flex: 1, height: 6, borderRadius: 3, borderWidth: 1, overflow: 'hidden', opacity: 0.8 },
   fill: { height: '100%' },
 });

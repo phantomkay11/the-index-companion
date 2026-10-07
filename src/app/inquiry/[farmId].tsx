@@ -2,9 +2,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 
-import { Button, Chip, Field, Loading, Row, Screen, Txt } from '@/components/ui';
+import { Button, Chip, ErrorNote, Field, Loading, Row, Screen, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
-import { nextSaturday } from '@/lib/format';
+import { nextSaturday, validDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { Farm } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -19,16 +19,20 @@ export default function Inquiry() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
 
+  if (farm.error) return <Screen><ErrorNote message={farm.error} onRetry={farm.reload} /></Screen>;
   if (!farm.data) return <Screen><Loading /></Screen>;
   const f = farm.data;
   const products = (f.farm_products ?? []).filter((p) => p.in_season).map((p) => p.name);
   // Default to the first product in season and the farm's first way to buy.
   const product = productChoice || products[0] || '';
-  const how = howChoice || f.how_to_buy[0] || '';
+  const ways = f.how_to_buy ?? [];
+  const how = howChoice || ways[0] || '';
+  const dateOk = validDate(date, { notPast: true });
 
-  const valid = product.trim() && amount.trim() && /^\d{4}-\d{2}-\d{2}$/.test(date) && how.trim();
+  const valid = product.trim() && amount.trim() && dateOk && how.trim();
 
   const submit = async () => {
+    if (busy || !valid) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('send_inquiry', {
       p_farm_id: f.id,
@@ -63,17 +67,19 @@ export default function Inquiry() {
 
       <Field label="Amount" value={amount} onChangeText={setAmount} placeholder="For example: 2 lb, 6 jars, 10 bunches" />
       <Field label="When (year-month-day)" value={date} onChangeText={setDate} placeholder="2026-10-10" keyboardType="numbers-and-punctuation" />
+      {date.trim() && !dateOk ? <Txt variant="small" muted>Enter a real date that hasn’t passed, like {nextSaturday()}.</Txt> : null}
 
       <View style={{ gap: Space.sm }}>
         <Txt variant="smallBold">How</Txt>
         <Row gap={6}>
-          {f.how_to_buy.map((h) => (
+          {ways.map((h) => (
             <Chip key={h} label={h} selected={how === h} onPress={() => setHow(h)} />
           ))}
         </Row>
+        {!ways.length ? <Field label="How would you like to get it?" value={howChoice} onChangeText={setHow} placeholder="For example: pick up at the farm" /> : null}
       </View>
 
-      <Field label="Note (optional)" value={note} onChangeText={setNote} placeholder="Anything the farmer should know" multiline />
+      <Field label="Note (optional)" value={note} onChangeText={(v) => setNote(v.slice(0, 1000))} placeholder="Anything the farmer should know" multiline />
       <Button label="Send inquiry" icon="send" onPress={submit} busy={busy} disabled={!valid} />
     </Screen>
   );

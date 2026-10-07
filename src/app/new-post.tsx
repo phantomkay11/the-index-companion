@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import type { PostKind, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
+import { validDate } from '@/lib/format';
 
 export default function NewPost() {
   const { session, profile, myFarm } = useAuth();
@@ -23,10 +24,11 @@ export default function NewPost() {
 
   if (!session) return <Screen><SignInPrompt /></Screen>;
   const region = regionChoice ?? myFarm?.region_id ?? profile?.region_id ?? null;
-  const dateOk = !date.trim() || /^\d{4}-\d{2}-\d{2}$/.test(date.trim());
+  const dateOk = !date.trim() || validDate(date, { notPast: true });
   const hint = POST_KINDS.find((k) => k.id === kind)?.hint;
 
   const submit = async () => {
+    if (busy) return;
     setBusy(true);
     const { error } = await supabase.from('posts').insert({
       author_id: session.user.id,

@@ -39,7 +39,7 @@ export default function TabsLayout() {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Txt variant="smallBold" color="#3a2700" style={{ fontSize: 11, lineHeight: 14 }}>
+            <Txt variant="smallBold" color="#3a2700" fixed style={{ fontSize: 11, lineHeight: 14 }}>
               {unread > 99 ? '99+' : unread}
             </Txt>
           </View>
@@ -83,7 +83,7 @@ export default function TabsLayout() {
           tabBarItemStyle: isTablet ? { minHeight: 72, marginVertical: 2 } : undefined,
           tabBarActiveBackgroundColor: isTablet ? colors.leafSoft : undefined,
           tabBarLabelStyle: { fontFamily: Fonts.ui, fontSize: 11.5 * Math.min(textScale, 1.2) },
-          tabBarActiveTintColor: colors.forest,
+          tabBarActiveTintColor: colors.onSoft,
         }}
         screenLayout={({ children }) => (
           <View style={{ flex: 1 }}>

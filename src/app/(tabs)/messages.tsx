@@ -1,6 +1,5 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -15,6 +14,7 @@ import type { Broadcast, Conversation } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { openLink } from '@/lib/links';
 
 type Tab = 'direct' | 'channels' | 'bfi';
 type ThreadRow = Conversation & { unread: boolean; preview: string };
@@ -210,7 +210,7 @@ function Broadcasts() {
           <Txt variant="heading">{b.title}</Txt>
           <Txt>{b.body}</Txt>
           {b.link_url ? (
-            <Pressable onPress={() => WebBrowser.openBrowserAsync(b.link_url!)} accessibilityRole="link" style={{ minHeight: 40, justifyContent: 'center' }}>
+            <Pressable onPress={() => openLink(b.link_url)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
               <Txt variant="bodyBold" color={colors.leaf}>
                 {b.link_text ?? 'Open link'}
               </Txt>

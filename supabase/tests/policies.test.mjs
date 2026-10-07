@@ -150,7 +150,23 @@ check('can_post true for direct member', (await one(`select public.can_post($1) 
 // v2: notifications, alerts, voice notes, photos, board, insights, impact
 // ---------------------------------------------------------------------------
 await db.exec('reset role');
-await db.exec(`update public.contact_prefs set push_token = 'ExponentPushToken[farmer]', phone = '+15555550100', sms_opt_in = true where user_id = '${farmer}'`);
+await db.exec(`update public.contact_prefs set push_token = 'ExponentPushToken[farmer]' where user_id = '${farmer}'`);
+// The farmer adds a phone number and confirms it with the texted code.
+await as(farmer);
+await one(`update public.contact_prefs set phone = '(555) 555-0100', sms_opt_in = true, phone_verified_at = now() where user_id = $1`, [farmer]);
+let cp = (await one(`select phone, phone_verified_at from public.contact_prefs where user_id = $1`, [farmer]))[0];
+check('phone saved in full international form, not verified by the member', cp.phone === '+15555550100' && cp.phone_verified_at === null);
+await one(`select public.request_phone_code()`);
+await expectFail('a second code within a minute is refused', () => one(`select public.request_phone_code()`));
+await db.exec('reset role');
+const code = (await one(`select code from public.phone_verifications where user_id = $1`, [farmer]))[0].code;
+await as(farmer);
+check('members cannot read verification codes', (await one(`select count(*)::int n from public.phone_verifications`))[0].n === 0);
+check('wrong code is rejected', (await one(`select public.confirm_phone_code('000000') ok`))[0].ok === (code === '000000'));
+check('right code confirms the number', (await one(`select public.confirm_phone_code($1) ok`, [code]))[0].ok === true);
+cp = (await one(`select phone_verified_at from public.contact_prefs where user_id = $1`, [farmer]))[0];
+check('number is now verified', cp.phone_verified_at !== null);
+await db.exec('reset role');
 await db.exec(`update public.contact_prefs set push_token = 'ExponentPushToken[buyer]' where user_id = '${buyer}'`);
 
 await as(buyer);
@@ -380,5 +396,64 @@ await as(staff);
 const report = (await one(`select public.checkin_report($1) as r`, [checkin]))[0].r;
 check('report counts answers and lists who needs help with a phone', report.reached === 2 && report.ok === 1 && report.need_help === 1
   && report.needs[0].name === 'Marcus' && report.needs[0].note === 'Tree on the barn road');
+
+// ---------------------------------------------------------------------------
+// Hardening (Oct 2026)
+// ---------------------------------------------------------------------------
+await db.exec('reset role');
+const norm = (await one(`select public.normalize_phone('504.555.0100') a, public.normalize_phone('+44 20 7946 0958') b, public.normalize_phone('555-0100') c, public.normalize_phone('+12') d`))[0];
+check('phone numbers normalise to full international form', norm.a === '+15045550100' && norm.b === '+442079460958' && norm.c === null && norm.d === null);
+// Outbox claims: a second overlapping run never gets the same rows.
+const claimA = await one(`select id from public.claim_deliveries(500)`);
+const claimB = await one(`select id from public.claim_deliveries(500)`);
+check('overlapping deliver runs never claim the same delivery', claimB.every((r) => !claimA.some((a) => a.id === r.id)));
+await db.exec(`update public.notification_deliveries set status = 'pending', claimed_at = null where status = 'sending'`);
+await as(buyer);
+await expectFail('members cannot claim deliveries', () => one(`select * from public.claim_deliveries(10)`));
+await expectFail('members cannot flip SMS opt-in by number', () => one(`select public.sms_set_opt_in('+15555550100', false)`));
+await db.exec('reset role');
+check('STOP turns texting off for that verified number', (await one(`select public.sms_set_opt_in('+1 555 555 0100', false) n`))[0].n === 1
+  && (await one(`select sms_opt_in from public.contact_prefs where user_id = $1`, [farmer]))[0].sms_opt_in === false);
+const afterStop = (await one(`select public.sms_inbound('+15555550100', 'SAFE') as r`))[0].r;
+check('after STOP, texts from that number are not matched', afterStop.handled === false);
+await one(`select public.sms_set_opt_in('+15555550100', true)`);
+// Coordinators keep staff tools but cannot hand out roles.
+await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false)`);
+await db.exec(`update public.profiles set role = 'coordinator' where id = '${other}'`);
+await as(other);
+await expectFail('coordinators cannot promote themselves to admin', () => one(`update public.profiles set role = 'admin' where id = $1`, [other]));
+await expectFail('coordinators cannot promote members', () => one(`update public.profiles set role = 'coordinator' where id = $1`, [buyer]));
+await as(staff);
+await one(`update public.profiles set role = 'neighbor' where id = $1`, [other]);
+check('admins can change roles', (await one(`select role from public.profiles where id = $1`, [other]))[0].role === 'neighbor');
+
+// The review's regression cases.
+await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false)`);
+const coord = '55555555-5555-4555-8555-555555555555';
+const newbie = '66666666-6666-4666-8666-666666666666';
+await db.exec(`insert into auth.users (id, email) values ('${coord}', 'coord@example.com'), ('${newbie}', 'newbie@example.com')`);
+await db.exec(`update public.profiles set role = 'coordinator' where id = '${coord}'`);
+await as(newbie);
+await one(`insert into public.farms (name, city, state, region_id, categories, website) values ('Newbie Farm', 'Selma', 'AL', '4', '{Row crops}', ' newbiefarm.com ')`);
+const nb = (await one(`select id, website from public.farms where name = 'Newbie Farm'`))[0];
+check('a typed website is tidied to https', nb.website === 'https://newbiefarm.com');
+await expectFail('a javascript: website is refused', () => one(`update public.farms set website = 'javascript:alert(1)' where id = $1`, [nb.id]));
+await as(coord);
+await one(`select public.review_farm($1, 'approved')`, [nb.id]);
+await db.exec('reset role');
+check('a coordinator can approve a farm, and its owner becomes a grower',
+  (await one(`select role from public.profiles where id = $1`, [newbie]))[0].role === 'grower');
+// Code limits: five a day, US and Canadian numbers only.
+await as(newbie);
+await one(`update public.contact_prefs set phone = '+44 20 7946 0958' where user_id = $1`, [newbie]);
+await expectFail('codes are only texted to +1 numbers', () => one(`select public.request_phone_code()`));
+await one(`update public.contact_prefs set phone = '205 555 0177' where user_id = $1`, [newbie]);
+let codesSent = 0;
+for (let i = 0; i < 7; i++) {
+  try { await one(`select public.request_phone_code()`); codesSent++; } catch { /* limit */ }
+  await db.exec(`reset role; update public.phone_verifications set last_sent_at = now() - interval '2 minutes' where user_id = '${newbie}'`);
+  await as(newbie);
+}
+check("at most five codes a day", codesSent === 5);
 
 console.log(process.exitCode ? 'SOME CHECKS FAILED' : 'ALL CHECKS PASSED');

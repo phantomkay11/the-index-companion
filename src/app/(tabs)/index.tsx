@@ -86,7 +86,7 @@ export default function Discover() {
           <Txt variant="smallBold" color="rgba(255,255,255,0.92)">
             From Black Farmers Index
           </Txt>
-          <Txt variant="hero" color="#ffffff" style={isTablet ? { fontSize: 46 * textScale, lineHeight: 50 * textScale } : undefined}>
+          <Txt variant="hero" color="#ffffff" style={isTablet ? { fontSize: 46, lineHeight: 50 } : undefined}>
             Find Black farmers near you
           </Txt>
           <Txt color="rgba(255,255,255,0.9)">Fresh food and friendly faces, straight from the growers.</Txt>
@@ -95,7 +95,7 @@ export default function Discover() {
       {/* The search floats over the bottom edge of the photo. */}
       <View style={[styles.searchWrap, isTablet && styles.searchWrapTablet]}>
         <View style={[styles.search, { backgroundColor: colors.surface }]}>
-          <Ionicons name="search" size={20} color={colors.forest} />
+          <Ionicons name="search" size={20} color={colors.onSoft} />
           <TextInput
             value={query}
             onChangeText={setQuery}
@@ -128,7 +128,7 @@ export default function Discover() {
         <Card tone="soft">
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
-              <Txt variant="label" color={colors.forest}>
+              <Txt variant="label" color={colors.onSoft}>
                 {t('myFarm')}
               </Txt>
               <Txt variant="title">{myFarm.name}</Txt>
@@ -159,7 +159,7 @@ export default function Discover() {
                 <Photo
                   picture={categoryImage(c.id)}
                   rounded={Radius.lg}
-                  style={[styles.tile, isTablet && styles.tileTablet, on && { borderWidth: 3, borderColor: colors.forest }]}>
+                  style={[styles.tile, isTablet && styles.tileTablet, on && { borderWidth: 3, borderColor: colors.onSoft }]}>
                   <Scrim from={0.35} />
                   {on ? (
                     <View style={[styles.tileCheck, { backgroundColor: colors.harvest }]}>
