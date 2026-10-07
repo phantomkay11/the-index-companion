@@ -9,7 +9,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
@@ -38,6 +38,8 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
   const seconds = state.durationMillis / 1000;
 
   const starting = useRef(false);
+  const stopping = useRef(false);
+  const startedAt = useRef(0);
   const start = async () => {
     if (starting.current || state.isRecording) return; // ignore a double tap
     starting.current = true;
@@ -47,6 +49,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
+      startedAt.current = new Date().getTime();
       // Stop and send automatically at the time limit.
       limitTimer.current = setTimeout(() => stop(true), MAX_SECONDS * 1000);
     } catch {
@@ -57,17 +60,25 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
   };
 
   const stop = async (send: boolean) => {
+    if (stopping.current) return; // Send tapped twice, or tapped as the time limit hit
+    stopping.current = true;
     if (limitTimer.current) clearTimeout(limitTimer.current);
     limitTimer.current = null;
-    const length = recorder.currentTime;
-    await recorder.stop();
+    // The web recorder only updates currentTime on pause, so measure the length ourselves too.
+    const length = Math.max(recorder.currentTime, (new Date().getTime() - startedAt.current) / 1000);
+    try {
+      await recorder.stop();
+    } finally {
+      stopping.current = false;
+    }
     await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
     const uri = recorder.uri;
     if (!send || !uri) return;
     if (length < 1) return showAlert('Too short', 'Hold on a little longer before you stop.');
     setBusy(true);
     try {
-      const ext = extensionOf(uri, 'm4a');
+      // Browsers record webm (the address is a blob: URL with no extension); phones record m4a.
+      const ext = Platform.OS === 'web' ? 'webm' : extensionOf(uri, 'm4a');
       const path = `${conversationId}/${randomId()}.${ext}`;
       const bytes = await readBytes(uri);
       const up = await supabase.storage.from('voice-notes').upload(path, bytes, { contentType: ext === 'webm' ? 'audio/webm' : 'audio/mp4' });
@@ -186,7 +197,7 @@ const styles = StyleSheet.create({
   recording: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Space.sm, borderWidth: 1, borderRadius: 22, paddingLeft: 14, minHeight: 44 },
   dot: { width: 10, height: 10, borderRadius: 5 },
   pill: { paddingHorizontal: 8, minHeight: 44, justifyContent: 'center' },
-  player: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, minHeight: 36, minWidth: 180 },
+  player: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, minHeight: 44, minWidth: 180 },
   track: { flex: 1, height: 6, borderRadius: 3, borderWidth: 1, overflow: 'hidden', opacity: 0.8 },
   fill: { height: '100%' },
 });

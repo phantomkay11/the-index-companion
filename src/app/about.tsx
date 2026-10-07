@@ -19,9 +19,9 @@ export default function About() {
   };
 
   const hero = (
-    <Photo picture={sectionImage('discover')} style={{ height: 260 }}>
+    <Photo picture={sectionImage('discover')} style={{ minHeight: 260, justifyContent: 'flex-end' }}>
       <Scrim from={0.15} />
-      <View style={{ position: 'absolute', left: 20, right: 20, bottom: 22, gap: 4 }}>
+      <View style={{ paddingHorizontal: 20, paddingTop: 110, paddingBottom: 22, gap: 4 }}>
         <Txt variant="smallBold" color="rgba(255,255,255,0.9)">
           Black Farmers Index
         </Txt>

@@ -51,9 +51,9 @@ export default function Community() {
   );
 
   const hero = (
-    <Photo picture={sectionImage('community')} style={{ height: isTablet ? 300 : 230 }}>
+    <Photo picture={sectionImage('community')} style={{ minHeight: isTablet ? 300 : 230, justifyContent: 'flex-end' }}>
       <Scrim from={0.15} />
-      <View style={{ position: 'absolute', left: isTablet ? 48 : 20, right: 20, bottom: 22, gap: 4 }}>
+      <View style={{ paddingLeft: isTablet ? 48 : 20, paddingRight: 20, paddingTop: 110, paddingBottom: 22, gap: 4 }}>
         <Txt variant="display" color="#ffffff" accessibilityRole="header">
           {t('communityHero')}
         </Txt>
@@ -91,8 +91,8 @@ export default function Community() {
       </View>
       <SavedCopyNote at={posts.cachedAt} />
       {posts.error ? <ErrorNote message={posts.error} onRetry={posts.reload} /> : null}
-      {!posts.data && !posts.error ? <Loading /> : null}
-      {posts.data && !posts.data.length ? <Empty>Nothing posted here yet. Be the first.</Empty> : null}
+      {(!posts.data || (posts.loading && !posts.data.length)) && !posts.error ? <Loading /> : null}
+      {posts.data && !posts.data.length && !posts.loading && !posts.error ? <Empty>Nothing posted here yet. Be the first.</Empty> : null}
       <Grid>
       {posts.data?.map((p) => (
         <PostCard key={p.id} post={p} mine={p.author_id === session.user.id} onChange={posts.reload} />
@@ -132,8 +132,9 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
 
   return (
     <Card>
-      <Row style={{ justifyContent: 'space-between', flexWrap: 'nowrap' }}>
-        <Row gap={10} style={{ flex: 1, flexWrap: 'nowrap' }}>
+      {/* The kind pill drops below the author when space is tight, instead of squeezing the name. */}
+      <Row style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <Row gap={10} style={{ flexGrow: 1, flexShrink: 1, flexBasis: 200, flexWrap: 'nowrap' }}>
           <View style={[styles.avatar, { backgroundColor: colors.leafSoft }]}>
             <Txt variant="smallBold" color={colors.forest}>
               {initials(post.author?.display_name ?? 'Member')}

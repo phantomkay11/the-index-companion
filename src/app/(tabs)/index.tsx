@@ -1,7 +1,7 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BfiAsks } from '@/components/bfi-asks';
@@ -16,6 +16,7 @@ import { BFI, CATEGORIES, categoryLabel, regionLabel } from '@/lib/bfi';
 import { useLayout } from '@/lib/layout';
 import { categoryImage, sectionImage } from '@/lib/imagery';
 import { locate, miles, setHere, useHere } from '@/lib/location';
+import { matchesAll, searchWords } from '@/lib/search';
 import { supabase } from '@/lib/supabase';
 import type { Farm, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -56,13 +57,20 @@ export default function Discover() {
   );
 
   // Text search runs on the loaded page so it responds as people type; nearest first when we know where you are.
-  const needle = query.trim().toLowerCase();
+  // Every word must match, in any order, ignoring punctuation and accents: "okra, honey", "Opelousas LA", "kreyol".
+  const words = searchWords(query);
   const visible = (farms.data ?? [])
     .filter((f) => f.id !== myFarm?.id)
-    .filter(
-      (f) =>
-        !needle ||
-        [f.name, f.city, f.state, ...f.categories, ...f.attributes, ...(f.farm_products ?? []).map((p) => p.name)].join(' ').toLowerCase().includes(needle),
+    .filter((f) =>
+      matchesAll(words, [
+        f.name,
+        f.city,
+        f.state,
+        ...f.categories,
+        ...f.categories.map((c) => categoryLabel(c, t)),
+        ...f.attributes,
+        ...(f.farm_products ?? []).map((p) => p.name),
+      ]),
     )
     .map((f) => ({ f, d: here && f.lat != null && f.lon != null ? miles(here.point, { lat: f.lat, lon: f.lon }) : Infinity }))
     .sort((a, b) => (here ? (a.d === b.d ? 0 : a.d - b.d) : 0))
@@ -109,7 +117,8 @@ export default function Discover() {
             placeholderTextColor={colors.muted}
             accessibilityLabel={t('search')}
             returnKeyType="search"
-            style={{ flex: 1, minHeight: 52, color: colors.text, fontSize: 16 * textScale, fontFamily: Fonts.body }}
+            // minWidth 0: a web text box otherwise refuses to shrink and pushes Near me off screen at large text.
+            style={{ flex: 1, minWidth: 0, minHeight: 52, color: colors.text, fontSize: 16 * textScale, fontFamily: Fonts.body }}
           />
           <Pressable
             onPress={nearMe}
@@ -161,8 +170,10 @@ export default function Discover() {
               <Pressable
                 key={c.id}
                 onPress={() => setCategory(on ? null : c.id)}
-                accessibilityRole="button"
-                accessibilityState={{ selected: on }}
+                // A toggle, like Chip: togglebutton on phones, a button with aria-pressed on the web.
+                accessibilityRole={Platform.OS === 'web' ? 'button' : 'togglebutton'}
+                accessibilityState={Platform.OS === 'web' ? undefined : { checked: on }}
+                aria-pressed={on}
                 accessibilityLabel={t(c.label)}
                 style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1, marginLeft: 4 }]}>
                 <Photo

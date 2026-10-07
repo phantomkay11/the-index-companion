@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { Button, Chip, Field, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { POST_KINDS } from '@/lib/board';
+import { parseLocalDate, ymd } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { PostKind, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -24,10 +25,14 @@ export default function NewPost() {
 
   if (!session) return <Screen><SignInPrompt /></Screen>;
   const region = regionChoice ?? myFarm?.region_id ?? profile?.region_id ?? null;
-  const dateOk = !date.trim() || /^\d{4}-\d{2}-\d{2}$/.test(date.trim());
+  // Optional, but if given it must be a real day from today on.
+  const parsedDay = parseLocalDate(date);
+  const dateOk = !date.trim() || (!!parsedDay && date.trim() >= ymd(new Date()));
+  const dateHint = dateOk ? undefined : !parsedDay ? 'Use a real date, like 2026-10-24.' : 'Pick today or a later date.';
   const hint = POST_KINDS.find((k) => k.id === kind)?.hint;
 
   const submit = async () => {
+    if (busy) return;
     setBusy(true);
     const { error } = await supabase.from('posts').insert({
       author_id: session.user.id,
@@ -61,7 +66,7 @@ export default function NewPost() {
           <Field label="Where (optional)" value={place} onChangeText={setPlace} placeholder="Greenwood, MS" />
         </View>
         <View style={{ flex: 1, minWidth: 140 }}>
-          <Field label="Date (optional)" value={date} onChangeText={setDate} placeholder="2026-10-24" keyboardType="numbers-and-punctuation" />
+          <Field label="Date (optional)" value={date} onChangeText={setDate} placeholder="2026-10-24" keyboardType="numbers-and-punctuation" hint={dateHint} />
         </View>
       </Row>
       <View style={{ gap: Space.sm }}>

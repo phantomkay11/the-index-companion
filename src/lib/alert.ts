@@ -14,3 +14,16 @@ export function showAlert(title: string, raw?: string) {
   }
   Alert.alert(title, message);
 }
+
+/** Ask before doing something with a side effect the member may not expect. Resolves true to go ahead. */
+export function confirmAction(title: string, message: string, goLabel: string, cancelLabel: string): Promise<boolean> {
+  if (Platform.OS === 'web') {
+    return Promise.resolve(typeof window !== 'undefined' ? window.confirm(`${title}\n\n${message}`) : false);
+  }
+  return new Promise((resolve) =>
+    Alert.alert(title, message, [
+      { text: cancelLabel, style: 'cancel', onPress: () => resolve(false) },
+      { text: goLabel, onPress: () => resolve(true) },
+    ], { cancelable: true, onDismiss: () => resolve(false) }),
+  );
+}

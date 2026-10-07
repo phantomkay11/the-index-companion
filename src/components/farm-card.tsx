@@ -72,7 +72,7 @@ export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | n
             {[`${farm.city}, ${farm.state}`, kind ? categoryLabel(kind, t) : null, distance != null ? `${distance} mi` : null].filter(Boolean).join('  ·  ')}
           </Txt>
         </View>
-        <Credit picture={cover} style={{ top: 46, bottom: undefined, right: 12 }} />
+        <Credit picture={cover} link={false} style={{ top: 46, bottom: undefined, right: 12 }} />
       </Photo>
       <View style={styles.below}>
         {inSeason.length ? (

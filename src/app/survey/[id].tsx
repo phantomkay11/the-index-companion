@@ -183,7 +183,7 @@ function Question({
         <>
           <Row gap={6}>
             {SCALE.map((x) => (
-              <Chip key={x} label={String(x)} selected={value === x} onPress={() => !disabled && onChange(value === x ? undefined : x)} />
+              <Chip key={x} radio label={String(x)} selected={value === x} onPress={() => !disabled && onChange(value === x ? undefined : x)} />
             ))}
           </Row>
           <Txt variant="small" muted>
@@ -201,7 +201,7 @@ function Question({
               const next = picked ? list.filter((x) => x !== o) : [...list, o];
               onChange(next.length ? next : undefined);
             };
-            return <Chip key={o} label={o} selected={picked} onPress={toggle} />;
+            return <Chip key={o} radio={q.type === 'single'} label={o} selected={picked} onPress={toggle} />;
           })}
         </Row>
       )}

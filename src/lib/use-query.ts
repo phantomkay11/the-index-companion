@@ -32,15 +32,16 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
     keyRef.current = key;
   });
 
-  // A new key (a new filter) keeps the old results on screen while loading, so lists and maps don't jump,
-  // and swaps in the new key's saved copy if there is one.
+  // A new key (a new filter, or a different member) starts empty, then shows that key's saved copy if there is one.
+  // Keeping the old results would show one member's data to the next, or the last filter's under the new heading.
   const prevKey = useRef(key);
   useEffect(() => {
     if (prevKey.current !== key) {
       prevKey.current = key;
       fresh.current = false;
+      setData(undefined);
       setError(null);
-      setCachedAt(null); // the old results on screen aren't a saved copy of the new filter
+      setCachedAt(null);
     }
     if (!key) return;
     let active = true;
@@ -96,7 +97,6 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
   );
 
   // A failed refresh with a saved copy on screen isn't an error worth shouting about: the screen says it's a saved copy.
-  // (cachedAt is cleared when the filter changes, so old results from a previous filter don't count and its error shows.)
   const visibleError = error && data !== undefined && cachedAt ? null : error;
 
   // cachedAt is set while the screen shows the phone's saved copy: before the first refresh lands, or after it failed.

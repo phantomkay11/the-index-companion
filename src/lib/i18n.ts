@@ -176,6 +176,16 @@ const en = {
   messageToArrange: 'Message me to arrange',
   dateHint: 'Use a real date from today on, like',
   reportPost: 'Report this post',
+  back: "Go back",
+  farmNotJoined: "This farm hasn't joined the app yet, so it can't get messages here. Use the farm's website or contact details instead.",
+  farmNotTaking: "This farm isn't taking messages right now.",
+  farmIsYours: "This is your farm, so there's no one to send an inquiry to.",
+  dateTooFar: "Pick a date within the next year.",
+  linkReviewTitle: "BFI will check the new link",
+  linkReviewBody: "Changing your order link sends your listing back to BFI for a quick review. Your farm won't show on Discover until it's approved again.",
+  saveAnyway: "Save and send for review",
+  checkNumber: "Check the number",
+  usNumbersOnly: "Text alerts are only available for US numbers right now. Use a 10-digit number, like 601 555 0142.",
 };
 
 type Strings = typeof en;
@@ -348,6 +358,16 @@ const es: Strings = {
   messageToArrange: 'Escríbeme para coordinar',
   dateHint: 'Usa una fecha real desde hoy, por ejemplo',
   reportPost: 'Reportar esta publicación',
+  back: "Volver",
+  farmNotJoined: "Esta granja aún no se ha unido a la app, así que no puede recibir mensajes aquí. Usa el sitio web o los datos de contacto de la granja.",
+  farmNotTaking: "Esta granja no está recibiendo mensajes por ahora.",
+  farmIsYours: "Esta es tu granja, así que no hay a quién enviar la consulta.",
+  dateTooFar: "Elige una fecha dentro del próximo año.",
+  linkReviewTitle: "BFI revisará el nuevo enlace",
+  linkReviewBody: "Cambiar tu enlace de pedidos envía tu ficha a BFI para una revisión rápida. Tu granja no aparecerá en Descubrir hasta que se apruebe de nuevo.",
+  saveAnyway: "Guardar y enviar a revisión",
+  checkNumber: "Revisa el número",
+  usNumbersOnly: "Por ahora, los avisos por texto solo funcionan con números de EE. UU. Usa un número de 10 dígitos, como 601 555 0142.",
 };
 
 const fr: Strings = {
@@ -518,6 +538,16 @@ const fr: Strings = {
   messageToArrange: 'Écrivez-moi pour organiser',
   dateHint: 'Indiquez une vraie date à partir d’aujourd’hui, par exemple',
   reportPost: 'Signaler cette annonce',
+  back: "Retour",
+  farmNotJoined: "Cette ferme n’a pas encore rejoint l’app et ne peut pas recevoir de messages ici. Utilisez le site ou les coordonnées de la ferme.",
+  farmNotTaking: "Cette ferme ne reçoit pas de messages pour le moment.",
+  farmIsYours: "C’est votre ferme : il n’y a personne à qui envoyer la demande.",
+  dateTooFar: "Choisissez une date dans l’année qui vient.",
+  linkReviewTitle: "BFI vérifiera le nouveau lien",
+  linkReviewBody: "Changer votre lien de commande renvoie votre fiche à BFI pour une vérification rapide. Votre ferme n’apparaîtra plus dans Découvrir avant d’être approuvée à nouveau.",
+  saveAnyway: "Enregistrer et envoyer",
+  checkNumber: "Vérifiez le numéro",
+  usNumbersOnly: "Les alertes par SMS ne sont disponibles que pour les numéros américains pour l’instant. Utilisez un numéro à 10 chiffres, comme 601 555 0142.",
 };
 
 // Haitian Creole and Portuguese: drafted for the pilot. Have native speakers in the Index review before launch.
@@ -689,6 +719,16 @@ const ht: Strings = {
   messageToArrange: 'Ekri m pou n fè aranjman',
   dateHint: 'Mete yon vrè dat depi jodi a, tankou',
   reportPost: 'Siyale mesaj sa a',
+  back: "Tounen",
+  farmNotJoined: "Fèm sa a poko antre nan app la, kidonk li pa ka resevwa mesaj isit la. Sèvi ak sit entènèt oswa enfòmasyon kontak fèm nan.",
+  farmNotTaking: "Fèm sa a pa resevwa mesaj kounye a.",
+  farmIsYours: "Se fèm pa w, kidonk pa gen moun pou voye demann nan.",
+  dateTooFar: "Chwazi yon dat nan ane k ap vini an.",
+  linkReviewTitle: "BFI ap verifye nouvo lyen an",
+  linkReviewBody: "Si w chanje lyen kòmand ou, fich ou ap tounen bay BFI pou yon ti revizyon. Fèm ou p ap parèt nan Dekouvri jiskaske yo apwouve l ankò.",
+  saveAnyway: "Anrejistre epi voye pou revizyon",
+  checkNumber: "Verifye nimewo a",
+  usNumbersOnly: "Pou kounye a, alèt pa tèks yo mache sèlman ak nimewo Etazini. Sèvi ak yon nimewo 10 chif, tankou 601 555 0142.",
 };
 
 const pt: Strings = {
@@ -859,6 +899,16 @@ const pt: Strings = {
   messageToArrange: 'Me mande mensagem para combinar',
   dateHint: 'Use uma data real a partir de hoje, como',
   reportPost: 'Denunciar esta publicação',
+  back: "Voltar",
+  farmNotJoined: "Esta fazenda ainda não entrou no app, então não pode receber mensagens aqui. Use o site ou os contatos da fazenda.",
+  farmNotTaking: "Esta fazenda não está recebendo mensagens no momento.",
+  farmIsYours: "Esta é a sua fazenda, então não há para quem enviar o pedido.",
+  dateTooFar: "Escolha uma data dentro do próximo ano.",
+  linkReviewTitle: "A BFI vai conferir o novo link",
+  linkReviewBody: "Mudar o link de pedidos envia seu cadastro de volta à BFI para uma revisão rápida. Sua fazenda não aparecerá em Descobrir até ser aprovada de novo.",
+  saveAnyway: "Salvar e enviar para revisão",
+  checkNumber: "Confira o número",
+  usNumbersOnly: "Por enquanto, os alertas por SMS só funcionam com números dos EUA. Use um número de 10 dígitos, como 601 555 0142.",
 };
 
 export const strings: Record<Lang, Strings> = { en, es, fr, ht, pt };

@@ -207,7 +207,6 @@ export default function FarmProfile() {
           <Pressable
             onPress={() => WebBrowser.openBrowserAsync(f.order_url!)}
             accessibilityRole="link"
-            accessibilityLabel={`${f.order_label || t('orderOnline')} with ${f.name}. Opens the farm’s own page.`}
             style={({ pressed }) => [styles.order, { backgroundColor: colors.harvest, opacity: pressed ? 0.9 : 1 }]}>
             <View style={[styles.factIcon, { backgroundColor: 'rgba(255,255,255,0.55)' }]}>
               <Ionicons name="cart" size={18} color={colors.onHarvest} />

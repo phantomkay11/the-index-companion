@@ -13,7 +13,7 @@ await db.exec(`
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create publication supabase_realtime;
   create schema storage;
-  create table storage.buckets (id text primary key, name text, public boolean default false);
+  create table storage.buckets (id text primary key, name text, public boolean default false, file_size_limit bigint, allowed_mime_types text[]);
   create table storage.objects (id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid default auth.uid());
   alter table storage.objects enable row level security;
   create or replace function storage.foldername(name text) returns text[] language sql immutable as
@@ -280,10 +280,12 @@ await one(`select public.log_farm_view($1)`, [mine.id]);
 await one(`select public.log_farm_view($1)`, [mine.id]);
 await expectFail('non-owner cannot see farm insights', () => one(`select * from public.farm_insights($1)`, [mine.id]));
 await expectFail('member cannot see impact report', () => one(`select public.impact_stats()`));
+await as(other);
+await one(`select public.log_farm_view($1)`, [mine.id]);
 await as(farmer);
 await one(`select public.log_farm_view($1)`, [mine.id]);
 const ins = (await one(`select * from public.farm_insights($1)`, [mine.id]))[0];
-check('farm insights count views (not own), followers and inquiries', ins.views_30d === 2 && ins.followers === 1 && ins.inquiries_30d === 1);
+check('farm insights count views (each member once a day, not own), followers and inquiries', ins.views_30d === 2 && ins.followers === 1 && ins.inquiries_30d === 1);
 await as(staff);
 const impact = (await one(`select public.impact_stats() as s`))[0].s;
 check('impact report counts inquiries and regions', impact.inquiries_total === 1 && impact.farms_by_region['6'] === 1 && impact.members === 4);
@@ -556,5 +558,153 @@ check('deliveries stuck mid-send count as tries and stop after three', (await on
   && (await one(`select count(*)::int n from public.notification_deliveries where status = 'failed' and last_error is not null`))[0].n > 0);
 await as(buyer);
 await expectFail('members cannot claim deliveries', () => one(`select * from public.claim_deliveries(10)`));
+
+// ---------------------------------------------------------------------------
+// Round 3 review: each of these was an attack that used to work.
+// ---------------------------------------------------------------------------
+const mkUser = async (id, email) => { await svc(); await db.exec(`insert into auth.users (id, email) values ('${id}', '${email}')`); };
+const setPhone = async (uid, phone) => { await as(uid); await one(`update public.contact_prefs set phone = $1 where user_id = $2`, [phone, uid]); };
+const requestCode = async (uid) => { await as(uid); return one(`select public.request_phone_code()`); };
+
+// 1. Switching numbers no longer resets the per-account limit (5 an hour, 10 a day).
+const hopper = '88888888-8888-4888-8888-888888888881';
+await mkUser(hopper, 'hopper@example.com');
+await setPhone(hopper, '+15555551001');
+for (let i = 0; i < 3; i++) await requestCode(hopper);
+await setPhone(hopper, '+15555551002');
+for (let i = 0; i < 2; i++) await requestCode(hopper);
+await setPhone(hopper, '+15555551003');
+await expectFail('one account cannot get more than 5 codes an hour by switching numbers', () => requestCode(hopper));
+const daily = '88888888-8888-4888-8888-888888888882';
+await mkUser(daily, 'daily@example.com');
+await db.exec(`insert into public.phone_code_log (phone_key, user_id, sent_at) select '1555555' || lpad(g::text, 4, '0'), '${daily}', now() - interval '3 hours' from generate_series(2000, 2009) g`);
+await setPhone(daily, '+15555552100');
+await expectFail('one account gets at most 10 codes a day', () => requestCode(daily));
+
+// 2. Burning a number's hourly allowance from one account no longer locks its owner out.
+const burner = '88888888-8888-4888-8888-888888888883';
+const owner = '88888888-8888-4888-8888-888888888884';
+await mkUser(burner, 'burner@example.com');
+await mkUser(owner, 'owner@example.com');
+await setPhone(burner, '+15555553000');
+for (let i = 0; i < 3; i++) await requestCode(burner);
+await expectFail('one account sends at most 3 codes an hour to one number', () => requestCode(burner));
+await setPhone(owner, '+15555553000');
+await requestCode(owner);
+check('the number’s owner can still get a code after someone else used up their share', true);
+await svc();
+// A single account's many codes count for at most 3 toward the number's daily cap of 10…
+await db.exec(`insert into public.phone_code_log (phone_key, user_id, sent_at) select '15555553000', '${daily}', now() - interval '2 hours' from generate_series(1, 9)`);
+await requestCode(owner);
+check('one account’s codes count for at most 3 toward a number’s daily cap', true);
+// …but many accounts together do hit it, so a phone can't be flooded.
+await svc();
+await db.exec(`insert into public.phone_code_log (phone_key, user_id, sent_at) select '15555553000', gen_random_uuid(), now() - interval '2 hours' from generate_series(1, 3)`);
+const late = '88888888-8888-4888-8888-888888888885';
+await mkUser(late, 'late@example.com');
+await setPhone(late, '+15555553000');
+await expectFail('a number gets at most 10 codes a day across accounts', () => requestCode(late));
+
+// 3. "+501 600 1234" (Belize) is not "+1 501 600 1234"; codes go to US numbers only; numbers must look like numbers.
+await svc();
+const keys = (await one(`select public.phone_key('+501 600 1234') belize, public.phone_key('+1 501 600 1234') us, public.phone_key('501-600-1234') bare`))[0];
+check('a + number with 10 digits keeps its own country code', keys.belize === '5016001234' && keys.us === '15016001234' && keys.bare === '15016001234');
+const abroad = '88888888-8888-4888-8888-888888888886';
+await mkUser(abroad, 'abroad@example.com');
+await setPhone(abroad, '+501 600 1234');
+await as(abroad);
+try { await one(`select public.request_phone_code()`); check('codes refused for non-US numbers', false); }
+catch (e) { check('codes refused for non-US numbers, with a plain message', e.message === 'Text alerts are only available for US numbers right now.'); }
+await expectFail('a phone number must look like a phone number', () => setPhone(abroad, 'call me maybe'));
+await expectFail('a phone number needs enough digits', () => setPhone(abroad, '+1999'));
+await setPhone(abroad, '  ');
+check('a blank number is stored as no number', (await one(`select phone from public.contact_prefs where user_id = $1`, [abroad]))[0].phone === null);
+await svc();
+check('a +1 member is not matched by a 10-digit foreign number', (await one(`select public.sms_inbound('+5555550100', 'SAFE') as r`))[0].r.handled === false);
+
+// 4. Reply codes: a farmer's texted reply goes to the thread they meant, not the latest one.
+await as(other);
+const conv2 = (await one(`select public.send_inquiry($1, 'Eggs', '2 dozen', '2026-10-12', 'Pickup', '') as id`, [mine.id]))[0].id;
+await svc();
+await db.exec(`update public.notification_deliveries set status = 'sent', sent_at = now() where channel = 'sms' and status <> 'sent'`);
+const codeFor = async (c) => (await one(`select d.reply_code from public.notification_deliveries d join public.notifications n on n.id = d.notification_id
+  where n.user_id = $1 and n.data->>'route' = $2 and d.channel = 'sms' and d.reply_code is not null limit 1`, [farmer, `/thread/${c}`]))[0]?.reply_code;
+const code1 = await codeFor(conv);
+const code2 = await codeFor(conv2);
+check('texts about a conversation carry a reply code', /^[A-Z0-9]{3}$/.test(code1 ?? '') && /^[A-Z0-9]{3}$/.test(code2 ?? '') && code1 !== code2);
+const before = (await one(`select count(*)::int n from public.messages where via = 'sms'`))[0].n;
+const amb = (await one(`select public.sms_inbound('+15555550100', 'YES ready at 12, gate code 4411') as r`))[0].r;
+check('with two recent threads, a reply without a code is not posted anywhere', amb.handled === true && !amb.conversation_id
+  && (await one(`select count(*)::int n from public.messages where via = 'sms'`))[0].n === before);
+check('…and the reply lists the codes to use', amb.reply.includes(`#${code1}`) && amb.reply.includes(`#${code2}`) && amb.reply.includes('Marcus'));
+const coded = (await one(`select public.sms_inbound('+15555550100', $1) as r`, [`#${code1.toLowerCase()} see you at noon`]))[0].r;
+check('a reply starting with its code lands in that thread, without the code', coded.handled === true && coded.conversation_id === conv
+  && (await one(`select count(*)::int n from public.messages where conversation_id = $1 and body = 'see you at noon' and via = 'sms'`, [conv]))[0].n === 1);
+check('the confirmation names who it went to', coded.reply.startsWith('Sent to Marcus'));
+const codedYes = (await one(`select public.sms_inbound('+15555550100', $1) as r`, [`#${code2} YES`]))[0].r;
+check('a coded YES answers that thread’s inquiry', codedYes.conversation_id === conv2 && codedYes.reply.startsWith('Answer sent to')
+  && codedYes.reply.includes('(Eggs)')
+  && (await one(`select inquiry_status from public.messages where conversation_id = $1 and kind = 'inquiry'`, [conv2]))[0].inquiry_status === 'ready');
+const wrong = (await one(`select public.sms_inbound('+15555550100', '#QQQ hello') as r`))[0].r;
+check('an unknown code posts nothing and says so', wrong.handled === true && !wrong.conversation_id && /could not find/.test(wrong.reply));
+await expectFail('members cannot read reply codes', async () => { await as(farmer); const r = await one(`select count(*)::int n from public.sms_reply_codes`); if (r[0].n === 0) throw new Error('hidden'); });
+// YES re-subscribes only a number that is opted out.
+await svc();
+check('YES does not count as opt-in for an opted-in number', (await one(`select public.sms_resubscribe('+15555550100') as r`))[0].r === false);
+await db.exec(`update public.contact_prefs set sms_opt_in = false where user_id = '${farmer}'`);
+check('YES opts an opted-out number back in', (await one(`select public.sms_resubscribe('+15555550100') as r`))[0].r === true
+  && (await one(`select sms_opt_in from public.contact_prefs where user_id = $1`, [farmer]))[0].sms_opt_in === true);
+
+// 5. Direct messages text a member at most once per conversation every 15 minutes, and senders are capped.
+const smsCount = async (c, ch) => (await one(`select count(*)::int n from public.notification_deliveries d join public.notifications n on n.id = d.notification_id
+  where n.user_id = $1 and n.data->>'route' = $2 and d.channel = $3`, [farmer, `/thread/${c}`, ch]))[0].n;
+const smsBefore = await smsCount(conv2, 'sms');
+const pushBefore = await smsCount(conv2, 'push');
+await as(other);
+for (let i = 0; i < 3; i++) await one(`insert into public.messages (conversation_id, sender_id, body) values ($1, $2, $3)`, [conv2, other, `ping ${i}`]);
+await svc();
+check('a burst of messages sends no extra texts within 15 minutes', (await smsCount(conv2, 'sms')) === smsBefore);
+check('…but every message still goes by push', (await smsCount(conv2, 'push')) === pushBefore + 3);
+const spammer = '88888888-8888-4888-8888-888888888887';
+await mkUser(spammer, 'spammer@example.com');
+await as(spammer);
+const sconv = (await one(`select public.start_conversation($1) as id`, [mine.id]))[0].id;
+for (let i = 0; i < 60; i++) await one(`insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'x')`, [sconv, spammer]);
+await expectFail('a member can send at most 60 messages an hour', () => one(`insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'x')`, [sconv, spammer]));
+await svc();
+check('the flood texted the farmer once at most', (await smsCount(sconv, 'sms')) <= 1);
+
+// 6. Staff can hide and pin, but can't move a message to another conversation or answer an inquiry.
+await as(staff);
+const pinMe = (await one(`select id from public.messages where conversation_id = $1 and body = 'see you at noon'`, [conv]))[0].id;
+await one(`update public.messages set pinned = true where id = $1`, [pinMe]);
+check('staff can still pin', (await one(`select pinned from public.messages where id = $1`, [pinMe]))[0].pinned === true);
+await expectFail('staff cannot move a private message into a channel', () => one(`update public.messages set conversation_id = $1 where id = $2`, [ch, pinMe]));
+await expectFail('staff cannot backdate a message', () => one(`update public.messages set created_at = '2000-01-01' where id = $1`, [pinMe]));
+await expectFail('staff cannot answer an inquiry for a farm', () => one(`update public.messages set inquiry_status = 'unavailable' where conversation_id = $1 and kind = 'inquiry'`, [conv2]));
+
+// 7. Upload buckets only take photos / audio, and not huge files.
+await svc();
+const buckets = Object.fromEntries((await one(`select id, file_size_limit::int lim, allowed_mime_types types from storage.buckets`)).map((b) => [b.id, b]));
+check('farm photos take images only, up to 8 MB', buckets['farm-photos'].lim === 8 * 1024 * 1024
+  && buckets['farm-photos'].types.includes('image/heic') && !buckets['farm-photos'].types.some((t) => !t.startsWith('image/')));
+check('voice notes take audio only, up to 10 MB', buckets['voice-notes'].lim === 10 * 1024 * 1024
+  && ['audio/webm', 'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/mpeg'].every((t) => buckets['voice-notes'].types.includes(t))
+  && !buckets['voice-notes'].types.some((t) => !t.startsWith('audio/')));
+
+// 8. Owners can't backdate "On the Index since".
+await as(farmer);
+await one(`insert into public.farms (name, city, state, region_id, listed_since, created_at) values ('Old Farm', 'Opelousas', 'LA', '6', '1965-01-01', '1965-01-01')`);
+const old = (await one(`select id, listed_since, created_at from public.farms where name = 'Old Farm'`))[0];
+check('a new listing starts today', new Date(old.listed_since).getFullYear() > 2000 && new Date(old.created_at).getFullYear() > 2000);
+await one(`update public.farms set listed_since = '1965-01-01', created_at = '1965-01-01' where id = $1`, [mine.id]);
+const kept = (await one(`select listed_since from public.farms where id = $1`, [mine.id]))[0];
+check('owners cannot backdate an existing listing', new Date(kept.listed_since).getFullYear() > 2000);
+
+// 9. Each member counts as one view per farm per day.
+await as(buyer);
+for (let i = 0; i < 20; i++) await one(`select public.log_farm_view($1)`, [mine.id]);
+await as(farmer);
+check('repeat views by one member count once a day', (await one(`select * from public.farm_insights($1)`, [mine.id]))[0].views_30d === 2);
 
 console.log(process.exitCode ? 'SOME CHECKS FAILED' : 'ALL CHECKS PASSED');

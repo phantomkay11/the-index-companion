@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Icon as Ionicons } from '@/components/icon';
@@ -47,36 +48,48 @@ export default function Events() {
     router.push('/sign-in');
   };
 
-  const toggleRsvp = async (e: EventRow) => {
+  // One save at a time per event or shift: a quick second tap would insert a duplicate.
+  const saving = useRef(new Set<string>());
+  const once = async (id: string, work: () => Promise<void>) => {
+    if (saving.current.has(id)) return;
+    saving.current.add(id);
+    try {
+      await work();
+    } finally {
+      saving.current.delete(id);
+    }
+  };
+
+  const toggleRsvp = (e: EventRow) => once(`e:${e.id}`, async () => {
     if (!uid) return requireSignIn();
     const going = q.data?.rsvps.some((r) => r.event_id === e.id);
     const res = going
       ? await supabase.from('event_rsvps').delete().eq('event_id', e.id).eq('user_id', uid)
       : await supabase.from('event_rsvps').insert({ event_id: e.id, user_id: uid });
     if (res.error) showAlert('RSVP not saved', res.error.message);
-    q.reload();
-  };
+    await q.reload();
+  });
 
-  const setReminder = async (r: Rsvp, key: 'remind_push' | 'remind_sms' | 'remind_email') => {
+  const setReminder = (r: Rsvp, key: 'remind_push' | 'remind_sms' | 'remind_email') => once(`r:${r.event_id}:${key}`, async () => {
     const { error } = await supabase.from('event_rsvps').update({ [key]: !r[key] }).eq('event_id', r.event_id).eq('user_id', r.user_id);
     if (error) showAlert('Reminder not saved', error.message);
-    q.reload();
-  };
+    await q.reload();
+  });
 
-  const toggleShift = async (s: Shift) => {
+  const toggleShift = (s: Shift) => once(`s:${s.id}`, async () => {
     if (!uid) return requireSignIn();
     const mine = q.data?.mySignups.includes(s.id);
     const res = mine
       ? await supabase.from('shift_signups').delete().eq('shift_id', s.id).eq('user_id', uid)
       : await supabase.from('shift_signups').insert({ shift_id: s.id, user_id: uid });
     if (res.error) showAlert('Sign-up not saved', res.error.message);
-    q.reload();
-  };
+    await q.reload();
+  });
 
   const hero = (
-    <Photo picture={sectionImage('events')} style={{ height: isTablet ? 300 : 230 }}>
+    <Photo picture={sectionImage('events')} style={{ minHeight: isTablet ? 300 : 230, justifyContent: 'flex-end' }}>
       <Scrim from={0.15} />
-      <View style={[styles.heroCopy, isTablet && { left: 48, right: 48 }]}>
+      <View style={[styles.heroCopy, isTablet && { paddingHorizontal: 48 }]}>
         <Txt variant="display" color="#ffffff" accessibilityRole="header">
           {t('eventsHero')}
         </Txt>
@@ -103,7 +116,7 @@ export default function Events() {
             <View key={e.id} style={{ gap: 12, opacity: e.status === 'pending' ? 0.85 : 1 }}>
               <Photo picture={eventImage(e.type)} rounded={Radius.xl} style={{ aspectRatio: 16 / 9 }}>
                 <Scrim from={0.55} />
-                <View style={[styles.date, { backgroundColor: colors.surface }]} accessibilityLabel={`${month} ${day}`}>
+                <View style={[styles.date, { backgroundColor: colors.surface }]} accessible accessibilityLabel={`${month} ${day}`}>
                   <Txt variant="smallBold" color={colors.leaf} style={{ fontSize: 12 }}>
                     {month}
                   </Txt>
@@ -196,7 +209,7 @@ export default function Events() {
 }
 
 const styles = StyleSheet.create({
-  heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 22, gap: 4 },
+  heroCopy: { paddingHorizontal: 20, paddingTop: 110, paddingBottom: 22, gap: 4 },
   date: { position: 'absolute', top: 12, left: 12, width: 58, borderRadius: Radius.md, alignItems: 'center', paddingVertical: 6 },
   chips: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 6 },
   sample: { backgroundColor: 'rgba(6,24,15,0.72)', borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 3 },

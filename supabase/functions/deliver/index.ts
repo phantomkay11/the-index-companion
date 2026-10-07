@@ -11,12 +11,15 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
+import { smsText, usNumber } from './text.ts';
+
 type Delivery = {
   id: string;
   channel: 'push' | 'sms' | 'email';
   attempts: number;
   body_override: string | null;
   to_phone: string | null;
+  reply_code: string | null;
   notification: { id: string; user_id: string; kind: string; title: string; body: string; data: Record<string, unknown> };
 };
 
@@ -50,15 +53,17 @@ Deno.serve(async (req) => {
     attempts: number;
     body_override: string | null;
     to_phone: string | null;
+    reply_code: string | null;
     notification_id: string;
   }[];
+  // Hand the batch straight back rather than leaving it stuck until the 10-minute reset.
+  const release = () => db.from('notification_deliveries').update({ status: 'pending' }).in('id', claimedRows.map((d) => d.id));
   const noteIds = [...new Set(claimedRows.map((d) => d.notification_id))];
   const { data: notes, error: notesErr } = noteIds.length
     ? await db.from('notifications').select('id, user_id, kind, title, body, data').in('id', noteIds)
     : { data: [], error: null };
   if (notesErr) {
-    // Hand the batch straight back rather than leaving it stuck until the 10-minute reset.
-    await db.from('notification_deliveries').update({ status: 'pending' }).in('id', claimedRows.map((d) => d.id));
+    await release();
     return json({ error: 'Could not load notifications' }, 500);
   }
   const notesById = new Map((notes ?? []).map((n) => [n.id as string, n as Delivery['notification']]));
@@ -70,13 +75,19 @@ Deno.serve(async (req) => {
       attempts: d.attempts,
       body_override: d.body_override,
       to_phone: d.to_phone,
+      reply_code: d.reply_code ?? null,
       notification: notesById.get(d.notification_id)!,
     }));
 
   const userIds = [...new Set(deliveries.map((d) => d.notification.user_id))];
-  const { data: prefs } = userIds.length
+  const { data: prefs, error: prefsErr } = userIds.length
     ? await db.from('contact_prefs').select('user_id, push_token, phone, sms_opt_in, email_opt_in, phone_verified_at').in('user_id', userIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (prefsErr) {
+    // Without settings every delivery would look "not opted in" and be skipped for good. Try again next run.
+    await release();
+    return json({ error: 'Could not load contact settings' }, 500);
+  }
   const prefsByUser = new Map((prefs ?? []).map((p) => [p.user_id as string, p]));
 
   const results: Result[] = [];
@@ -120,8 +131,9 @@ Deno.serve(async (req) => {
     if (!sendable.length) continue;
     try {
       const { res, tickets } = await sendPush(sendable);
-      // A whole-request rejection (one odd token can cause it): send one by one so the rest still go.
-      if (!res.ok && tickets.length !== sendable.length && sendable.length > 1) {
+      // A whole-request rejection (400: one odd token can cause it): send one by one so the rest still go.
+      // A 5xx or 429 means Expo is down or busy; sending one by one would only hammer it, so retry next run.
+      if (res.status === 400 && tickets.length !== sendable.length && sendable.length > 1) {
         for (const one of sendable) {
           const r = await sendPush([one]).catch((e) => ({ res: null, tickets: [], err: String(e) }));
           const t = r.tickets[0];
@@ -159,18 +171,23 @@ Deno.serve(async (req) => {
     const p = prefsByUser.get(d.notification.user_id);
     // Codes go to the number being confirmed; everything else only to a proven, opted-in number.
     const isCode = d.notification.kind === 'verify';
-    const to = isCode ? d.to_phone : (p?.phone as string | null | undefined);
+    const raw = isCode ? d.to_phone : (p?.phone as string | null | undefined);
     const allowed = isCode ? !!d.to_phone : !!(p?.sms_opt_in && p?.phone && p?.phone_verified_at);
     if (!sid || !token || !from || !allowed) {
       await record({ id: d.id, ok: false, skip: true, error: 'sms not configured, not opted in or number not confirmed' });
       continue;
     }
-    const text = d.body_override ?? smsText(d.notification);
+    const to = usNumber(raw);
+    if (!to) {
+      await record({ id: d.id, ok: false, skip: true, error: 'texts go to US numbers (+1 and 10 digits) only' });
+      continue;
+    }
+    const text = d.body_override ?? smsText(d.notification, d.reply_code);
     try {
       const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
         method: 'POST',
         headers: { Authorization: 'Basic ' + btoa(`${sid}:${token}`), 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ To: to as string, From: from, Body: text }),
+        body: new URLSearchParams({ To: to, From: from, Body: text }),
       });
       if (res.ok) await record({ id: d.id, ok: true });
       else {
@@ -203,7 +220,12 @@ Deno.serve(async (req) => {
     }
     let to: string | undefined;
     try {
-      const { data: user } = await db.auth.admin.getUserById(d.notification.user_id);
+      const { data: user, error } = await db.auth.admin.getUserById(d.notification.user_id);
+      if (error) {
+        // A lookup failure isn't "no email": count it as a failed try so it's retried.
+        await record({ id: d.id, ok: false, error: `account lookup: ${error.message}` });
+        continue;
+      }
       to = user?.user?.email;
     } catch (e) {
       await record({ id: d.id, ok: false, error: String(e) });
@@ -239,19 +261,6 @@ Deno.serve(async (req) => {
     failed: results.filter((r) => !r.ok && !r.skip).length,
   });
 });
-
-/** Texts about a conversation invite a reply; the sms-line function posts the reply in that thread. */
-function smsText(n: Delivery['notification']) {
-  const hint =
-    n.kind === 'inquiry'
-      ? ' Reply YES, PART or NO to answer.'
-      : n.kind === 'message' || n.kind === 'board'
-        ? ' Reply to this text to answer.'
-        : '';
-  // Cut by characters, not UTF-16 units, so an emoji is never split in half.
-  const main = Array.from(`${n.title}: ${n.body}`);
-  return (main.length > 280 ? main.slice(0, 279).join('') + '…' : main.join('')) + hint + ' (The Index. Reply STOP to opt out.)';
-}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });

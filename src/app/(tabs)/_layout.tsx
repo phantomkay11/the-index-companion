@@ -83,13 +83,18 @@ export default function TabsLayout() {
             : { backgroundColor: colors.surface, borderTopWidth: 0, height: 72 + insets.bottom, paddingTop: 6, shadowColor: '#0b2a1b', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -2 }, elevation: 8 },
           tabBarActiveBackgroundColor: isTablet ? colors.leafSoft : undefined,
           // Five labels share the bar, so they grow only a little with the text size and may take two lines.
-          tabBarLabel: ({ color, children }) => (
-            <Text
-              numberOfLines={2}
-              style={{ color, fontFamily: Fonts.ui, fontSize: (width < 380 ? 10 : 11.5) * Math.min(textScale, 1.1), lineHeight: (width < 380 ? 12 : 14) * Math.min(textScale, 1.1), textAlign: 'center' }}>
-              {children}
-            </Text>
-          ),
+          // A long single word ("Communauté") gets a slightly smaller size so it never breaks mid-word.
+          tabBarLabel: ({ color, children }) => {
+            const longest = Math.max(...String(children).split(/\s+/).map((w) => w.length));
+            const fit = Math.min(1, 9 / longest) * Math.min(textScale, 1.1);
+            return (
+              <Text
+                numberOfLines={2}
+                style={{ color, fontFamily: Fonts.ui, fontSize: (width < 380 ? 10 : 11.5) * fit, lineHeight: (width < 380 ? 12 : 14) * fit, textAlign: 'center' }}>
+                {children}
+              </Text>
+            );
+          },
           tabBarItemStyle: isTablet ? { minHeight: 72, marginVertical: 2 } : { paddingHorizontal: 0 },
           tabBarActiveTintColor: colors.forest,
         }}

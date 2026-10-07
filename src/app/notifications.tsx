@@ -67,14 +67,14 @@ export default function NotificationsScreen() {
         <Button small kind="ghost" label={t('notificationSettings')} icon="options-outline" onPress={() => router.push('/settings')} />
       </Row>
       {list.error ? <ErrorNote message={list.error} onRetry={list.reload} /> : null}
-      {!list.data && !list.error ? <Loading /> : null}
-      {list.data && !list.data.length && !list.error ? <Empty>{t('noNotifications')}</Empty> : null}
+      {(!list.data || (list.loading && !list.data.length)) && !list.error ? <Loading /> : null}
+      {list.data && !list.data.length && !list.loading && !list.error ? <Empty>{t('noNotifications')}</Empty> : null}
       {list.data?.map((n) => (
         <Pressable
           key={n.id}
           onPress={() => open(n)}
           accessibilityRole="button"
-          accessibilityLabel={`${n.read_at ? '' : 'Unread. '}${n.title}. ${n.body}`}
+          accessibilityLabel={`${n.title}. ${n.body}${n.read_at ? '' : '. Unread'}`}
           style={({ pressed }) => [
             styles.item,
             {

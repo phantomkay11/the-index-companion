@@ -6,7 +6,7 @@ import { Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold } from '@exp
 import { IBMPlexMono_400Regular, IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import { YoungSerif_400Regular } from '@expo-google-fonts/young-serif';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router';
+import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, useNavigationContainerRef, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -113,6 +113,7 @@ function AppStack() {
 
   return (
     <ThemeProvider value={theme}>
+      {Platform.OS === 'web' ? <WebTitle /> : null}
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
@@ -150,4 +151,24 @@ function AppStack() {
       </Stack>
     </ThemeProvider>
   );
+}
+
+/** On the web, name each browser tab after the screen ("Settings · The Index"), as screen readers announce it. */
+function WebTitle() {
+  const nav = useNavigationContainerRef();
+  useEffect(() => {
+    const update = () => {
+      if (typeof document === 'undefined' || !nav.isReady()) return;
+      const title = (nav.getCurrentOptions() as { title?: unknown } | undefined)?.title;
+      document.title = typeof title === 'string' && title.trim() ? `${title} · The Index` : 'The Index';
+    };
+    update();
+    const offState = nav.addListener('state', update);
+    const offOptions = nav.addListener('options', update);
+    return () => {
+      offState();
+      offOptions();
+    };
+  }, [nav]);
+  return null;
 }

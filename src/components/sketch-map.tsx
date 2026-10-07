@@ -68,7 +68,7 @@ export function SketchMap({ farms, here, height = 280 }: MapProps) {
               accessibilityRole="button"
               accessibilityLabel={`${f.name}, ${f.city}`}
               hitSlop={10}
-              style={[styles.pin, flip ? { right: w - px - 8, flexDirection: 'row-reverse' } : { left: px - 8 }, { top: y(f.lat!) - 8 }]}>
+              style={[styles.pin, flip ? { right: w - px - 8, flexDirection: 'row-reverse' } : { left: px - 8 }, { top: y(f.lat!) - 22 }]}>
               <View style={[styles.dot, { backgroundColor: colors.leaf, borderColor: colors.surface }]} />
               <Txt variant="smallBold" style={{ fontSize: 11 }} numberOfLines={1}>
                 {f.name.split(' ')[0]}
@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
   box: { borderWidth: 0, borderRadius: Radius.xl, overflow: 'hidden', position: 'relative' },
   grid: { position: 'absolute', opacity: 0.6 },
   here: { position: 'absolute', width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
-  pin: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: 120 },
+  // 44 points tall (dot centred) so pins are easy to tap; hitSlop does nothing on the web.
+  pin: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 3, maxWidth: 120, minHeight: 44, minWidth: 44 },
   dot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2 },
 });

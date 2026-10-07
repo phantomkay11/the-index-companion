@@ -15,7 +15,7 @@ import type { FarmInsights, FarmPhoto, FarmProduct, LocationVisibility, Region }
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
-import { showAlert } from '@/lib/alert';
+import { confirmAction, showAlert } from '@/lib/alert';
 
 export default function MyFarm() {
   const { session, myFarm, memberStatus, refresh } = useAuth();
@@ -106,11 +106,17 @@ function ManageFarm() {
       <ToggleRow label="Accept messages from buyers" value={farm.accepts_messages} onChange={(v) => setFarm({ accepts_messages: v })} />
       <ToggleRow
         label="I reply by text message"
-        hint="Messages reach you by text when you’ve turned on text messages in Settings. Reply to the text to answer; for an inquiry, reply YES, PART or NO."
+        hint="Messages reach you by text when you’ve turned on text messages in Settings. Reply to the text to answer, starting with the code in it (like #K7P). For an inquiry, add YES, PART or NO after the code."
         value={farm.replies_by_sms}
         onChange={(v) => setFarm({ replies_by_sms: v })}
       />
-      <OrderLink key={`${farm.order_url}|${farm.order_label}`} url={farm.order_url ?? ''} label={farm.order_label ?? ''} onSave={setFarm} />
+      <OrderLink
+        key={`${farm.order_url}|${farm.order_label}`}
+        url={farm.order_url ?? ''}
+        label={farm.order_label ?? ''}
+        approved={farm.status === 'approved'}
+        onSave={setFarm}
+      />
       <FarmPhotos farmId={farm.id} />
       <Button kind="ghost" label="View my public profile" onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })} />
     </Screen>
@@ -118,7 +124,17 @@ function ManageFarm() {
 }
 
 /** A link to the farm's own store, CSA sign-up or market page. The app never handles payment. */
-function OrderLink({ url: savedUrl, label: savedLabel, onSave }: { url: string; label: string; onSave: (patch: Record<string, unknown>) => Promise<void> }) {
+function OrderLink({
+  url: savedUrl,
+  label: savedLabel,
+  approved,
+  onSave,
+}: {
+  url: string;
+  label: string;
+  approved: boolean;
+  onSave: (patch: Record<string, unknown>) => Promise<void>;
+}) {
   const { t, colors } = useSettings();
   const [url, setUrl] = useState(savedUrl);
   const [label, setLabel] = useState(savedLabel);
@@ -129,6 +145,13 @@ function OrderLink({ url: savedUrl, label: savedLabel, onSave }: { url: string; 
   const changed = normalized !== savedUrl || label.trim() !== savedLabel;
 
   const save = async () => {
+    if (busy) return;
+    // A new link on a live listing goes back to BFI for a quick check (it could point anywhere),
+    // which takes the farm off Discover until then. Say so first.
+    if (approved && (normalized || null) !== (savedUrl || null)) {
+      const go = await confirmAction(t('linkReviewTitle'), t('linkReviewBody'), t('saveAnyway'), t('cancel'));
+      if (!go) return;
+    }
     setBusy(true);
     await onSave({ order_url: normalized || null, order_label: label.trim() || null });
     setBusy(false);

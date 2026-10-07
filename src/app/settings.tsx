@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Platform, View } from 'react-native';
 
-import { Button, Card, Chip, Field, Row, Screen, ToggleRow, Txt } from '@/components/ui';
+import { Button, Card, Chip, ErrorNote, Field, Loading, Row, Screen, ToggleRow, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { LANGUAGES, type Lang } from '@/lib/i18n';
 import { registerForPush, unregisterPush } from '@/lib/push';
@@ -52,7 +52,7 @@ export default function Settings() {
             small
             kind="ghost"
             label="A−"
-            accessibilityLabel={`${s.t('smallerText')}, ${Math.round(s.textScale * 100)}%`}
+            accessibilityLabel={`A−, ${s.t('smallerText')}, ${Math.round(s.textScale * 100)}%`}
             disabled={s.textScale <= 1}
             onPress={() => s.update({ textScale: Math.max(1, Math.round((s.textScale - 0.1) * 10) / 10) })}
           />
@@ -60,7 +60,7 @@ export default function Settings() {
             small
             kind="ghost"
             label="A+"
-            accessibilityLabel={`${s.t('largerText')}, ${Math.round(s.textScale * 100)}%`}
+            accessibilityLabel={`A+, ${s.t('largerText')}, ${Math.round(s.textScale * 100)}%`}
             disabled={s.textScale >= 1.6}
             onPress={() => s.update({ textScale: Math.min(1.6, Math.round((s.textScale + 0.1) * 10) / 10) })}
           />
@@ -158,7 +158,7 @@ function NotificationPrefs({ userId }: { userId: string }) {
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
 
-  if (!prefs.data) return null;
+  if (!prefs.data) return prefs.error ? <ErrorNote message={prefs.error} onRetry={prefs.reload} /> : <Loading />;
   const p = prefs.data;
   const phoneValue = phone ?? p.phone ?? '';
 
@@ -182,9 +182,11 @@ function NotificationPrefs({ userId }: { userId: string }) {
   };
 
   const savePhone = () => {
-    const digits = phoneValue.replace(/[^\d+]/g, '');
-    const e164 = digits.startsWith('+') ? digits : digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : null;
-    if (!e164) return showAlert('Check the number', 'Use a 10-digit US number, or include the country code.');
+    // Text alerts are US-only for now: a 10-digit number, with or without +1 in front.
+    const digits = phoneValue.replace(/\D/g, '');
+    const plus = phoneValue.trim().startsWith('+');
+    const e164 = !plus && digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : null;
+    if (!e164 || !/^\+1[2-9]\d{9}$/.test(e164)) return showAlert(t('checkNumber'), t('usNumbersOnly'));
     setPhone(e164);
     setCodeSent(false);
     // A new number is unconfirmed until proven; reflect that right away, then reload what the server holds.

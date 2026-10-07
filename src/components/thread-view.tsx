@@ -26,13 +26,24 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
   const { colors, t, textScale } = useSettings();
   const { session, myFarm, isStaff } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
+  // A different conversation or member starts from an empty list, never the last one's messages
+  // (adjusting state during render, as React recommends).
+  const [shownFor, setShownFor] = useState(`${id}:${session?.user.id ?? ''}`);
+  if (shownFor !== `${id}:${session?.user.id ?? ''}`) {
+    setShownFor(`${id}:${session?.user.id ?? ''}`);
+    setMessages([]);
+  }
+  // Ids that arrived live (or were just sent) while a full load was on its way, per load.
+  const arrivals = useRef(new Set<Set<string>>());
+  const noteArrival = (mid: string) => arrivals.current.forEach((set) => set.add(mid));
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList<Message>>(null);
 
   const conv = useQuery(async () => must(await supabase.from('conversations').select('*').eq('id', id).single()) as Conversation, [id]);
   const canPost = useQuery(async () => {
-    const { data } = await supabase.rpc('can_post', { c: id });
+    const { data, error } = await supabase.rpc('can_post', { c: id });
+    if (error) throw new Error(error.message); // a network blip is not "you can't reply"
     return Boolean(data);
   }, [id, session?.user.id]);
 
@@ -41,31 +52,38 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
   useEffect(() => {
     if (!uid) return;
     let active = true;
-    const loadAll = () =>
-      supabase
+    const loadAll = () => {
+      const arrived = new Set<string>();
+      arrivals.current.add(arrived);
+      // The newest 300, shown oldest first.
+      return supabase
         .from('messages')
         .select(SELECT)
         .eq('conversation_id', id)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(300)
         .then(({ data }) => {
+          arrivals.current.delete(arrived);
           if (!active || !data) return;
-          // Merge rather than replace: keep anything that arrived (or was sent) after this load started.
-          const loaded = data as Message[];
+          // The load is the truth, plus anything that arrived (or was sent) while it was on its way.
+          const loaded = (data as Message[]).slice().reverse();
           setMessages((prev) => {
             const ids = new Set(loaded.map((m) => m.id));
-            const newest = loaded.length ? loaded[loaded.length - 1].created_at : '';
-            const extra = prev.filter((m) => !ids.has(m.id) && m.created_at >= newest);
+            const extra = prev.filter((m) => !ids.has(m.id) && arrived.has(m.id));
             return [...loaded, ...extra];
           });
         });
+    };
     supabase.rpc('mark_read', { p_conversation_id: id }).then(() => {}); // queries only run once awaited or then-ed
 
+    // A unique name per screen: the same conversation can be open twice (farm page → Message, or a
+    // notification on iPad), and reusing a subscribed channel would throw.
     const channel = supabase
-      .channel(`thread:${id}`)
+      .channel(`thread:${id}:${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, async (payload) => {
         const row = payload.new as { id?: string };
         if (!row?.id) return;
+        noteArrival(row.id);
         const { data } = await supabase.from('messages').select(SELECT).eq('id', row.id).maybeSingle();
         if (!active) return;
         setMessages((prev) => {
@@ -104,6 +122,7 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
     if (error) return showAlert('Message not sent', error.message);
     setDraft('');
     // Show it right away; the live update (if any) replaces it by id.
+    if (data) noteArrival((data as Message).id);
     if (data) setMessages((prev) => (prev.some((m) => m.id === (data as Message).id) ? prev : [...prev, data as Message]));
   };
 
@@ -151,9 +170,15 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
         </View>
       ) : (
         <View style={[styles.composer, { borderTopColor: colors.line, backgroundColor: colors.surface }]}>
-          <Txt variant="small" muted style={{ flex: 1 }}>
-            {c.kind === 'channel' ? 'Only verified growers and BFI staff can post in channels.' : 'You can read this conversation but not reply.'}
-          </Txt>
+          {canPost.error ? (
+            <View style={{ flex: 1 }}>
+              <ErrorNote message={canPost.error} onRetry={canPost.reload} />
+            </View>
+          ) : canPost.data === undefined ? null : (
+            <Txt variant="small" muted style={{ flex: 1 }}>
+              {c.kind === 'channel' ? 'Only verified growers and BFI staff can post in channels.' : 'You can read this conversation but not reply.'}
+            </Txt>
+          )}
         </View>
       )}
     </KeyboardAvoidingView>
@@ -254,7 +279,7 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
         ) : null}
         {text && !mine ? <TranslateToggle tr={tr} color={fg} /> : null}
         {!mine ? (
-          <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`${t('report')}: ${name}`} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`${t('report')}: ${name}`} hitSlop={8} style={{ minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
             <Txt variant="small" style={{ textDecorationLine: 'underline' }}>
               {t('report')}
             </Txt>
@@ -275,7 +300,7 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
 function InquiryRow({ label, value }: { label: string; value: string }) {
   return (
     <Row gap={10}>
-      <Txt variant="small" muted style={{ width: 70 }}>
+      <Txt variant="small" muted style={{ minWidth: 70, flexShrink: 0 }}>
         {label}
       </Txt>
       <Txt variant="smallBold" style={{ flex: 1 }}>

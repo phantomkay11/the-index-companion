@@ -14,11 +14,14 @@
 //   HELP             how to use the line
 //   FIND HONEY       always searches, even for members with an open conversation
 // Two-way texting: a member who opted in to texts can simply reply to a text from The Index.
-//   - a reply to a message or inquiry text is posted in that conversation (farmers can answer
-//     an inquiry with YES, PART or NO plus an optional note)
+//   - a reply starting with the text's code (#K7P) is posted in that conversation; farmers can answer
+//     an inquiry with #K7P YES, PART or NO plus an optional note. Without a code, a reply goes to the
+//     one conversation we texted them about in the last week; if there are several, nothing is posted
+//     and the reply lists the codes.
 //   - SAFE or NEED <what you need> answers an open storm check-in
 // Anything that isn't one of those falls back to a search.
-// STOP / START are handled by Twilio's built-in opt-out before they reach this function.
+// STOP / START are handled by Twilio's built-in opt-out and also recorded here. YES on its own turns
+// texts back on only for a number that is opted out; otherwise it's an answer to an inquiry.
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
@@ -31,7 +34,11 @@ type FarmHit = { name: string; city: string; state: string; how_to_buy: string[]
 
 const HELP =
   'The Index text line from Black Farmers Index. Text a product to find Black growers, like HONEY or OKRA. ' +
-  'Add a state to narrow it: SHRIMP LA. Text EVENTS for what is coming up. If we texted you about a message, just reply to answer. Reply STOP to opt out.';
+  'Add a state to narrow it: SHRIMP LA. Text EVENTS for what is coming up. To answer a message we texted you about, reply starting with its # code. Reply STOP to opt out.';
+
+// One SMS reply is at most 1,600 characters (Twilio's limit).
+const MAX_REPLY = 1600;
+const EMPTY = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
@@ -61,7 +68,13 @@ Deno.serve(async (req) => {
   if (route.type === 'optout' || route.type === 'optin') {
     const { error } = await supabase.rpc('sms_opt_out', { p_from: params.From ?? '', p_opt_in: route.type === 'optin' });
     if (error) console.error(error);
-    return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', { headers: { 'Content-Type': 'text/xml' } });
+    return new Response(EMPTY, { headers: { 'Content-Type': 'text/xml' } });
+  }
+  // "YES" alone from an opted-out number turns texts back on (Twilio confirms it); otherwise it's a reply.
+  if (route.type === 'reply' && route.maybeOptIn) {
+    const { data, error } = await supabase.rpc('sms_resubscribe', { p_from: params.From ?? '' });
+    if (error) console.error(error);
+    else if (data === true) return new Response(EMPTY, { headers: { 'Content-Type': 'text/xml' } });
   }
 
   try {
@@ -82,7 +95,7 @@ Deno.serve(async (req) => {
     reply = 'Sorry, the Index text line is having trouble. Please try again in a few minutes.';
   }
 
-  return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>${xml(reply)}</Message></Response>`, {
+  return new Response(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>${xml(clip(reply, MAX_REPLY))}</Message></Response>`, {
     headers: { 'Content-Type': 'text/xml' },
   });
 });
@@ -129,20 +142,20 @@ async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: 
   if (ids.length && kinds.length) q = q.or(`id.in.(${ids.join(',')}),categories.ov.{${kindList}}`);
   else if (ids.length) q = q.in('id', ids);
   else if (kinds.length) q = q.overlaps('categories', kinds);
-  else return `No growers found for ${keyword.toUpperCase()}${state ? ` in ${state}` : ''}. Try another word, or text HELP.`;
+  else return `No growers found for ${echo(raw ?? keyword)}${state ? ` in ${state}` : ''}. Try another word, or text HELP.`;
   if (state) q = q.eq('state', state);
   const { data: rows, error } = await q;
   if (error) throw error;
   const data = (rows ?? []) as FarmHit[];
 
   if (!data.length) {
-    return `No growers found for ${keyword.toUpperCase()}${state ? ` in ${state}` : ''}. Try another word, or text HELP.`;
+    return `No growers found for ${echo(raw ?? keyword)}${state ? ` in ${state}` : ''}. Try another word, or text HELP.`;
   }
   const lines = data.map((f, i) => {
     const how = f.how_to_buy[0];
     return `${i + 1}) ${f.name}, ${f.city} ${f.state}${how ? `. ${how}` : ''}`;
   });
-  return `Black growers with ${keyword.toUpperCase()}${state ? ` in ${state}` : ''}:\n${lines.join('\n')}\nFind more on the Index app or blackfarmersindex.com`;
+  return `Black growers with ${echo(raw ?? keyword)}${state ? ` in ${state}` : ''}:\n${lines.join('\n')}\nFind more on the Index app or blackfarmersindex.com`;
 }
 
 /** Twilio signs the full URL plus every POST parameter (repeated keys included), sorted by name, with HMAC-SHA1. */
@@ -159,6 +172,17 @@ async function isFromTwilio(signature: string | null, pairs: [string, string][])
   let diff = 0;
   for (let i = 0; i < expected.length; i++) diff |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
   return diff === 0;
+}
+
+/** Cut by characters, not UTF-16 units, so an emoji is never split in half. */
+function clip(s: string, max: number) {
+  const chars = Array.from(s);
+  return chars.length > max ? chars.slice(0, max - 1).join('') + '…' : s;
+}
+
+/** The searched-for words as we understood them (cleaned, never the raw text), kept short. */
+function echo(keyword: string) {
+  return `"${clip(keyword, 30)}"`;
 }
 
 function shortDate(iso: string) {

@@ -54,9 +54,9 @@ export default function Resources() {
   const saved = (q.data?.resources ?? []).filter((r) => q.data?.saved.includes(r.id));
 
   const hero = (
-    <Photo picture={sectionImage('resources')} style={{ height: isTablet ? 300 : 230 }}>
+    <Photo picture={sectionImage('resources')} style={{ minHeight: isTablet ? 300 : 230, justifyContent: 'flex-end' }}>
       <Scrim from={0.15} />
-      <View style={{ position: 'absolute', left: isTablet ? 48 : 20, right: 20, bottom: 22, gap: 4 }}>
+      <View style={{ paddingLeft: isTablet ? 48 : 20, paddingRight: 20, paddingTop: 110, paddingBottom: 22, gap: 4 }}>
         <Txt variant="display" color="#ffffff" accessibilityRole="header">
           {t('resourcesHero')}
         </Txt>
@@ -69,7 +69,9 @@ export default function Resources() {
     <Screen width="wide" hero={hero}>
       <Card tone="soft">
         <Txt variant="title">{t('deadlines')}</Txt>
-        {!saved.length ? (
+        {!q.data ? (
+          q.error ? null : <Loading />
+        ) : !saved.length ? (
           <Txt variant="small" muted>
             Save a program below to keep it here. When BFI adds a deadline, you get reminders 30, 7 and 1 day before.
           </Txt>
@@ -111,12 +113,12 @@ export default function Resources() {
       <SavedCopyNote at={q.cachedAt} />
       {q.error ? <ErrorNote message={q.error} onRetry={q.reload} /> : null}
       {!q.data && !q.error ? <Loading /> : null}
-      {q.data ? (
+      {q.data && !(q.loading && !fits.length) ? (
         <Txt variant="title" accessibilityLiveRegion="polite">
           {fits.length} programs fit
         </Txt>
       ) : null}
-      {q.data && !fits.length ? <Empty>No programs match. Try “Any”.</Empty> : null}
+      {q.data && !fits.length && !q.loading && !q.error ? <Empty>No programs match. Try “Any”.</Empty> : null}
 
       <Grid>
       {fits.map((r) => {

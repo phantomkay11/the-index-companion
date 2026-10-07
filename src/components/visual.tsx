@@ -58,19 +58,23 @@ export function Scrim({ from = 0.35, top }: { from?: number; top?: boolean }) {
 }
 
 /** "Photo: Name / Unsplash", tucked into a corner of the photo it credits. */
-export function Credit({ picture, style }: { picture: Picture; style?: StyleProp<ViewStyle> }) {
+export function Credit({ picture, style, link = true }: { picture: Picture; style?: StyleProp<ViewStyle>; link?: boolean }) {
   if (!picture.credit) return null;
+  const text = (
+    <Txt variant="small" color="#ffffff" style={{ fontSize: 11, lineHeight: 14 }}>
+      Photo: {picture.credit}
+    </Txt>
+  );
+  // Inside a tappable card a nested link can't be reached, so there the credit is plain text.
+  if (!link || !picture.creditUrl) return <View style={[styles.credit, style]}>{text}</View>;
   return (
-    <View style={[styles.credit, style]}>
-      <Txt
-        variant="small"
-        color="#ffffff"
-        style={{ fontSize: 11, lineHeight: 14 }}
-        onPress={picture.creditUrl ? () => Linking.openURL(picture.creditUrl!) : undefined}
-        accessibilityRole={picture.creditUrl ? 'link' : 'text'}>
-        Photo: {picture.credit}
-      </Txt>
-    </View>
+    <Pressable
+      onPress={() => Linking.openURL(picture.creditUrl!)}
+      accessibilityRole="link"
+      hitSlop={10}
+      style={[styles.credit, styles.creditLink, style]}>
+      {text}
+    </Pressable>
   );
 }
 
@@ -92,7 +96,8 @@ export function GradientBand({ children, style }: { children: ReactNode; style?:
 }
 
 const styles = StyleSheet.create({
-  credit: { position: 'absolute', right: 10, bottom: 8, backgroundColor: 'rgba(0,0,0,0.45)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  credit: { position: 'absolute', right: 10, bottom: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
+  creditLink: { minHeight: 24, justifyContent: 'center', paddingVertical: 4 },
   glass: {
     flexDirection: 'row',
     alignItems: 'center',

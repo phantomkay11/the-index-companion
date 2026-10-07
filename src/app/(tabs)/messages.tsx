@@ -138,7 +138,9 @@ function Threads({
           onPress={() => (onSelect ? onSelect(c.id) : router.push({ pathname: '/thread/[id]', params: { id: c.id } }))}
           accessibilityRole="button"
           accessibilityState={{ selected: selectedId === c.id }}
-          accessibilityLabel={`${c.title ?? 'Conversation'}${c.unread ? ', unread' : ''}. ${c.subtitle ?? c.preview}`}
+          aria-current={selectedId === c.id ? 'true' : undefined}
+          // Starts with the visible title so voice control ("tap Okra Growers") matches.
+          accessibilityLabel={`${c.title ?? 'Conversation'}. ${(kind === 'channel' ? c.subtitle : c.preview) ?? ''}${c.unread ? '. Unread' : ''}`}
           style={[
             styles.row,
             { borderBottomColor: colors.line },
@@ -158,7 +160,7 @@ function Threads({
               <Txt variant="heading" numberOfLines={1}>
                 {c.title}
               </Txt>
-              {c.unread ? <View style={[styles.dot, { backgroundColor: colors.sun }]} /> : null}
+              {c.unread ? <View style={[styles.dot, { backgroundColor: colors.danger }]} /> : null}
             </Row>
             <Txt variant="small" muted numberOfLines={1}>
               {kind === 'channel' ? c.subtitle : c.preview}
@@ -210,7 +212,7 @@ function Broadcasts() {
           <Txt variant="heading">{b.title}</Txt>
           <Txt>{b.body}</Txt>
           {b.link_url ? (
-            <Pressable onPress={() => WebBrowser.openBrowserAsync(b.link_url!)} accessibilityRole="link" style={{ minHeight: 40, justifyContent: 'center' }}>
+            <Pressable onPress={() => WebBrowser.openBrowserAsync(b.link_url!)} accessibilityRole="link" style={{ minHeight: 44, justifyContent: 'center' }}>
               <Txt variant="bodyBold" color={colors.leaf}>
                 {b.link_text ?? 'Open link'}
               </Txt>
@@ -227,5 +229,5 @@ const styles = StyleSheet.create({
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Space.md, padding: Space.xl },
   row: { flexDirection: 'row', alignItems: 'center', gap: Space.md, paddingVertical: Space.md, borderBottomWidth: 1, minHeight: 64 },
   mark: { width: 42, height: 42, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
 });

@@ -2,13 +2,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Button, Chip, ErrorNote, Field, Loading, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, Chip, ErrorNote, Field, Loading, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
-import { nextSaturday } from '@/lib/format';
+import { nextSaturday, parseLocalDate, ymd } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { Farm } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { showAlert } from '@/lib/alert';
+import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 
 export default function Inquiry() {
@@ -21,10 +22,25 @@ export default function Inquiry() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const { t } = useSettings();
+  const { session, myFarm } = useAuth();
 
+  // Inquiries are for signed-in members; say so before the form, not after it's filled in.
+  if (!session) return <Screen><SignInPrompt /></Screen>;
   if (farm.error) return <Screen><ErrorNote message={farm.error} onRetry={farm.reload} /></Screen>;
   if (!farm.data) return <Screen><Loading /></Screen>;
   const f = farm.data;
+  // The database would refuse these on Send; tell the member up front instead.
+  const closed = !f.owner_id ? t('farmNotJoined') : !f.accepts_messages ? t('farmNotTaking') : myFarm?.id === f.id ? t('farmIsYours') : null;
+  if (closed) {
+    return (
+      <Screen>
+        <Card tone="sun" style={{ gap: Space.md }}>
+          <Txt>{closed}</Txt>
+          <Button kind="ghost" label={t('back')} onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+        </Card>
+      </Screen>
+    );
+  }
   const products = (f.farm_products ?? []).filter((p) => p.in_season).map((p) => p.name);
   // Default to the first product in season and the farm's first way to buy.
   const product = productChoice || products[0] || '';
@@ -33,12 +49,13 @@ export default function Inquiry() {
   const how = howChoice || howOptions[0];
 
   // A real calendar date, from today (on this phone's calendar) up to a year ahead.
-  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T12:00:00`) : null;
+  const day = date.trim();
+  const parsed = parseLocalDate(day);
   const now = new Date();
   const today = ymd(now);
   const inAYear = ymd(new Date(now.getFullYear() + 1, now.getMonth(), now.getDate() + 1));
-  const dateOk = !!parsed && !Number.isNaN(parsed.getTime()) && ymd(parsed) === date && date >= today && date <= inAYear;
+  const dateOk = !!parsed && day >= today && day <= inAYear;
+  const dateProblem = !day || dateOk ? null : !parsed ? 'bad' : day < today ? 'past' : 'far';
   const valid = product.trim() && amount.trim() && dateOk && how.trim();
 
   const submit = async () => {
@@ -48,7 +65,7 @@ export default function Inquiry() {
       p_farm_id: f.id,
       p_product: product.trim(),
       p_amount: amount.trim(),
-      p_wanted_on: date,
+      p_wanted_on: day,
       p_how: how.trim(),
       p_note: note.trim() || null,
     });
@@ -82,7 +99,7 @@ export default function Inquiry() {
         onChangeText={setDate}
         placeholder="2026-10-10"
         keyboardType="numbers-and-punctuation"
-        hint={date && !dateOk ? `${t('dateHint')} ${today}.` : undefined}
+        hint={dateProblem === 'far' ? t('dateTooFar') : dateProblem ? `${t('dateHint')} ${today}.` : undefined}
       />
 
       <View style={{ gap: Space.sm }}>

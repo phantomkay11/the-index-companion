@@ -211,20 +211,26 @@ export function Chip({
   selected,
   onPress,
   icon,
+  radio,
 }: {
   label: string;
   selected?: boolean;
   onPress: () => void;
   icon?: IconName;
+  /** One choice of several (inside a radiogroup) rather than an on/off toggle. */
+  radio?: boolean;
 }) {
   const { colors } = useSettings();
+  // Native: a toggle button ("on"/"off"). Web has no such role: a button with aria-pressed. Radios say "checked".
+  const a11y = radio
+    ? { accessibilityRole: 'radio' as const, accessibilityState: { checked: !!selected }, 'aria-checked': !!selected }
+    : Platform.OS === 'web'
+      ? { accessibilityRole: 'button' as const, 'aria-pressed': !!selected }
+      : { accessibilityRole: 'togglebutton' as const, accessibilityState: { checked: !!selected } };
   return (
     <Pressable
       onPress={onPress}
-      // Native: a toggle button ("on"/"off"). Web has no such role: a button with aria-pressed.
-      accessibilityRole={Platform.OS === 'web' ? 'button' : 'togglebutton'}
-      accessibilityState={Platform.OS === 'web' ? undefined : { checked: !!selected }}
-      aria-pressed={!!selected}
+      {...a11y}
       style={[
         styles.chip,
         { backgroundColor: selected ? colors.forest : colors.sunk, borderColor: selected ? colors.forest : colors.outline },
@@ -259,7 +265,7 @@ export function Pill({ label, tone = 'plain', icon }: { label: string; tone?: 'p
 export function Verified() {
   const { colors, t } = useSettings();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} accessibilityLabel={t('verified')}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} accessible accessibilityLabel={t('verified')}>
       <Ionicons name="shield-checkmark" size={15} color={colors.leaf} />
       <Txt variant="smallBold" color={colors.leaf}>
         {t('verified')}
@@ -283,9 +289,12 @@ export function Segmented<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
-  const { colors } = useSettings();
+  const { colors, textScale } = useSettings();
+  // Items wrap onto a second line rather than break words when the text is large.
   return (
-    <View style={[styles.segment, { backgroundColor: colors.sunk, borderColor: colors.outline }]} accessibilityRole="tablist">
+    <View
+      style={[styles.segment, { backgroundColor: colors.sunk, borderColor: colors.outline }, textScale > 1.25 && { borderRadius: Radius.lg }]}
+      accessibilityRole="tablist">
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -360,9 +369,17 @@ export function ToggleRow({
           </Txt>
         ) : null}
       </View>
-      <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <Switch value={value} trackColor={{ true: colors.leaf, false: colors.field }} thumbColor={value ? colors.onLeaf : undefined} />
-      </View>
+      {Platform.OS === 'web' ? (
+        // The web Switch is a real checkbox that would add a second, unnamed tab stop; the row is the control,
+        // so draw a plain picture of a switch instead.
+        <View aria-hidden style={[styles.track, { backgroundColor: value ? colors.leaf : colors.field }]}>
+          <View style={[styles.thumb, { backgroundColor: value ? colors.onLeaf : '#ffffff', alignSelf: value ? 'flex-end' : 'flex-start' }]} />
+        </View>
+      ) : (
+        <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+          <Switch value={value} trackColor={{ true: colors.leaf, false: colors.field }} thumbColor={value ? colors.onLeaf : undefined} />
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -418,6 +435,8 @@ export function SignInPrompt() {
 }
 
 const styles = StyleSheet.create({
+  track: { width: 44, height: 26, borderRadius: 13, padding: 3, justifyContent: 'center' },
+  thumb: { width: 20, height: 20, borderRadius: 10 },
   screen: { padding: 20, gap: Space.xl, paddingBottom: 48 },
   screenTablet: { padding: Space.xxl, gap: Space.xxl },
   card: { borderRadius: Radius.lg, padding: 18, gap: Space.sm, borderWidth: 1, borderColor: 'transparent' },
@@ -456,8 +475,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     maxWidth: '100%',
   },
-  segment: { flexDirection: 'row', borderRadius: Radius.pill, padding: 3, alignSelf: 'flex-start', borderWidth: 1, maxWidth: '100%' },
-  segmentItem: { minHeight: TapTarget, paddingHorizontal: 14, justifyContent: 'center', borderRadius: Radius.pill, flexShrink: 1, borderWidth: 2, borderColor: 'transparent' },
+  segment: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: Radius.pill, padding: 3, alignSelf: 'flex-start', borderWidth: 1, maxWidth: '100%' },
+  segmentItem: { minHeight: TapTarget, paddingHorizontal: 14, justifyContent: 'center', borderRadius: Radius.pill, borderWidth: 2, borderColor: 'transparent' },
   segmentOn: { shadowColor: '#0b2a1b', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, minHeight: TapTarget + 4 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderRadius: Radius.lg, padding: 16, borderWidth: 1 },

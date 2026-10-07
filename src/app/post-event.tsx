@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { Button, Chip, Field, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
+import { parseLocalDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
 import { showAlert } from '@/lib/alert';
@@ -22,12 +23,19 @@ export default function PostEvent() {
 
   if (!session) return <Screen><SignInPrompt /></Screen>;
 
-  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date) && /^\d{1,2}:\d{2}$/.test(time);
-  const valid = title.trim() && place.trim() && validDate;
+  // A real calendar day and a real 24-hour time, in the future (events in the past never show).
+  const day = parseLocalDate(date);
+  const hm = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  const timeOk = !!hm && Number(hm[1]) < 24 && Number(hm[2]) < 60;
+  const startsAt = day && timeOk ? new Date(day.getFullYear(), day.getMonth(), day.getDate(), Number(hm![1]), Number(hm![2])) : null;
+  // eslint-disable-next-line react-hooks/purity
+  const future = !!startsAt && startsAt.getTime() > Date.now();
+  const dateHint = !date.trim() ? undefined : !day ? 'Use a real date, like 2026-10-24.' : startsAt && !future ? 'Pick a date and time that hasn’t passed yet.' : undefined;
+  const timeHint = time.trim() && !timeOk ? 'Use a 24-hour time, like 10:00 or 14:30.' : undefined;
+  const valid = title.trim() && place.trim() && future;
 
   const submit = async () => {
-    const startsAt = new Date(`${date}T${time.padStart(5, '0')}:00`);
-    if (Number.isNaN(startsAt.getTime())) return showAlert('Check the date', 'Use year-month-day, like 2026-10-24, and a time like 10:00.');
+    if (busy || !startsAt || !future) return;
     setBusy(true);
     const { error } = await supabase.from('events').insert({
       title: title.trim(),
@@ -59,10 +67,10 @@ export default function PostEvent() {
       </View>
       <Row>
         <View style={{ flex: 2, minWidth: 160 }}>
-          <Field label="Date (year-month-day)" value={date} onChangeText={setDate} placeholder="2026-10-24" keyboardType="numbers-and-punctuation" />
+          <Field label="Date (year-month-day)" value={date} onChangeText={setDate} placeholder="2026-10-24" keyboardType="numbers-and-punctuation" hint={dateHint} />
         </View>
         <View style={{ flex: 1, minWidth: 100 }}>
-          <Field label="Start time" value={time} onChangeText={setTime} placeholder="10:00" keyboardType="numbers-and-punctuation" />
+          <Field label="Start time" value={time} onChangeText={setTime} placeholder="10:00" keyboardType="numbers-and-punctuation" hint={timeHint} />
         </View>
       </Row>
       <Field label="Where" value={place} onChangeText={setPlace} />
