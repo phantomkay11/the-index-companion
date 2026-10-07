@@ -427,4 +427,33 @@ await as(staff);
 await one(`update public.profiles set role = 'neighbor' where id = $1`, [other]);
 check('admins can change roles', (await one(`select role from public.profiles where id = $1`, [other]))[0].role === 'neighbor');
 
+// The review's regression cases.
+await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false)`);
+const coord = '55555555-5555-4555-8555-555555555555';
+const newbie = '66666666-6666-4666-8666-666666666666';
+await db.exec(`insert into auth.users (id, email) values ('${coord}', 'coord@example.com'), ('${newbie}', 'newbie@example.com')`);
+await db.exec(`update public.profiles set role = 'coordinator' where id = '${coord}'`);
+await as(newbie);
+await one(`insert into public.farms (name, city, state, region_id, categories, website) values ('Newbie Farm', 'Selma', 'AL', '4', '{Row crops}', ' newbiefarm.com ')`);
+const nb = (await one(`select id, website from public.farms where name = 'Newbie Farm'`))[0];
+check('a typed website is tidied to https', nb.website === 'https://newbiefarm.com');
+await expectFail('a javascript: website is refused', () => one(`update public.farms set website = 'javascript:alert(1)' where id = $1`, [nb.id]));
+await as(coord);
+await one(`select public.review_farm($1, 'approved')`, [nb.id]);
+await db.exec('reset role');
+check('a coordinator can approve a farm, and its owner becomes a grower',
+  (await one(`select role from public.profiles where id = $1`, [newbie]))[0].role === 'grower');
+// Code limits: five a day, US and Canadian numbers only.
+await as(newbie);
+await one(`update public.contact_prefs set phone = '+44 20 7946 0958' where user_id = $1`, [newbie]);
+await expectFail('codes are only texted to +1 numbers', () => one(`select public.request_phone_code()`));
+await one(`update public.contact_prefs set phone = '205 555 0177' where user_id = $1`, [newbie]);
+let codesSent = 0;
+for (let i = 0; i < 7; i++) {
+  try { await one(`select public.request_phone_code()`); codesSent++; } catch { /* limit */ }
+  await db.exec(`reset role; update public.phone_verifications set last_sent_at = now() - interval '2 minutes' where user_id = '${newbie}'`);
+  await as(newbie);
+}
+check("at most five codes a day", codesSent === 5);
+
 console.log(process.exitCode ? 'SOME CHECKS FAILED' : 'ALL CHECKS PASSED');

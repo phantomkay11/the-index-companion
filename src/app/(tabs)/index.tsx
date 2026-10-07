@@ -86,7 +86,7 @@ export default function Discover() {
           <Txt variant="smallBold" color="rgba(255,255,255,0.92)">
             From Black Farmers Index
           </Txt>
-          <Txt variant="hero" color="#ffffff" style={isTablet ? { fontSize: 46 * textScale, lineHeight: 50 * textScale } : undefined}>
+          <Txt variant="hero" color="#ffffff" style={isTablet ? { fontSize: 46, lineHeight: 50 } : undefined}>
             Find Black farmers near you
           </Txt>
           <Txt color="rgba(255,255,255,0.9)">Fresh food and friendly faces, straight from the growers.</Txt>

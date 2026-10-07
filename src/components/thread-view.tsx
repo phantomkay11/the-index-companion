@@ -62,8 +62,8 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` }, async (payload) => {
         const row = payload.new as { id?: string };
         if (!row?.id) return;
-        const { data } = await supabase.from('messages').select(SELECT).eq('id', row.id).maybeSingle();
-        if (!active) return;
+        const { data, error } = await supabase.from('messages').select(SELECT).eq('id', row.id).maybeSingle();
+        if (!active || error) return; // a failed refetch must not look like a moderator hiding the message
         setMessages((prev) => {
           if (!data) return prev.filter((m) => m.id !== row.id); // hidden by a moderator
           const i = prev.findIndex((m) => m.id === row.id);

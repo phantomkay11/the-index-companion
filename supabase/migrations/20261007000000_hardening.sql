@@ -108,10 +108,16 @@ begin
   if exists (select 1 from public.contact_prefs where phone = v_phone and phone_verified_at is not null and user_id <> auth.uid()) then
     raise exception 'That number is already confirmed on another account';
   end if;
-  -- No more than 5 codes a day per member or per number, one a minute.
+  -- Texts go to US and Canadian numbers (+1, including Puerto Rico, the USVI and Guam). This keeps the
+  -- text line from being used to run up international texting charges; members elsewhere use push and email.
+  if v_phone !~ '^\+1\d{10}$' then
+    raise exception 'Texts are available for US and Canadian numbers. Use phone notifications or email instead.';
+  end if;
+  -- No more than 5 codes a day per member, one a minute; and if two other accounts have already asked
+  -- to text this number today, stop, so nobody can use the code text to pester someone else.
   if (select count(*) from public.phone_verifications
-      where phone = v_phone and user_id <> auth.uid() and last_sent_at > now() - interval '1 day') >= 3 then
-    raise exception 'Too many codes were sent to that number today. Try again tomorrow.';
+      where phone = v_phone and user_id <> auth.uid() and last_sent_at > now() - interval '1 day') >= 2 then
+    raise exception 'Too many accounts asked for a code for that number today. If it is your number, contact BFI and we will sort it out.';
   end if;
   select * into v_row from public.phone_verifications where user_id = auth.uid();
   if v_row.user_id is not null then
@@ -124,8 +130,8 @@ begin
   end if;
 
   v_code := lpad(((('x' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))::bit(32)::bigint) % 1000000)::text, 6, '0');
-  insert into public.phone_verifications (user_id, phone, code, code_hash)
-  values (auth.uid(), v_phone, v_code, md5(auth.uid()::text || ':' || v_phone || ':' || v_code))
+  insert into public.phone_verifications (user_id, phone, code, code_hash, sends_today)
+  values (auth.uid(), v_phone, v_code, md5(auth.uid()::text || ':' || v_phone || ':' || v_code), 1)
   on conflict (user_id) do update set
     phone = excluded.phone, code = excluded.code, code_hash = excluded.code_hash,
     send_status = 'pending', attempts = 0, last_error = null,
@@ -392,12 +398,12 @@ $$;
 create or replace function public.guard_profile_role()
 returns trigger
 language plpgsql
-security definer
 set search_path = public
 as $$
 begin
-  -- auth.uid() is null for the service role, migrations and seed scripts.
-  if new.role is distinct from old.role and auth.uid() is not null and not public.is_admin() then
+  -- Only a direct edit from the app is checked. Security-definer functions run as their owner, so
+  -- review_farm() can still make a farm's owner a grower when a coordinator approves the farm.
+  if new.role is distinct from old.role and current_user in ('authenticated', 'anon') and not public.is_admin() then
     raise exception 'Only BFI admins can change member roles';
   end if;
   return new;
@@ -492,21 +498,53 @@ create trigger posts_guard
 -- ---------------------------------------------------------------------------
 -- 5. Links members can set must be https (blocks javascript: and data: links on the web build).
 -- ---------------------------------------------------------------------------
-update public.farms set website = regexp_replace(website, '^http://', 'https://', 'i') where website ~* '^http://';
-update public.farms set website = 'https://' || website where website is not null and website !~* '^[a-z][a-z0-9+.-]*:';
-update public.farms set website = null where website is not null and website !~ '^https://';
+-- Tidy existing links first so the checks below can't fail on old data: trim, drop empties, upgrade
+-- http:// and a missing scheme to https://, and clear anything that still isn't a plain https link.
+update public.farms set website = nullif(btrim(website, E' \t\r\n'), '') where website is not null;
+update public.farms set website = regexp_replace(website, '^https?://', 'https://', 'i') where website ~* '^https?://';
+update public.farms set website = 'https://' || website where website is not null and website !~* '^[a-z][a-z0-9+.-]*:' and website ~ '^[^\s/]+\.[^\s]+$';
+update public.farms set website = null where website is not null and website !~ '^https://[^\s]+$';
 alter table public.farms add constraint farms_website_https check (website is null or website ~ '^https://[^\s]+$');
 
-update public.events set ticket_url = regexp_replace(ticket_url, '^http://', 'https://', 'i') where ticket_url ~* '^http://';
-update public.events set ticket_url = null where ticket_url is not null and ticket_url !~ '^https://';
+update public.events set ticket_url = nullif(btrim(ticket_url, E' \t\r\n'), '') where ticket_url is not null;
+update public.events set ticket_url = regexp_replace(ticket_url, '^https?://', 'https://', 'i') where ticket_url ~* '^https?://';
+update public.events set ticket_url = null where ticket_url is not null and ticket_url !~ '^https://[^\s]+$';
 alter table public.events add constraint events_ticket_https check (ticket_url is null or ticket_url ~ '^https://[^\s]+$');
 
-update public.broadcasts set link_url = null where link_url is not null and link_url !~ '^https://';
+update public.broadcasts set link_url = nullif(btrim(link_url, E' \t\r\n'), '') where link_url is not null;
+update public.broadcasts set link_url = regexp_replace(link_url, '^https?://', 'https://', 'i') where link_url ~* '^https?://';
+update public.broadcasts set link_url = null where link_url is not null and link_url !~ '^https://[^\s]+$';
 alter table public.broadcasts add constraint broadcasts_link_https check (link_url is null or link_url ~ '^https://[^\s]+$');
+
+-- Links typed in the app are trimmed and upgraded the same way, so "example.com " still saves.
+create or replace function public.tidy_links()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if tg_table_name = 'farms' then
+    new.website := nullif(btrim(new.website, E' \t\r\n'), '');
+    if new.website ~* '^https?://' then new.website := regexp_replace(new.website, '^https?://', 'https://', 'i');
+    elsif new.website !~* '^[a-z][a-z0-9+.-]*:' and new.website ~ '^[^\s/]+\.[^\s]+$' then new.website := 'https://' || new.website;
+    end if;
+    new.order_url := nullif(btrim(new.order_url, E' \t\r\n'), '');
+    if new.order_url ~* '^https?://' then new.order_url := regexp_replace(new.order_url, '^https?://', 'https://', 'i'); end if;
+  elsif tg_table_name = 'events' then
+    new.ticket_url := nullif(btrim(new.ticket_url, E' \t\r\n'), '');
+    if new.ticket_url ~* '^https?://' then new.ticket_url := regexp_replace(new.ticket_url, '^https?://', 'https://', 'i'); end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger farms_tidy_links before insert or update on public.farms for each row execute function public.tidy_links();
+create trigger events_tidy_links before insert or update on public.events for each row execute function public.tidy_links();
 
 -- ---------------------------------------------------------------------------
 -- 6. Product names: no wildcards matching every near-me alert.
 -- ---------------------------------------------------------------------------
+update public.farm_products set name = left(btrim(regexp_replace(name, '\s+', ' ', 'g')), 80) where name <> left(btrim(regexp_replace(name, '\s+', ' ', 'g')), 80);
+delete from public.farm_products where length(btrim(name)) < 2; -- one-letter or empty names can't be searched for anyway
 alter table public.farm_products add constraint farm_products_name_len check (length(btrim(name)) between 2 and 80);
 
 create or replace function public.notify_fresh_product()
@@ -745,3 +783,21 @@ end;
 $$;
 revoke execute on function public.use_translation_quota(int) from public, anon;
 grant execute on function public.use_translation_quota(int) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 13. Members who already had texts switched on: their numbers start unconfirmed, so ask them to
+--     confirm (by push and email; we can't text an unconfirmed number).
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_user uuid;
+begin
+  for v_user in select user_id from public.contact_prefs where sms_opt_in and phone is not null and phone_verified_at is null loop
+    perform public.enqueue_notification(
+      v_user, 'account', 'Confirm your phone number to keep getting texts',
+      'The Index now checks numbers with a quick code. Open Settings and tap “Text me a code”. It takes a minute, and it means storm check-ins and replies keep reaching you by text.',
+      jsonb_build_object('route', '/settings'), '{push,email}'
+    );
+  end loop;
+end;
+$$;

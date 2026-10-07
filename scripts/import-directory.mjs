@@ -115,7 +115,8 @@ const farms = rows.map((r, i) => {
   if (!regionIds.has(farm.region_id)) problems.push(`Row ${line}: region "${farm.region_id}" doesn't exist (use 1–11 or intl)`);
   if (!['city', 'pickup_point', 'exact'].includes(farm.location_visibility)) problems.push(`Row ${line}: location_visibility must be city, pickup_point or exact`);
   if ((farm.lat != null && Number.isNaN(farm.lat)) || (farm.lon != null && Number.isNaN(farm.lon))) problems.push(`Row ${line}: lat/lon must be numbers`);
-  if (farm.website && !/^https?:\/\//.test(farm.website)) problems.push(`Row ${line}: website should start with https://`);
+  if (farm.website && !/^https:\/\/\S+$/.test(farm.website)) problems.push(`Row ${line}: website must start with https:// and have no spaces`);
+  for (const p of products) if (p.trim().length < 2 || p.trim().length > 80) problems.push(`Row ${line}: product "${p}" must be 2 to 80 characters`);
   return { farm, products, line };
 });
 
@@ -151,7 +152,8 @@ for (const { farm, products, line } of farms) {
     created++;
   }
   if (products.length) {
-    await db.from('farm_products').upsert(products.map((name) => ({ farm_id: id, name, in_season: true })), { onConflict: 'farm_id,name' });
+    const { error: pErr } = await db.from('farm_products').upsert(products.map((name) => ({ farm_id: id, name: name.trim(), in_season: true })), { onConflict: 'farm_id,name' });
+    if (pErr) console.error(`Row ${line}: products not saved: ${pErr.message}`);
   }
 }
 console.log(`Done: ${created} added, ${updated} updated.`);

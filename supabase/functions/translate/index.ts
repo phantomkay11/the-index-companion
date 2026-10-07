@@ -19,18 +19,20 @@ Deno.serve(async (req) => {
     if (!LANGS.includes(target)) return json({ error: `target must be one of ${LANGS.join(', ')}` }, 400);
     const input = Array.from(text).slice(0, MAX_CHARS).join('');
 
+    const deepl = Deno.env.get('DEEPL_API_KEY');
+    const libre = Deno.env.get('LIBRETRANSLATE_URL');
+    if (!(deepl && target !== 'ht') && !libre) return json({ error: 'Translation is not set up yet for this language' }, 501);
+
     const asUser = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
       global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
       auth: { persistSession: false },
     });
     const { data: userData } = await asUser.auth.getUser();
     if (!userData.user) return json({ error: 'Sign in first' }, 401);
+    // Count characters against the member's daily limit only once a provider is set up.
     const { data: allowed, error: quotaErr } = await asUser.rpc('use_translation_quota', { p_chars: input.length });
     if (quotaErr) throw quotaErr;
     if (!allowed) return json({ error: 'You have reached today\'s translation limit. Try again tomorrow.' }, 429);
-
-    const deepl = Deno.env.get('DEEPL_API_KEY');
-    const libre = Deno.env.get('LIBRETRANSLATE_URL');
 
     if (deepl && target !== 'ht') {
       const host = deepl.endsWith(':fx') ? 'https://api-free.deepl.com' : 'https://api.deepl.com';

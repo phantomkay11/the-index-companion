@@ -24,7 +24,7 @@
 
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
-import { routeText } from './route.ts';
+import { clean, routeText } from './route.ts';
 
 type FarmHit = { name: string; city: string; state: string; how_to_buy: string[]; replies_by_sms: boolean };
 
@@ -50,16 +50,22 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-  const route = params.OptOutType === 'STOP' ? { type: 'optout' as const }
-    : params.OptOutType === 'START' ? { type: 'optin' as const }
-    : routeText(params.Body ?? '');
+  const route = routeText(params.Body ?? '');
+  const bare = clean(params.Body ?? '').toUpperCase().replace(/[^\p{L}]+/gu, '');
+  // Twilio's Advanced Opt-Out tags opt-in texts with OptOutType=START, and YES is on its default opt-in
+  // list. So a farmer's bare "YES" to an inquiry can arrive tagged as an opt-in: record the opt-in, then
+  // still treat the text as the answer it is.
+  const optOut = params.OptOutType === 'STOP' || route.type === 'optout';
+  const optIn = !optOut && (params.OptOutType === 'START' || route.type === 'optin' || bare === 'YES');
   let reply: string | null;
 
   try {
-    if (route.type === 'optout' || route.type === 'optin') {
+    if (optOut || optIn) {
       // Twilio sends the carrier-required confirmation itself; we only record the choice.
-      const { error } = await supabase.rpc('sms_set_opt_in', { p_from: params.From ?? '', p_opt_in: route.type === 'optin' });
+      const { error } = await supabase.rpc('sms_set_opt_in', { p_from: params.From ?? '', p_opt_in: optIn });
       if (error) throw error;
+    }
+    if (optOut || route.type === 'optin') {
       reply = null;
     } else if (route.type === 'help') {
       reply = HELP;

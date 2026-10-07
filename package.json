@@ -67,9 +67,9 @@
     "build:setup-sql": "node scripts/build-setup-sql.mjs",
     "test:functions": "npx --yes deno@2 test supabase/functions",
     "test:lib": "TZ=America/Chicago node --experimental-strip-types --test tests/lib.test.ts && TZ=Pacific/Honolulu node --experimental-strip-types --test tests/lib.test.ts",
-    "test:redteam": "node supabase/tests/redteam.test.mjs",
+    "test:redteam": "node supabase/tests/redteam.test.mjs && node supabase/tests/migration-data.test.mjs",
     "test:web": "npx expo export --platform web && node store/smoke.mjs && node store/interact.mjs",
-    "test": "npm run typecheck && npm run lint && npm run test:lib && npm run test:db && npm run test:redteam && npm run test:functions",
+    "test": "npm run typecheck && npm run lint && npm run test:lib && npm run test:db && npm run test:redteam && npm run check:functions && npm run test:functions",
     "store:capture": "npx expo export --platform web && node store/capture.mjs",
     "store:screenshots": "node store/screenshots.mjs",
     "store:preview": "node store/preview.mjs iphone && python3 store/preview_compose.py iphone && node store/preview.mjs ipad && python3 store/preview_compose.py ipad"

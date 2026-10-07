@@ -39,7 +39,7 @@ export default function TabsLayout() {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-            <Txt variant="smallBold" color="#3a2700" style={{ fontSize: 11, lineHeight: 14 }}>
+            <Txt variant="smallBold" color="#3a2700" fixed style={{ fontSize: 11, lineHeight: 14 }}>
               {unread > 99 ? '99+' : unread}
             </Txt>
           </View>

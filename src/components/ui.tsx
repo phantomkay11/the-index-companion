@@ -48,9 +48,17 @@ export function Txt({
   muted,
   style,
   children,
+  fixed,
   ...rest
-}: ComponentProps<typeof Text> & { variant?: TxtVariant; color?: string; muted?: boolean }) {
-  const { colors, textScale } = useSettings();
+}: ComponentProps<typeof Text> & {
+  variant?: TxtVariant;
+  color?: string;
+  muted?: boolean;
+  /** Ignore the in-app text size, for text inside a fixed-size shape such as a badge. */
+  fixed?: boolean;
+}) {
+  const { colors, textScale: scale } = useSettings();
+  const textScale = fixed ? 1 : scale;
   const base = VARIANTS[variant];
   // A fontSize passed in `style` (tags, timestamps, credits) is scaled too, so the in-app text size
   // setting reaches every piece of text, not just the variants.
