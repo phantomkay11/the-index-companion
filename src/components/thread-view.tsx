@@ -121,7 +121,7 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
             placeholderTextColor={colors.muted}
             accessibilityLabel={t('writeMessage')}
             multiline
-            style={[styles.input, { borderColor: colors.line, backgroundColor: colors.sunk, color: colors.text, fontSize: 16 * textScale }]}
+            style={[styles.input, { borderColor: colors.sunk, backgroundColor: colors.sunk, color: colors.text, fontSize: 16 * textScale }]}
           />
           <Pressable
             onPress={send}
@@ -173,7 +173,7 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
 
   if (m.kind === 'inquiry' && m.inquiry) {
     return (
-      <View style={[styles.inquiry, { borderColor: colors.line, backgroundColor: colors.surface, alignSelf: mine ? 'flex-end' : 'flex-start' }]}>
+      <View style={[styles.inquiry, { borderColor: colors.harvest, backgroundColor: colors.sunSoft, alignSelf: mine ? 'flex-end' : 'flex-start' }]}>
         <Txt variant="label">{mine ? 'Your inquiry' : `Inquiry from ${name}`}</Txt>
         <InquiryRow label="Product" value={m.inquiry.product} />
         <InquiryRow label="Amount" value={m.inquiry.amount} />
@@ -203,7 +203,7 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
         styles.bubble,
         mine
           ? { alignSelf: 'flex-end', backgroundColor: colors.leaf, borderColor: colors.leaf }
-          : { alignSelf: 'flex-start', backgroundColor: colors.sunk, borderColor: colors.line },
+          : { alignSelf: 'flex-start', backgroundColor: colors.sunk, borderColor: colors.sunk },
         m.hidden && { opacity: 0.5, borderStyle: 'dashed' },
       ]}>
       {!mine ? (
@@ -269,9 +269,9 @@ function InquiryRow({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  bubble: { maxWidth: '86%', borderWidth: 1, borderRadius: Radius.lg, paddingHorizontal: 14, paddingVertical: 10, gap: 4 },
-  inquiry: { maxWidth: '92%', borderWidth: 1, borderRadius: Radius.md, padding: Space.md, gap: 6 },
+  bubble: { maxWidth: '86%', borderWidth: 1, borderRadius: Radius.xl, paddingHorizontal: 14, paddingVertical: 10, gap: 4 },
+  inquiry: { maxWidth: '92%', borderWidth: 0, borderRadius: Radius.lg, padding: Space.md, gap: 6 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: Space.sm, padding: Space.md, borderTopWidth: 1 },
-  input: { flex: 1, borderWidth: 1, borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, minHeight: 44, maxHeight: 140 },
+  input: { flex: 1, borderWidth: 1, borderRadius: Radius.pill, paddingHorizontal: 16, paddingVertical: 10, minHeight: 44, maxHeight: 140 },
   send: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });

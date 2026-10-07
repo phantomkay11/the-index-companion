@@ -38,8 +38,8 @@ END_HOLD = 36     # frames on the end card
 SHOTS = CONFIG['shots']
 
 art = lambda name: Image.open(os.path.join(DIR, 'art', f'{name}.png')).convert('RGBA')
-status = art('status')
-STATUS_H = status.height
+STATUS = {'dark': art('status-dark'), 'light': art('status-light')}
+STATUS_H = STATUS['dark'].height
 HOME_H = round(CONFIG['home'] * PT)
 
 
@@ -51,7 +51,11 @@ def frame(raw, caption=None, cap_alpha=0.0, cap_y=0):
     # The home-indicator strip continues the app's bottom edge (sampled at the side, clear of content).
     out = Image.new('RGB', (W, H), app.getpixel((W - 3, app_h - 2)))
     out.paste(app, (0, STATUS_H))
-    out.paste(status, (0, 0), status)
+    # The status bar continues the app's top edge, with ink that reads on it.
+    top = app.getpixel((W - 3, 2))
+    out.paste(Image.new('RGB', (W, STATUS_H), top), (0, 0))
+    ink = STATUS['light' if 0.299 * top[0] + 0.587 * top[1] + 0.114 * top[2] < 150 else 'dark']
+    out.paste(ink, (0, 0), ink)
     bar_w, bar_h = round(CONFIG['bar'] * PT), round(5 * PT)
     bar = Image.new('RGBA', (bar_w, bar_h), (18, 32, 25, 255))
     mask = Image.new('L', (bar_w, bar_h), 0)

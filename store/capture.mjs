@@ -15,7 +15,8 @@ const DEVICES = {
 
 export const SHOTS = [
   { name: 'discover', path: '/' },
-  { name: 'farm', path: '/farm/f1', scroll: 'name' },
+  { name: 'farm', path: '/farm/f1' },
+  { name: 'farm-details', path: '/farm/f1', scroll: 420 },
   { name: 'inquiry', path: '/inquiry/f1', act: fillInquiry },
   { name: 'thread', path: '/thread/c1' },
   { name: 'messages', path: '/messages', act: openFirstThread },

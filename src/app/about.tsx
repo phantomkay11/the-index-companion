@@ -3,6 +3,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
+import { Photo, Scrim } from '@/components/visual';
+import { sectionImage } from '@/lib/imagery';
 import { Space } from '@/constants/theme';
 import { BFI } from '@/lib/bfi';
 import { useSettings } from '@/providers/settings';
@@ -15,8 +17,22 @@ export default function About() {
     Alert.alert('Copied', value);
   };
 
+  const hero = (
+    <Photo picture={sectionImage('discover')} style={{ height: 260 }}>
+      <Scrim from={0.15} />
+      <View style={{ position: 'absolute', left: 20, right: 20, bottom: 22, gap: 4 }}>
+        <Txt variant="smallBold" color="rgba(255,255,255,0.9)">
+          Black Farmers Index
+        </Txt>
+        <Txt variant="display" color="#ffffff">
+          {BFI.mission}
+        </Txt>
+      </View>
+    </Photo>
+  );
+
   return (
-    <Screen>
+    <Screen hero={hero}>
       <Row style={{ justifyContent: 'space-between' }}>
         <Pill label={BFI.status} tone="leaf" />
         <Provenance sample={false} />
@@ -30,8 +46,7 @@ export default function About() {
       </View>
 
       <View style={{ gap: 6 }}>
-        <Txt variant="label">Mission</Txt>
-        <Txt variant="display">{BFI.mission}</Txt>
+        <Txt variant="title">What BFI works toward</Txt>
         {BFI.pillars.map((p, i) => (
           <Txt key={p}>
             {i + 1}. {p}
