@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AudiencePicker, audienceLabel, useRegions } from '@/components/audience-picker';
 import { Button, Card, Chip, Empty, Field, Row, Screen, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
+import { showAlert } from '@/lib/alert';
 
 const DAYS = [3, 7, 14];
 
@@ -34,7 +35,7 @@ export default function SendCheckin() {
       .select('id')
       .single();
     setBusy(false);
-    if (error) return Alert.alert('Not sent', error.message);
+    if (error) return showAlert('Not sent', error.message);
     router.replace({ pathname: '/checkin/[id]', params: { id: data.id } });
   };
 

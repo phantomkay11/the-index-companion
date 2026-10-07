@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Button, Card, Chip, Empty, ErrorNote, Field, Loading, Row, Screen, SignInPrompt, ToggleRow, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
@@ -11,6 +11,7 @@ import type { Survey, SurveyAnswer, SurveyQuestion, SurveyResponse } from '@/lib
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 /** A member answers a BFI survey. Answers can be changed until it closes, or withdrawn. */
 export default function SurveyScreen() {
@@ -28,8 +29,9 @@ export default function SurveyScreen() {
   );
 
   if (!session) return <Screen><SignInPrompt /></Screen>;
-  if ((survey.loading && !survey.data) || mine.data === undefined) return <Loading />;
   if (survey.error) return <Screen><ErrorNote message={survey.error} onRetry={survey.reload} /></Screen>;
+  if (mine.error) return <Screen><ErrorNote message={mine.error} onRetry={mine.reload} /></Screen>;
+  if ((survey.loading && !survey.data) || mine.data === undefined) return <Loading />;
   const s = survey.data;
   if (!s) return <Screen><Empty>This survey isn’t for you, or it has been removed.</Empty></Screen>;
 
@@ -94,19 +96,19 @@ function Form({
     });
 
   const submit = async () => {
-    if (missing) return Alert.alert('One more', `Please answer: ${missing.prompt}`);
+    if (missing) return showAlert('One more', `Please answer: ${missing.prompt}`);
     setBusy(true);
     const { error } = await supabase
       .from('survey_responses')
       .upsert({ survey_id: survey.id, answers, consent_share: consent }, { onConflict: 'survey_id,user_id' });
     setBusy(false);
-    if (error) return Alert.alert('Not sent', error.message);
+    if (error) return showAlert('Not sent', error.message);
     onSaved();
   };
 
   const withdraw = async () => {
     const { error } = await supabase.from('survey_responses').delete().eq('survey_id', survey.id).eq('user_id', userId);
-    if (error) return Alert.alert('Not removed', error.message);
+    if (error) return showAlert('Not removed', error.message);
     onSaved();
   };
 

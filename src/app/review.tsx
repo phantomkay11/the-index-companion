@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Button, Card, Empty, ErrorNote, Loading, Row, Screen, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import type { EventRow, Farm } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
+import { showAlert } from '@/lib/alert';
 
 type Report = { id: string; target_type: string; target_id: string; reason: string; created_at: string };
 
@@ -28,18 +29,18 @@ export default function Review() {
 
   const reviewFarm = async (id: string, status: 'approved' | 'rejected') => {
     const { error } = await supabase.rpc('review_farm', { p_farm_id: id, p_status: status });
-    if (error) Alert.alert('Not saved', error.message);
+    if (error) showAlert('Not saved', error.message);
     q.reload();
   };
   const reviewEvent = async (id: string, status: 'approved' | 'rejected') => {
     const { error } = await supabase.rpc('review_event', { p_event_id: id, p_status: status });
-    if (error) Alert.alert('Not saved', error.message);
+    if (error) showAlert('Not saved', error.message);
     q.reload();
   };
   const resolve = async (id: string) => {
     const { data } = await supabase.auth.getUser();
     const { error } = await supabase.from('reports').update({ resolved_at: new Date().toISOString(), resolved_by: data.user?.id }).eq('id', id);
-    if (error) Alert.alert('Not saved', error.message);
+    if (error) showAlert('Not saved', error.message);
     q.reload();
   };
 

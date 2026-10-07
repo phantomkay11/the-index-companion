@@ -56,7 +56,7 @@ export function BfiAsks() {
               <View style={{ flex: 1 }}>
                 <Txt variant="bodyBold" color={colors.onSun}>{x.title}</Txt>
                 <Txt variant="small" color={colors.onSun}>
-                  Tap to tell BFI you’re OK or that you need help.
+                  {t('tapToTell')}
                 </Txt>
               </View>
               <Ionicons name="chevron-forward" size={20} color={colors.onSun} />

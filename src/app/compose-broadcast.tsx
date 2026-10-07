@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AudiencePicker, audienceLabel as labelFor, useRegions } from '@/components/audience-picker';
 import { Button, Card, Chip, Empty, Field, Row, Screen, Txt } from '@/components/ui';
@@ -8,6 +8,7 @@ import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 const CHANNELS = [
   { value: 'push', label: 'Phone notification' },
@@ -46,8 +47,8 @@ export default function ComposeBroadcast() {
       link_text: linkUrl.trim() ? linkText.trim() || 'Learn more' : null,
     });
     setBusy(false);
-    if (error) return Alert.alert('Not sent', error.message);
-    Alert.alert('Sent', `Your announcement is going out to ${audienceLabel.toLowerCase()}.`);
+    if (error) return showAlert('Not sent', error.message);
+    showAlert('Sent', `Your announcement is going out to ${audienceLabel.toLowerCase()}.`);
     router.back();
   };
 

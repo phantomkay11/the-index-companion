@@ -22,8 +22,15 @@ export function serveDist(port) {
   if (!fs.existsSync(path.join(dist, 'index.html'))) throw new Error('Run `npx expo export --platform web` first.');
   const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.ttf': 'font/ttf', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json' };
   const server = http.createServer((req, res) => {
-    let f = path.join(dist, decodeURIComponent(req.url.split('?')[0]));
-    if (!(fs.existsSync(f) && fs.statSync(f).isFile())) f = path.join(dist, 'index.html');
+    let rel;
+    try {
+      rel = decodeURIComponent((req.url ?? '/').split('?')[0]);
+    } catch {
+      rel = '/';
+    }
+    let f = path.join(dist, path.normalize(rel));
+    // Never serve anything outside dist.
+    if (!f.startsWith(dist + path.sep) || !(fs.existsSync(f) && fs.statSync(f).isFile())) f = path.join(dist, 'index.html');
     res.writeHead(200, { 'Content-Type': types[path.extname(f)] ?? 'application/octet-stream' });
     fs.createReadStream(f).pipe(res);
   });

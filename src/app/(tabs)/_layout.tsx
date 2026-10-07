@@ -13,17 +13,18 @@ import { useSettings } from '@/providers/settings';
 export default function TabsLayout() {
   const { colors, t, textScale } = useSettings();
   const { unread } = useNotifications();
-  const { isTablet } = useLayout();
+  const { isTablet, width } = useLayout();
   const insets = useSafeAreaInsets();
 
-  const headerRight = (tint: string = colors.text) => (
-    <View style={{ flexDirection: 'row', marginRight: 8 }}>
+  // Over a photo, the icons sit on small dark discs so they stay readable when the page scrolls to white.
+  const headerRight = (tint: string = colors.text, onPhoto = false) => (
+    <View style={{ flexDirection: 'row', marginRight: 8, gap: onPhoto ? 8 : 0 }}>
       <Pressable
         onPress={() => router.push('/notifications')}
         accessibilityRole="button"
         accessibilityLabel={unread ? `${t('notifications')}, ${unread} unread` : t('notifications')}
         hitSlop={6}
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: onPhoto ? 'rgba(6,24,15,0.55)' : 'transparent' }}>
         <Ionicons name={unread ? 'notifications' : 'notifications-outline'} size={23} color={tint} />
         {unread ? (
           <View
@@ -50,7 +51,7 @@ export default function TabsLayout() {
         accessibilityRole="button"
         accessibilityLabel={t('settings')}
         hitSlop={6}
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: onPhoto ? 'rgba(6,24,15,0.55)' : 'transparent' }}>
         <Ionicons name="accessibility-outline" size={24} color={tint} />
       </Pressable>
     </View>
@@ -80,9 +81,10 @@ export default function TabsLayout() {
           tabBarStyle: isTablet
             ? { backgroundColor: colors.surface, borderRightColor: colors.line, borderRightWidth: 1, width: 112, paddingTop: 12 }
             : { backgroundColor: colors.surface, borderTopWidth: 0, height: 64 + insets.bottom, paddingTop: 6, shadowColor: '#0b2a1b', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -2 }, elevation: 8 },
-          tabBarItemStyle: isTablet ? { minHeight: 72, marginVertical: 2 } : undefined,
           tabBarActiveBackgroundColor: isTablet ? colors.leafSoft : undefined,
-          tabBarLabelStyle: { fontFamily: Fonts.ui, fontSize: 11.5 * Math.min(textScale, 1.2) },
+          // Five labels share the bar, so they grow only a little with the text size; the full name is still read aloud.
+          tabBarLabelStyle: { fontFamily: Fonts.ui, fontSize: (width < 380 ? 10.5 : 11.5) * Math.min(textScale, 1.1) },
+          tabBarItemStyle: isTablet ? { minHeight: 72, marginVertical: 2 } : { paddingHorizontal: 0 },
           tabBarActiveTintColor: colors.forest,
         }}
         screenLayout={({ children }) => (
@@ -101,7 +103,7 @@ export default function TabsLayout() {
             headerTransparent: true,
             headerStyle: { backgroundColor: 'transparent' },
             headerTitle: () => null,
-            headerRight: () => headerRight('#ffffff'),
+            headerRight: () => headerRight('#ffffff', true),
           }}
         />
         <Tabs.Screen

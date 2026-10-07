@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Button, Field, Row, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { geocode, locate, setHere, useHere } from '@/lib/location';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 /** Pick "where I am": phone location, or a typed town or ZIP for people who'd rather not share. */
 export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?: boolean }) {
@@ -19,7 +20,7 @@ export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?:
     const r = await locate();
     setBusy(false);
     if (r.ok) setHere({ point: r.point, label: r.label });
-    else Alert.alert('Location unavailable', r.reason);
+    else showAlert('Location unavailable', r.reason);
   };
 
   const lookUp = async () => {
@@ -30,7 +31,7 @@ export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?:
     if (r.ok) {
       setHere({ point: r.point, label: r.label });
       setTyping(false);
-    } else Alert.alert('Place not found', r.reason);
+    } else showAlert('Place not found', r.reason);
   };
 
   if (here && !typing) {
@@ -49,7 +50,7 @@ export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?:
     <View style={{ gap: Space.sm }}>
       <Row>
         {!hideGps ? <Button small={compact} label={t('useMyLocation')} icon="locate-outline" busy={busy && !typing} onPress={useGps} /> : null}
-        {!typing ? <Button small={compact} kind="ghost" label="Enter a town or ZIP" onPress={() => setTyping(true)} /> : null}
+        {!typing ? <Button small={compact} kind="ghost" label={t('enterTown')} onPress={() => setTyping(true)} /> : null}
       </Row>
       {typing ? (
         <Row>

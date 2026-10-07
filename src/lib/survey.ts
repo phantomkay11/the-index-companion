@@ -50,7 +50,9 @@ export function summarize(questions: SurveyQuestion[], responses: SurveyResponse
   });
 }
 
-function cell(v: string) {
+function cell(raw: string) {
+  // A written answer starting with = + - @ would run as a formula in Excel or Sheets: make it plain text.
+  const v = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 

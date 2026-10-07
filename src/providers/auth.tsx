@@ -1,7 +1,8 @@
 import type { Session } from '@supabase/supabase-js';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { supabase } from '@/lib/supabase';
+import { clearQueryCache } from '@/lib/use-query';
 import type { Farm, Profile } from '@/lib/types';
 
 type AuthContextValue = {
@@ -23,7 +24,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [myFarm, setMyFarm] = useState<Farm | null>(null);
   const [ready, setReady] = useState(false);
 
+  // Only the newest member load may land, so a slow answer for a previous account can't come back after sign-out.
+  const latest = useRef(0);
   const loadMember = useCallback(async (s: Session | null) => {
+    const id = ++latest.current;
     if (!s) {
       setProfile(null);
       setMyFarm(null);
@@ -33,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from('profiles').select('id, display_name, role, region_id, language').eq('id', s.user.id).maybeSingle(),
       supabase.from('farms').select('*, farm_products(*), farm_photos(*)').eq('owner_id', s.user.id).limit(1).maybeSingle(),
     ]);
+    if (id !== latest.current) return;
     setProfile((p as Profile) ?? null);
     setMyFarm((f as Farm) ?? null);
   }, []);
@@ -43,8 +48,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await loadMember(data.session).catch(() => {});
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    let lastUser: string | null | undefined;
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
+      // Token refreshes keep the same member: no need to reload them every hour.
+      const uid = s?.user.id ?? null;
+      if (event === 'TOKEN_REFRESHED' && uid === lastUser) return;
+      if (lastUser && uid !== lastUser) clearQueryCache();
+      lastUser = uid;
       loadMember(s).catch(() => {});
     });
     return () => sub.subscription.unsubscribe();
@@ -57,9 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       myFarm,
       isStaff: profile?.role === 'coordinator' || profile?.role === 'admin',
       ready,
-      refresh: () => loadMember(session),
+      refresh: async () => {
+        const { data } = await supabase.auth.getSession();
+        await loadMember(data.session);
+      },
       signOut: async () => {
         await supabase.auth.signOut();
+        await clearQueryCache();
       },
     }),
     [session, profile, myFarm, ready, loadMember],

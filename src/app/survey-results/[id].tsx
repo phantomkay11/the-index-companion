@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams } from 'expo-router';
-import { Alert, Platform, Share, View } from 'react-native';
+import { Platform, Share, View } from 'react-native';
 
 import { audienceLabel, useRegions } from '@/components/audience-picker';
 import { Button, Card, Empty, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
@@ -12,6 +12,7 @@ import type { Survey, SurveyResponse } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 /** Staff: totals for each question, quotable written answers, and a CSV with no names in it. */
 export default function SurveyResults() {
@@ -33,8 +34,11 @@ export default function SurveyResults() {
   const rs = responses.data;
 
   const setStatus = async (status: Survey['status']) => {
-    const { error } = await supabase.from('surveys').update({ status }).eq('id', s.id);
-    if (error) return Alert.alert('Not changed', error.message);
+    // Opening a draft whose closing date has passed gives it two fresh weeks.
+    const reopen = status === 'open' && s.closes_at && new Date(s.closes_at) <= new Date();
+    const patch = reopen ? { status, closes_at: new Date(Date.now() + 14 * 86400000).toISOString() } : { status };
+    const { error } = await supabase.from('surveys').update(patch).eq('id', s.id);
+    if (error) return showAlert('Not changed', error.message);
     survey.reload();
   };
 
@@ -54,7 +58,7 @@ export default function SurveyResults() {
       await Share.share({ title: filename, message: csv });
     } catch {
       await Clipboard.setStringAsync(csv);
-      Alert.alert('Copied', 'The results are on your clipboard. Paste them into a spreadsheet.');
+      showAlert('Copied', 'The results are on your clipboard. Paste them into a spreadsheet.');
     }
   };
 

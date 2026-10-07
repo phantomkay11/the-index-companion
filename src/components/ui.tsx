@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Children, useState, type ComponentProps, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -40,6 +41,9 @@ const VARIANTS = {
 
 export type TxtVariant = keyof typeof VARIANTS;
 
+// Long words (farm names, links) wrap instead of running off the screen on the web.
+const WEB_WRAP = { overflowWrap: 'anywhere' } as unknown as TextStyle;
+
 /** Text that follows the member's in-app text size on top of the phone's own setting. */
 export function Txt({
   variant = 'body',
@@ -51,14 +55,23 @@ export function Txt({
 }: ComponentProps<typeof Text> & { variant?: TxtVariant; color?: string; muted?: boolean }) {
   const { colors, textScale } = useSettings();
   const base = VARIANTS[variant];
+  // A size passed in `style` is a design size: it still follows the member's text size setting.
+  const flat = StyleSheet.flatten(style) ?? {};
+  const fontSize = (flat.fontSize ?? base.fontSize) * textScale;
+  const lineHeight = flat.lineHeight
+    ? flat.lineHeight * textScale
+    : flat.fontSize
+      ? Math.round(flat.fontSize * 1.3 * textScale)
+      : base.lineHeight * textScale;
   return (
     <Text
       {...rest}
       style={[
         base,
         { color: color ?? (muted || variant === 'label' ? colors.muted : colors.text) },
-        { fontSize: base.fontSize * textScale, lineHeight: base.lineHeight * textScale },
+        Platform.OS === 'web' ? WEB_WRAP : null,
         style,
+        { fontSize, lineHeight },
       ]}>
       {children}
     </Text>
@@ -130,7 +143,7 @@ export function Card({
   const { colors } = useSettings();
   // Tinted panels instead of outlined boxes.
   const toneStyle = {
-    plain: { backgroundColor: colors.sunk },
+    plain: { backgroundColor: colors.sunk, borderColor: colors.outline },
     leaf: { backgroundColor: colors.leaf },
     soft: { backgroundColor: colors.leafSoft },
     sun: { backgroundColor: colors.sunSoft },
@@ -185,7 +198,7 @@ export function Button({
         style,
       ]}>
       {busy ? <ActivityIndicator color={fg} /> : icon ? <Ionicons name={icon} size={small ? 16 : 18} color={fg} /> : null}
-      <Txt variant={small ? 'smallBold' : 'bodyBold'} color={fg}>
+      <Txt variant={small ? 'smallBold' : 'bodyBold'} color={fg} style={{ flexShrink: 1, textAlign: 'center' }}>
         {label}
       </Txt>
     </Pressable>
@@ -207,14 +220,15 @@ export function Chip({
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!selected }}
+      accessibilityRole="togglebutton"
+      accessibilityState={{ checked: !!selected, selected: !!selected }}
+      aria-pressed={!!selected}
       style={[
         styles.chip,
-        { backgroundColor: selected ? colors.forest : colors.sunk, borderColor: selected ? colors.forest : colors.sunk },
+        { backgroundColor: selected ? colors.forest : colors.sunk, borderColor: selected ? colors.forest : colors.outline },
       ]}>
       {icon ? <Ionicons name={icon} size={16} color={selected ? colors.onLeaf : colors.leaf} /> : null}
-      <Txt variant="smallBold" color={selected ? colors.onLeaf : colors.text}>
+      <Txt variant="smallBold" color={selected ? colors.onLeaf : colors.text} style={{ flexShrink: 1 }}>
         {label}
       </Txt>
     </Pressable>
@@ -228,7 +242,7 @@ export function Pill({ label, tone = 'plain', icon }: { label: string; tone?: 'p
     leaf: { bg: colors.leafSoft, fg: colors.text, border: colors.leafSoft, dashed: false },
     sun: { bg: colors.sunSoft, fg: colors.onSun, border: colors.sunSoft, dashed: false },
     real: { bg: colors.realSoft, fg: colors.real, border: colors.realSoft, dashed: false },
-    sample: { bg: 'transparent', fg: colors.muted, border: colors.muted, dashed: true },
+    sample: { bg: colors.surface, fg: colors.muted, border: colors.muted, dashed: true },
   }[tone];
   return (
     <View style={[styles.pill, { backgroundColor: t.bg, borderColor: t.border, borderStyle: t.dashed ? 'dashed' : 'solid' }]}>
@@ -269,7 +283,7 @@ export function Segmented<T extends string>({
 }) {
   const { colors } = useSettings();
   return (
-    <View style={[styles.segment, { backgroundColor: colors.sunk }]} accessibilityRole="tablist">
+    <View style={[styles.segment, { backgroundColor: colors.sunk, borderColor: colors.outline }]} accessibilityRole="tablist">
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -296,11 +310,11 @@ export function Field({ label, hint, ...input }: TextInputProps & { label: strin
       <Txt variant="smallBold">{label}</Txt>
       <TextInput
         accessibilityLabel={label}
-        placeholderTextColor={colors.muted}
+        placeholderTextColor={colors.placeholder}
         {...input}
         style={[
           styles.input,
-          { borderColor: colors.sunk, backgroundColor: colors.sunk, color: colors.text, fontSize: 16 * textScale },
+          { borderColor: colors.outline === 'transparent' ? colors.sunk : colors.outline, backgroundColor: colors.sunk, color: colors.text, fontSize: 16 * textScale },
           input.multiline && { minHeight: 96, textAlignVertical: 'top' },
           input.style,
         ]}
@@ -327,7 +341,7 @@ export function ToggleRow({
 }) {
   const { colors } = useSettings();
   return (
-    <View style={[styles.toggle, { backgroundColor: colors.sunk }]}>
+    <View style={[styles.toggle, { backgroundColor: colors.sunk, borderColor: colors.outline }]}>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="bodyBold">{label}</Txt>
         {hint ? (
@@ -359,14 +373,25 @@ export function Loading() {
   );
 }
 
+/** Turns raw network and database errors into something a member can act on. */
+export function friendlyError(message: string) {
+  if (/JSON object requested|multiple \(or no\) rows|PGRST116/i.test(message)) return 'We couldn’t find that. It may have been removed or is no longer public.';
+  if (/Failed to fetch|Network request failed|NetworkError|Load failed|timed? ?out/i.test(message)) return 'You’re offline or the connection dropped. Try again when you have signal.';
+  if (/JWT|not authorized|permission denied|row-level security/i.test(message)) return 'You don’t have access to this. Try signing in again.';
+  return message;
+}
+
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   const { colors, t } = useSettings();
   return (
     <View style={[styles.notice, { borderWidth: 1, borderColor: colors.danger }]} accessibilityRole="alert">
       <Txt variant="small" color={colors.danger}>
-        {message}
+        {friendlyError(message)}
       </Txt>
-      {onRetry ? <Button small kind="ghost" label={t('tryAgain')} onPress={onRetry} /> : null}
+      <Row>
+        {onRetry ? <Button small kind="ghost" label={t('tryAgain')} onPress={onRetry} /> : null}
+        <Button small kind="ghost" label="Go to Discover" onPress={() => router.replace('/')} />
+      </Row>
     </View>
   );
 }
@@ -395,20 +420,24 @@ export function SignInPrompt() {
 const styles = StyleSheet.create({
   screen: { padding: 20, gap: Space.xl, paddingBottom: 48 },
   screenTablet: { padding: Space.xxl, gap: Space.xxl },
-  card: { borderRadius: Radius.lg, padding: 18, gap: Space.sm },
+  card: { borderRadius: Radius.lg, padding: 18, gap: Space.sm, borderWidth: 1, borderColor: 'transparent' },
   button: {
     minHeight: 48,
     borderWidth: 1,
     borderRadius: Radius.pill,
     paddingHorizontal: 22,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Space.sm,
+    maxWidth: '100%',
   },
-  buttonSmall: { minHeight: 38, paddingHorizontal: 16 },
+  buttonSmall: { minHeight: TapTarget, paddingHorizontal: 16 },
   chip: {
-    minHeight: 40,
+    minHeight: TapTarget,
+    maxWidth: '100%',
+    paddingVertical: 6,
     borderWidth: 1,
     borderRadius: Radius.pill,
     paddingHorizontal: 14,
@@ -426,10 +455,10 @@ const styles = StyleSheet.create({
     gap: 4,
     alignSelf: 'flex-start',
   },
-  segment: { flexDirection: 'row', borderRadius: Radius.pill, padding: 3, alignSelf: 'flex-start' },
-  segmentItem: { minHeight: 36, paddingHorizontal: 16, justifyContent: 'center', borderRadius: Radius.pill },
+  segment: { flexDirection: 'row', borderRadius: Radius.pill, padding: 3, alignSelf: 'flex-start', borderWidth: 1, maxWidth: '100%' },
+  segmentItem: { minHeight: 40, paddingHorizontal: 14, justifyContent: 'center', borderRadius: Radius.pill, flexShrink: 1 },
   segmentOn: { shadowColor: '#0b2a1b', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, minHeight: TapTarget + 4 },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderRadius: Radius.lg, padding: 16 },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderRadius: Radius.lg, padding: 16, borderWidth: 1 },
   notice: { borderRadius: Radius.lg, padding: 18, gap: Space.sm },
 });

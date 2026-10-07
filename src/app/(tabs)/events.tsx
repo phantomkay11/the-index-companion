@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Icon as Ionicons } from '@/components/icon';
 
@@ -16,6 +16,7 @@ import type { EventRow, Rsvp, Shift } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 type Data = { events: EventRow[]; rsvps: Rsvp[]; shifts: Shift[]; mySignups: string[] };
 
@@ -52,13 +53,13 @@ export default function Events() {
     const res = going
       ? await supabase.from('event_rsvps').delete().eq('event_id', e.id).eq('user_id', uid)
       : await supabase.from('event_rsvps').insert({ event_id: e.id, user_id: uid });
-    if (res.error) Alert.alert('RSVP not saved', res.error.message);
+    if (res.error) showAlert('RSVP not saved', res.error.message);
     q.reload();
   };
 
   const setReminder = async (r: Rsvp, key: 'remind_push' | 'remind_sms' | 'remind_email') => {
     const { error } = await supabase.from('event_rsvps').update({ [key]: !r[key] }).eq('event_id', r.event_id).eq('user_id', r.user_id);
-    if (error) Alert.alert('Reminder not saved', error.message);
+    if (error) showAlert('Reminder not saved', error.message);
     q.reload();
   };
 
@@ -68,7 +69,7 @@ export default function Events() {
     const res = mine
       ? await supabase.from('shift_signups').delete().eq('shift_id', s.id).eq('user_id', uid)
       : await supabase.from('shift_signups').insert({ shift_id: s.id, user_id: uid });
-    if (res.error) Alert.alert('Sign-up not saved', res.error.message);
+    if (res.error) showAlert('Sign-up not saved', res.error.message);
     q.reload();
   };
 
@@ -76,10 +77,10 @@ export default function Events() {
     <Photo picture={sectionImage('events')} style={{ height: isTablet ? 300 : 230 }}>
       <Scrim from={0.15} />
       <View style={[styles.heroCopy, isTablet && { left: 48, right: 48 }]}>
-        <Txt variant="display" color="#ffffff">
-          Market days, workdays and gatherings
+        <Txt variant="display" color="#ffffff" accessibilityRole="header">
+          {t('eventsHero')}
         </Txt>
-        <Txt color="rgba(255,255,255,0.9)">RSVP once and get reminders your way.</Txt>
+        <Txt color="rgba(255,255,255,0.9)">{t('eventsHeroSub')}</Txt>
       </View>
     </Photo>
   );
@@ -168,7 +169,7 @@ export default function Events() {
                 ) : null}
                 {shifts.length ? (
                   <View style={[styles.shifts, { backgroundColor: colors.sunk }]}>
-                    <Txt variant="heading">Volunteer shifts</Txt>
+                    <Txt variant="heading">{t('volunteerShifts')}</Txt>
                     {shifts.map((s) => {
                       const mine = q.data!.mySignups.includes(s.id);
                       return (
@@ -176,7 +177,7 @@ export default function Events() {
                           <Txt variant="small" style={{ flex: 1 }}>
                             <Txt variant="smallBold">{s.label}</Txt>, {s.open_spots} open
                           </Txt>
-                          <Button small kind={mine ? 'primary' : 'inverse'} label={mine ? 'Signed up' : 'Sign up'} disabled={!mine && s.open_spots <= 0} onPress={() => toggleShift(s)} />
+                          <Button small kind={mine ? 'primary' : 'inverse'} label={mine ? t('signedUp') : t('signUp')} disabled={!mine && s.open_spots <= 0} onPress={() => toggleShift(s)} />
                         </Row>
                       );
                     })}
@@ -198,7 +199,7 @@ const styles = StyleSheet.create({
   heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 22, gap: 4 },
   date: { position: 'absolute', top: 12, left: 12, width: 58, borderRadius: Radius.md, alignItems: 'center', paddingVertical: 6 },
   chips: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 6 },
-  sample: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 3 },
+  sample: { backgroundColor: 'rgba(6,24,15,0.72)', borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 3 },
   place: { position: 'absolute', left: 14, right: 14, bottom: 12 },
   shifts: { borderRadius: Radius.lg, padding: 14, gap: 10, marginTop: 4 },
 });

@@ -33,11 +33,20 @@ const HELP =
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
-  const form = await req.formData();
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return new Response('Bad request', { status: 400 });
+  }
+  const pairs: [string, string][] = [];
   const params: Record<string, string> = {};
-  for (const [k, v] of form.entries()) params[k] = String(v);
+  for (const [k, v] of form.entries()) {
+    pairs.push([k, String(v)]);
+    params[k] = String(v);
+  }
 
-  if (!(await isFromTwilio(req.headers.get('X-Twilio-Signature'), params))) {
+  if (!(await isFromTwilio(req.headers.get('X-Twilio-Signature'), pairs))) {
     return new Response('Forbidden', { status: 403 });
   }
 
@@ -45,18 +54,25 @@ Deno.serve(async (req) => {
   const route = routeText(params.Body ?? '');
   let reply: string;
 
+  // STOP / START: record the choice. Twilio sends its own confirmation, so reply with nothing.
+  if (route.type === 'optout' || route.type === 'optin') {
+    const { error } = await supabase.rpc('sms_opt_out', { p_from: params.From ?? '', p_opt_in: route.type === 'optin' });
+    if (error) console.error(error);
+    return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', { headers: { 'Content-Type': 'text/xml' } });
+  }
+
   try {
     if (route.type === 'help') {
       reply = HELP;
     } else if (route.type === 'events') {
       reply = await upcomingEvents(supabase);
     } else if (route.type === 'search') {
-      reply = await searchGrowers(supabase, route.keyword, route.state);
+      reply = await searchGrowers(supabase, route.keyword, route.state, route.raw);
     } else {
       const { data, error } = await supabase.rpc('sms_inbound', { p_from: params.From ?? '', p_body: route.text });
       if (error) throw error;
       const result = data as { handled: boolean; reply?: string };
-      reply = result.handled && result.reply ? result.reply : await searchGrowers(supabase, route.fallback.keyword, route.fallback.state);
+      reply = result.handled && result.reply ? result.reply : await searchGrowers(supabase, route.fallback.keyword, route.fallback.state, route.fallback.raw);
     }
   } catch (e) {
     console.error(e);
@@ -82,7 +98,7 @@ async function upcomingEvents(supabase: SupabaseClient) {
     : 'No upcoming events yet. Check back soon.';
 }
 
-async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: string) {
+async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: string, raw?: string) {
   if (!keyword) return HELP;
   // Match a product that is in season, or a grower type.
   const { data: products, error: pErr } = await supabase
@@ -100,7 +116,10 @@ async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: 
     .eq('status', 'approved')
     .order('verified_at', { ascending: false, nullsFirst: false })
     .limit(3);
-  q = ids.length ? q.or(`id.in.(${ids.join(',')}),categories.cs.{${cap(keyword)}}`) : q.contains('categories', [cap(keyword)]);
+  // Grower types are plural ("Beekeepers"): try the word as typed, singular and plural.
+  const kinds = [...new Set([raw, keyword, `${keyword}s`].filter(Boolean).map((w) => cap(w!.replace(/[^a-z &]/gi, '').trim())))].filter(Boolean);
+  const kindList = kinds.map((k) => `"${k}"`).join(',');
+  q = ids.length ? q.or(`id.in.(${ids.join(',')}),categories.ov.{${kindList}}`) : q.overlaps('categories', kinds);
   if (state) q = q.eq('state', state);
   const { data: rows, error } = await q;
   if (error) throw error;
@@ -116,12 +135,13 @@ async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: 
   return `Black growers with ${keyword.toUpperCase()}${state ? ` in ${state}` : ''}:\n${lines.join('\n')}\nFind more on the Index app or blackfarmersindex.com`;
 }
 
-/** Twilio signs the full URL plus every POST parameter, sorted by name, with HMAC-SHA1. */
-async function isFromTwilio(signature: string | null, params: Record<string, string>) {
+/** Twilio signs the full URL plus every POST parameter (repeated keys included), sorted by name, with HMAC-SHA1. */
+async function isFromTwilio(signature: string | null, pairs: [string, string][]) {
   const token = Deno.env.get('TWILIO_AUTH_TOKEN');
   const url = Deno.env.get('TWILIO_WEBHOOK_URL');
   if (!token || !url || !signature) return false;
-  const payload = url + Object.keys(params).sort().map((k) => k + params[k]).join('');
+  const sorted = pairs.map((p, i) => [p, i] as const).sort((a, b) => (a[0][0] < b[0][0] ? -1 : a[0][0] > b[0][0] ? 1 : a[1] - b[1]));
+  const payload = url + sorted.map(([[k, v]]) => k + v).join('');
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(token), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
   const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload)));
   const expected = btoa(String.fromCharCode(...mac));
@@ -140,5 +160,7 @@ function cap(s: string) {
 }
 
 function xml(s: string) {
-  return s.replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]!);
+  // Drop control characters XML can't carry, then escape.
+  // deno-lint-ignore no-control-regex
+  return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '').replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' })[c]!);
 }

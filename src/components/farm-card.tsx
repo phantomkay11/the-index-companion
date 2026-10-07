@@ -96,7 +96,7 @@ export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | n
 const styles = StyleSheet.create({
   card: { gap: 10 },
   topRow: { position: 'absolute', top: 12, left: 12, right: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sample: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 2 },
+  sample: { backgroundColor: 'rgba(6,24,15,0.72)', borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 2 },
   caption: { position: 'absolute', left: 16, right: 16, bottom: 14, gap: 2 },
   below: { paddingHorizontal: 4, gap: 4 },
   freshRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

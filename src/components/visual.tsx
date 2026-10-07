@@ -1,9 +1,11 @@
 import { Image } from 'expo-image';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, type ReactNode } from 'react';
-import { Linking, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Linking, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+
+import { Icon } from '@/components/icon';
 
 import { Txt } from '@/components/ui';
 import { brandGradient, Radius, SCRIM } from '@/constants/theme';
@@ -15,7 +17,7 @@ import { useSettings } from '@/providers/settings';
  * photos are described with their alt text. In save-data mode, photos give way to a soft brand tint.
  */
 export function Photo({ picture, style, rounded, children }: { picture: Picture; style?: StyleProp<ViewStyle>; rounded?: number; children?: ReactNode }) {
-  const { colors, saveData } = useSettings();
+  const { colors, saveData, reduceMotion } = useSettings();
   const hide = saveData && !picture.art;
   return (
     <View style={[{ overflow: 'hidden', backgroundColor: colors.leafSoft, borderRadius: rounded }, style]}>
@@ -24,11 +26,12 @@ export function Photo({ picture, style, rounded, children }: { picture: Picture;
       ) : (
         <Image
           source={picture.source}
-          alt={picture.art ? undefined : picture.alt}
+          // Art is decorative: an empty alt hides it from screen readers on the web too.
+          alt={picture.art ? '' : picture.alt}
           accessible={!picture.art}
           accessibilityLabel={picture.art ? undefined : picture.alt}
           contentFit="cover"
-          transition={250}
+          transition={reduceMotion ? 0 : 250}
           style={StyleSheet.absoluteFill}
         />
       )}
@@ -97,6 +100,7 @@ const styles = StyleSheet.create({
   },
   band: { borderRadius: Radius.xl, padding: 22, gap: 14, overflow: 'hidden' },
   sun: { position: 'absolute', width: 220, height: 220, borderRadius: 110, right: -70, top: -90, opacity: 0.28 },
+  disc: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,24,15,0.55)', marginLeft: 4 },
 });
 
 /** Light status bar text while a screen with a photo under the header is in front. */
@@ -107,5 +111,19 @@ export function useLightStatusBar() {
       setStatusBarStyle('light');
       return () => setStatusBarStyle(scheme === 'dark' ? 'light' : 'dark');
     }, [scheme]),
+  );
+}
+
+/** A back button that stays readable over photos and white pages, and works even when opened from a link. */
+export function BackDisc() {
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      accessibilityRole="button"
+      accessibilityLabel="Back"
+      hitSlop={6}
+      style={({ pressed }) => [styles.disc, { opacity: pressed ? 0.8 : 1 }]}>
+      <Icon name="chevron-back" size={24} color="#ffffff" />
+    </Pressable>
   );
 }

@@ -18,20 +18,34 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
   const [cachedAt, setCachedAt] = useState<string | null>(null);
   const fetcherRef = useRef(fetcher);
   const key = options.cacheKey ? CACHE_PREFIX + options.cacheKey : null;
+  const keyRef = useRef(key);
+  // Each request gets a number; only the newest one may update the screen, so a slow old
+  // response (from a previous filter or account) can never overwrite a newer one.
+  const latest = useRef(0);
+  const fresh = useRef(false); // the network has answered for the current key
   useLayoutEffect(() => {
     fetcherRef.current = fetcher;
+    keyRef.current = key;
   });
 
-  // Show the saved copy right away while the network request runs.
+  // A new key (new filter, new account) starts clean, then shows its own saved copy while loading.
+  const prevKey = useRef(key);
   useEffect(() => {
+    if (prevKey.current !== key) {
+      prevKey.current = key;
+      fresh.current = false;
+      setData(undefined);
+      setCachedAt(null);
+      setError(null);
+    }
     if (!key) return;
     let active = true;
     AsyncStorage.getItem(key)
       .then((raw) => {
-        if (!raw || !active) return;
+        if (!raw || !active || fresh.current) return;
         const saved = JSON.parse(raw) as { at: string; value: T };
-        setData((current) => (current === undefined ? saved.value : current));
-        setCachedAt((current) => current ?? saved.at);
+        setData(saved.value);
+        setCachedAt(saved.at);
       })
       .catch(() => {});
     return () => {
@@ -40,19 +54,24 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
   }, [key]);
 
   const load = useCallback(async () => {
+    const id = ++latest.current;
+    const forKey = keyRef.current;
     setLoading(true);
     try {
       const result = await fetcherRef.current();
+      if (id !== latest.current) return;
+      fresh.current = true;
       setData(result);
       setError(null);
       setCachedAt(null);
-      if (key) AsyncStorage.setItem(key, JSON.stringify({ at: new Date().toISOString(), value: result })).catch(() => {});
+      if (forKey) AsyncStorage.setItem(forKey, JSON.stringify({ at: new Date().toISOString(), value: result })).catch(() => {});
     } catch (e) {
+      if (id !== latest.current) return;
       setError(e instanceof Error ? e.message : 'Something went wrong. Check your connection and try again.');
     } finally {
-      setLoading(false);
+      if (id === latest.current) setLoading(false);
     }
-  }, [key]);
+  }, []);
 
   // The focus effect below covers the first load; this reruns only when deps change.
   const first = useRef(true);
@@ -71,11 +90,21 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
     }, [load]),
   );
 
-  // A failed refresh with a saved copy on screen isn't an error worth shouting about.
-  const visibleError = error && data !== undefined && key ? null : error;
+  // A failed refresh with a saved copy on screen isn't an error worth shouting about: the screen says it's a saved copy.
+  const visibleError = error && data !== undefined && cachedAt ? null : error;
 
   // cachedAt is set while the screen shows the phone's saved copy: before the first refresh lands, or after it failed.
   return { data, error: visibleError, loading, reload: load, setData, cachedAt };
+}
+
+/** Forget every saved copy, so the next person to sign in on this phone never sees the last one's data. */
+export async function clearQueryCache() {
+  try {
+    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(CACHE_PREFIX));
+    if (keys.length) await AsyncStorage.multiRemove(keys);
+  } catch {
+    // Nothing saved, or storage unavailable: nothing to clear.
+  }
 }
 
 /** Throw the Supabase error, or return its data. */

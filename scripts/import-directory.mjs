@@ -132,10 +132,29 @@ if (!apply) {
 let created = 0;
 let updated = 0;
 for (const { farm, products, line } of farms) {
-  const { data: existing } = await db.from('farms').select('id').eq('name', farm.name).eq('city', farm.city).eq('state', farm.state).maybeSingle();
+  const { data: existing, error: lookupError } = await db
+    .from('farms')
+    .select('id, owner_id, status')
+    .eq('name', farm.name)
+    .eq('city', farm.city)
+    .eq('state', farm.state)
+    .maybeSingle();
+  if (lookupError) {
+    // Don't guess: a failed lookup could create a duplicate.
+    console.error(`Row ${line}: could not check for an existing listing (${lookupError.message}). Skipped.`);
+    continue;
+  }
   let id = existing?.id;
   if (id) {
-    const { error } = await db.from('farms').update(farm).eq('id', id);
+    // Re-importing never undoes BFI's review or a farmer's own edits: once a farmer has claimed a listing
+    // or staff rejected it, only fill in what's missing.
+    const patch = { ...farm };
+    delete patch.status;
+    delete patch.verified_at;
+    if (existing.owner_id || existing.status === 'rejected') {
+      for (const k of Object.keys(patch)) if (!['name', 'city', 'state'].includes(k)) delete patch[k];
+    }
+    const { error } = await db.from('farms').update(patch).eq('id', id);
     if (error) {
       console.error(`Row ${line}: ${error.message}`);
       continue;

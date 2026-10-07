@@ -1,7 +1,7 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BfiAsks } from '@/components/bfi-asks';
 import { SavedCopyNote } from '@/components/network-banner';
@@ -18,6 +18,7 @@ import type { Post, PostKind, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 /** Needs and offers, equipment sharing, rides, buying together and mentoring, by region. */
 export default function Community() {
@@ -25,7 +26,9 @@ export default function Community() {
   const { session, profile } = useAuth();
   const { isTablet } = useLayout();
   const [kind, setKind] = useState<PostKind | null>(null);
-  const [region, setRegion] = useState<string | null>(profile?.region_id ?? null);
+  // Starts on the member's own region once their profile has loaded, until they pick another.
+  const [regionChoice, setRegion] = useState<string | null | undefined>(undefined);
+  const region = regionChoice === undefined ? (profile?.region_id ?? null) : regionChoice;
 
   const regions = useQuery(async () => must(await supabase.from('regions').select('*').order('sort_order')) as Region[], [], { cacheKey: 'regions' });
   const posts = useQuery(
@@ -50,10 +53,10 @@ export default function Community() {
     <Photo picture={sectionImage('community')} style={{ height: isTablet ? 300 : 230 }}>
       <Scrim from={0.15} />
       <View style={{ position: 'absolute', left: isTablet ? 48 : 20, right: 20, bottom: 22, gap: 4 }}>
-        <Txt variant="display" color="#ffffff">
-          Lend a hand. Borrow a seeder.
+        <Txt variant="display" color="#ffffff" accessibilityRole="header">
+          {t('communityHero')}
         </Txt>
-        <Txt color="rgba(255,255,255,0.9)">Needs, offers, rides and mentoring in your region.</Txt>
+        <Txt color="rgba(255,255,255,0.9)">{t('communityHeroSub')}</Txt>
       </View>
     </Photo>
   );
@@ -111,19 +114,19 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
     setBusy(true);
     const { data, error } = await supabase.rpc('start_post_conversation', { p_post_id: post.id });
     setBusy(false);
-    if (error) return Alert.alert('Could not reply', error.message);
+    if (error) return showAlert('Could not reply', error.message);
     router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
 
   const close = async () => {
     const { error } = await supabase.from('posts').update({ status: 'closed' }).eq('id', post.id);
-    if (error) Alert.alert('Not updated', error.message);
+    if (error) showAlert('Not updated', error.message);
     onChange();
   };
 
   const report = async () => {
     const { error } = await supabase.from('reports').insert({ target_type: 'post', target_id: post.id, reason: 'Reported from community board' });
-    Alert.alert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this post.');
+    showAlert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this post.');
   };
 
   return (

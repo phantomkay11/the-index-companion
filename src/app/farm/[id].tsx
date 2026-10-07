@@ -2,12 +2,12 @@ import { Icon as Ionicons } from '@/components/icon';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState, type ComponentProps } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TranslateToggle, useTranslation } from '@/components/translate';
 import { Button, Card, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
-import { Credit, GlassChip, Photo, Scrim, useLightStatusBar } from '@/components/visual';
+import { BackDisc, Credit, GlassChip, Photo, Scrim, useLightStatusBar } from '@/components/visual';
 import { Radius } from '@/constants/theme';
 import { shortDate, updatedAgo } from '@/lib/format';
 import { farmCover, farmPhotos } from '@/lib/imagery';
@@ -18,6 +18,7 @@ import type { Farm } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 export default function FarmProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,9 +37,11 @@ export default function FarmProfile() {
   const story = useTranslation(farm.data?.story ?? '');
 
   // Count a profile view once per visit (the database ignores the owner's own views).
+  // Signed-in visits only, so the funder report can't be padded anonymously.
+  const viewerId = session?.user.id;
   useEffect(() => {
-    supabase.rpc('log_farm_view', { p_farm_id: id }).then(() => {});
-  }, [id]);
+    if (viewerId) supabase.rpc('log_farm_view', { p_farm_id: id }).then(() => {});
+  }, [id, viewerId]);
   const follow = useQuery(async () => {
     if (!session) return false;
     const { count } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('farm_id', id).eq('user_id', session.user.id);
@@ -48,6 +51,7 @@ export default function FarmProfile() {
   if (farm.error)
     return (
       <Screen>
+        <Stack.Screen options={{ title: '' }} />
         <ErrorNote message={farm.error} onRetry={farm.reload} />
       </Screen>
     );
@@ -73,13 +77,14 @@ export default function FarmProfile() {
 
   const toggleFollow = async () => {
     if (!session) return needSignIn();
+    if (follow.data === undefined || busy) return; // still loading, or already saving
     setBusy('follow');
     const following = follow.data;
     const res = following
       ? await supabase.from('follows').delete().eq('farm_id', f.id).eq('user_id', session.user.id)
       : await supabase.from('follows').insert({ farm_id: f.id, user_id: session.user.id });
     setBusy(null);
-    if (res.error) Alert.alert('Could not update', res.error.message);
+    if (res.error) showAlert('Could not update', res.error.message);
     else follow.setData(!following);
   };
 
@@ -90,7 +95,7 @@ export default function FarmProfile() {
       p_farm_id: f.id,
     });
     setBusy(null);
-    if (error) Alert.alert('Message not started', error.message);
+    if (error) showAlert('Message not started', error.message);
     else router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
 
@@ -101,7 +106,7 @@ export default function FarmProfile() {
       target_id: f.id,
       reason: 'Reported from farm profile',
     });
-    Alert.alert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this listing.');
+    showAlert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this listing.');
   };
 
   const readAloud = () =>
@@ -142,7 +147,7 @@ export default function FarmProfile() {
             </View>
           ) : null}
         </Row>
-        <Txt variant="hero" color="#ffffff" accessibilityRole="header">
+        <Txt variant="hero" color="#ffffff" accessibilityRole="header" numberOfLines={3}>
           {f.name}
         </Txt>
         <Txt color="rgba(255,255,255,0.92)">{[`${f.city}, ${f.state}`, kind, `Region ${f.region_id}`].filter(Boolean).join('  ·  ')}</Txt>
@@ -155,7 +160,7 @@ export default function FarmProfile() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <Stack.Screen options={{ title: '', headerTransparent: true, headerTintColor: '#ffffff' }} />
+      <Stack.Screen options={{ title: '', headerTransparent: true, headerTintColor: '#ffffff', headerLeft: () => <BackDisc /> }} />
       <Screen hero={hero} style={{ paddingTop: 4, paddingBottom: showBar ? 132 : 48 }}>
         <Txt variant="small" muted>
           On the Index since {new Date(f.listed_since).getFullYear()}
@@ -260,9 +265,9 @@ export default function FarmProfile() {
         <View style={styles.verify}>
           <Ionicons name="shield-checkmark-outline" size={22} color={colors.leaf} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="heading">How verification works</Txt>
+            <Txt variant="heading">{t('howVerification')}</Txt>
             <Txt variant="small" muted>
-              BFI confirms each farm before it gets the verified mark. Farmers choose how much of their location to show.
+              {t('verificationHint')}
             </Txt>
           </View>
         </View>
@@ -324,7 +329,7 @@ function Fact({ icon, label, value }: { icon: ComponentProps<typeof Ionicons>['n
 
 const styles = StyleSheet.create({
   heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 44, gap: 8 },
-  sample: { borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 2 },
+  sample: { backgroundColor: 'rgba(6,24,15,0.72)', borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.85)', borderRadius: Radius.pill, paddingHorizontal: 9, paddingVertical: 2 },
   lip: { position: 'absolute', left: 0, right: 0, bottom: -1, height: 26, borderTopLeftRadius: 26, borderTopRightRadius: 26 },
   fresh: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: Radius.pill, paddingHorizontal: 14, minHeight: 38 },
   dot: { width: 8, height: 8, borderRadius: 4 },

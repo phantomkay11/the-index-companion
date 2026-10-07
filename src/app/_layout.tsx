@@ -6,12 +6,12 @@ import { Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold } from '@exp
 import { IBMPlexMono_400Regular, IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import { YoungSerif_400Regular } from '@expo-google-fonts/young-serif';
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, router, Stack, ThemeProvider, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
-import { Dimensions, Platform } from 'react-native';
+import { Dimensions, Platform, Pressable, Text, View } from 'react-native';
 
 import { Fonts } from '@/constants/theme';
 import { AuthProvider } from '@/providers/auth';
@@ -19,6 +19,26 @@ import { NotificationsProvider } from '@/providers/notifications';
 import { SettingsProvider, useSettings } from '@/providers/settings';
 
 SplashScreen.preventAutoHideAsync();
+
+// Opening a screen directly (a link, a notification, a refresh on the web) still puts the tabs underneath,
+// so there's always a way back.
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
+/** If a screen crashes, show a way out instead of a blank page. */
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16, backgroundColor: '#ffffff' }}>
+      <Text style={{ fontSize: 22, fontWeight: '700', color: '#13241b', textAlign: 'center' }}>Something went wrong on this screen</Text>
+      <Text style={{ fontSize: 16, color: '#55665c', textAlign: 'center' }}>Try again, or go back to Discover.</Text>
+      <Pressable accessibilityRole="button" onPress={retry} style={{ minHeight: 48, paddingHorizontal: 24, borderRadius: 999, backgroundColor: '#007640', justifyContent: 'center' }}>
+        <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Try again</Text>
+      </Pressable>
+      <Pressable accessibilityRole="link" onPress={() => router.replace('/')} style={{ minHeight: 44, justifyContent: 'center' }}>
+        <Text style={{ color: '#007640', fontSize: 16, fontWeight: '700' }}>Go to Discover</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 // Phones stay upright; iPads and Android tablets rotate freely.
 if (Platform.OS !== 'web') {
@@ -100,11 +120,12 @@ function AppStack() {
         <Stack.Screen name="impact" options={{ title: t('impact') }} />
         <Stack.Screen name="surveys" options={{ title: t('surveys') }} />
         <Stack.Screen name="survey/[id]" options={{ title: t('surveys') }} />
-        <Stack.Screen name="survey-builder" options={{ title: 'New survey', presentation: 'modal' }} />
-        <Stack.Screen name="survey-results/[id]" options={{ title: 'Survey results' }} />
+        <Stack.Screen name="survey-builder" options={{ title: t('newSurvey'), presentation: 'modal' }} />
+        <Stack.Screen name="survey-results/[id]" options={{ title: t('surveyResults') }} />
         <Stack.Screen name="checkin/[id]" options={{ title: t('checkIn') }} />
         <Stack.Screen name="checkins" options={{ title: t('checkIn') }} />
-        <Stack.Screen name="send-checkin" options={{ title: 'Send a check-in', presentation: 'modal' }} />
+        <Stack.Screen name="send-checkin" options={{ title: t('sendCheckin'), presentation: 'modal' }} />
+        <Stack.Screen name="+not-found" options={{ title: t('notFound') }} />
       </Stack>
     </ThemeProvider>
   );

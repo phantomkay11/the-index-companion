@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, useColorScheme } from 'react-native';
+import { AccessibilityInfo, useColorScheme, Platform } from 'react-native';
 
 import { palette, type Palette } from '@/constants/theme';
 import { strings, type Lang, type StringKey } from '@/lib/i18n';
@@ -44,6 +44,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, []);
+
+  // On the web, tell browsers and screen readers which language the page is in.
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') document.documentElement.lang = settings.language;
+  }, [settings.language]);
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {

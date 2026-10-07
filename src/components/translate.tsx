@@ -15,6 +15,14 @@ export function useTranslation(text: string) {
   const [showing, setShowing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // New text or a new language: start over (adjusting state during render, as React recommends).
+  const [forKey, setForKey] = useState(key);
+  if (forKey !== key) {
+    setForKey(key);
+    setTranslated(cache.get(key) ?? null);
+    setShowing(false);
+    setError(null);
+  }
 
   const toggle = async () => {
     if (showing) return setShowing(false);
@@ -38,7 +46,7 @@ export function useTranslation(text: string) {
 export function TranslateToggle({ tr, color }: { tr: ReturnType<typeof useTranslation>; color: string }) {
   const { t } = useSettings();
   return (
-    <Pressable onPress={tr.toggle} disabled={tr.busy} accessibilityRole="button" hitSlop={8}>
+    <Pressable onPress={tr.toggle} disabled={tr.busy} accessibilityRole="button" hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
       <Txt variant="small" color={color} style={{ textDecorationLine: 'underline' }}>
         {tr.busy ? '…' : tr.error ? tr.error : tr.showing ? t('showOriginal') : t('translate')}
       </Txt>

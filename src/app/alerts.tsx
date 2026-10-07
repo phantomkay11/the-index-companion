@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { PlacePicker } from '@/components/place-picker';
 import { Button, Card, Chip, Empty, ErrorNote, Field, Loading, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
@@ -10,6 +10,7 @@ import type { SavedAlert } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 const RADII = [10, 25, 50, 100];
 
@@ -30,7 +31,7 @@ export default function Alerts() {
   if (!session) return <Screen><SignInPrompt /></Screen>;
 
   const add = async () => {
-    if (!here) return Alert.alert('Choose a place first', 'Use your location or enter a town so we know what “near” means.');
+    if (!here) return showAlert('Choose a place first', 'Use your location or enter a town so we know what “near” means.');
     setBusy(true);
     const { error } = await supabase.from('saved_alerts').insert({
       user_id: session.user.id,
@@ -41,14 +42,14 @@ export default function Alerts() {
       radius_miles: radius,
     });
     setBusy(false);
-    if (error) return Alert.alert('Alert not saved', error.message);
+    if (error) return showAlert('Alert not saved', error.message);
     setKeyword('');
     alerts.reload();
   };
 
   const remove = async (a: SavedAlert) => {
     const { error } = await supabase.from('saved_alerts').delete().eq('id', a.id);
-    if (error) Alert.alert('Not removed', error.message);
+    if (error) showAlert('Not removed', error.message);
     alerts.reload();
   };
 

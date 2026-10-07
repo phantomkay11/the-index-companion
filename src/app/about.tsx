@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
 import { Photo, Scrim } from '@/components/visual';
@@ -8,13 +8,14 @@ import { sectionImage } from '@/lib/imagery';
 import { Space } from '@/constants/theme';
 import { BFI } from '@/lib/bfi';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 export default function About() {
   const { colors } = useSettings();
 
   const copy = async (value: string) => {
     await Clipboard.setStringAsync(value);
-    Alert.alert('Copied', value);
+    showAlert('Copied', value);
   };
 
   const hero = (

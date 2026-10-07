@@ -9,13 +9,14 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { extensionOf, randomId, readBytes } from '@/lib/files';
 import { supabase } from '@/lib/supabase';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 const MAX_SECONDS = 120;
 
@@ -36,14 +37,23 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
   const limitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seconds = state.durationMillis / 1000;
 
+  const starting = useRef(false);
   const start = async () => {
-    const perm = await requestRecordingPermissionsAsync();
-    if (!perm.granted) return Alert.alert('Microphone is off', 'Allow microphone access for The Index in your phone settings to send voice notes.');
-    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    // Stop and send automatically at the time limit.
-    limitTimer.current = setTimeout(() => stop(true), MAX_SECONDS * 1000);
+    if (starting.current || state.isRecording) return; // ignore a double tap
+    starting.current = true;
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) return showAlert('Microphone is off', 'Allow microphone access for The Index in your phone settings to send voice notes.');
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      // Stop and send automatically at the time limit.
+      limitTimer.current = setTimeout(() => stop(true), MAX_SECONDS * 1000);
+    } catch {
+      showAlert('Recording didn’t start', 'Another app may be using the microphone. Try again in a moment.');
+    } finally {
+      starting.current = false;
+    }
   };
 
   const stop = async (send: boolean) => {
@@ -54,7 +64,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
     await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
     const uri = recorder.uri;
     if (!send || !uri) return;
-    if (length < 1) return Alert.alert('Too short', 'Hold on a little longer before you stop.');
+    if (length < 1) return showAlert('Too short', 'Hold on a little longer before you stop.');
     setBusy(true);
     try {
       const ext = extensionOf(uri, 'm4a');
@@ -72,7 +82,7 @@ export function VoiceRecorder({ conversationId, userId, onSent }: { conversation
       supabase.functions.invoke('transcribe', { body: { message_id: data.id } }).catch(() => {});
       onSent?.();
     } catch (e) {
-      Alert.alert('Voice note not sent', e instanceof Error ? e.message : 'Try again.');
+      showAlert('Voice note not sent', e instanceof Error ? e.message : 'Try again.');
     } finally {
       setBusy(false);
     }

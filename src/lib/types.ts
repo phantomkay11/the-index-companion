@@ -135,6 +135,8 @@ export type ContactPrefs = {
   sms_opt_in: boolean;
   email_opt_in: boolean;
   push_token: string | null;
+  /** Set once the member typed back the code we texted. Texts only go to confirmed numbers. */
+  phone_verified_at: string | null;
   notify_messages: boolean;
   notify_follows: boolean;
   notify_events: boolean;

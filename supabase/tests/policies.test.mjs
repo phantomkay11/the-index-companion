@@ -42,6 +42,8 @@ const as = async (uid) => {
   if (uid) await db.exec('set role authenticated');
   else await db.exec('set role anon');
 };
+// Acting as the service role / server: no member identity, full rights.
+const svc = async () => db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`);
 const expectFail = async (label, fn) => {
   try { await fn(); console.log('FAIL (should have errored):', label); process.exitCode = 1; }
   catch (e) { console.log('ok refused:', label, '-', e.message.split('\n')[0]); }
@@ -51,7 +53,7 @@ const check = (label, cond) => { console.log(cond ? 'ok' : 'FAIL', label); if (!
 const buyer = '11111111-1111-4111-8111-111111111111';
 const farmer = '22222222-2222-4222-8222-222222222222';
 const staff = '33333333-3333-4333-8333-333333333333';
-await db.exec('reset role');
+await svc();
 await db.exec(`insert into auth.users (id, email, raw_user_meta_data) values
   ('${buyer}', 'buyer@example.com', '{"display_name":"Marcus"}'),
   ('${farmer}', 'farmer@example.com', '{}'),
@@ -111,7 +113,7 @@ check('inquiry marked ready', (await one(`select inquiry_status from public.mess
 await as(staff); // staff can, for moderation
 check('staff can read thread for moderation', (await one(`select count(*)::int n from public.messages where conversation_id = $1`, [conv]))[0].n === 3);
 const other = '44444444-4444-4444-8444-444444444444';
-await db.exec('reset role');
+await svc();
 await db.exec(`insert into auth.users (id, email) values ('${other}', 'other@example.com')`);
 await as(other);
 check('outsider cannot read thread', (await one(`select count(*)::int n from public.messages where conversation_id = $1`, [conv]))[0].n === 0);
@@ -149,8 +151,8 @@ check('can_post true for direct member', (await one(`select public.can_post($1) 
 // ---------------------------------------------------------------------------
 // v2: notifications, alerts, voice notes, photos, board, insights, impact
 // ---------------------------------------------------------------------------
-await db.exec('reset role');
-await db.exec(`update public.contact_prefs set push_token = 'ExponentPushToken[farmer]', phone = '+15555550100', sms_opt_in = true where user_id = '${farmer}'`);
+await svc();
+await db.exec(`update public.contact_prefs set push_token = 'ExponentPushToken[farmer]', phone = '+15555550100', sms_opt_in = true, phone_verified_at = now() where user_id = '${farmer}'`);
 await db.exec(`update public.contact_prefs set push_token = 'ExponentPushToken[buyer]' where user_id = '${buyer}'`);
 
 await as(buyer);
@@ -165,7 +167,7 @@ await expectFail('member cannot read delivery outbox', async () => {
   const r = await one(`select count(*)::int n from public.notification_deliveries`);
   if (r[0].n === 0) throw new Error('no rows visible');
 });
-await db.exec('reset role');
+await svc();
 const deliveries = await one(`select d.channel from public.notification_deliveries d join public.notifications n on n.id = d.notification_id where n.user_id = $1 and n.kind = 'message' order by channel`, [farmer]);
 check('message queues push and sms for opted-in farmer', deliveries.map((d) => d.channel).join(',') === 'push,sms');
 
@@ -173,7 +175,7 @@ check('message queues push and sms for opted-in farmer', deliveries.map((d) => d
 await db.exec(`update public.farms set harvest_mode = true where id = '${mine.id}'`);
 await as(buyer);
 await one(`insert into public.messages (conversation_id, sender_id, body) values ($1, $2, 'One more thing')`, [conv, buyer]);
-await db.exec('reset role');
+await svc();
 const harvestDeliveries = await one(`select count(*)::int n from public.notification_deliveries d join public.notifications n on n.id = d.notification_id where n.user_id = $1 and n.body = 'One more thing'`, [farmer]);
 check('harvest mode skips push and sms', harvestDeliveries[0].n === 0);
 await db.exec(`update public.farms set harvest_mode = false, lat = 30.22, lon = -92.02 where id = '${mine.id}'`);
@@ -202,7 +204,7 @@ check('mark read works', (await one(`select count(*)::int n from public.notifica
 await as(staff);
 await one(`insert into public.broadcasts (title, body, audience, channels) values ('Growers only', 'Hi growers', 'growers', '{push,email}')`);
 await expectFail('broadcast audience is validated', () => one(`insert into public.broadcasts (title, body, audience) values ('x', 'y', 'nobody')`));
-await db.exec('reset role');
+await svc();
 check('growers broadcast reaches only growers', (await one(`select count(*)::int n from public.notifications where kind = 'broadcast'`))[0].n === 1
   && (await one(`select user_id from public.notifications where kind = 'broadcast'`))[0].user_id === farmer);
 
@@ -214,7 +216,7 @@ await db.exec(`update public.events set starts_at = now() + interval '24 hours' 
 await db.exec(`update public.resources set deadline = current_date + 7 where id = (select resource_id from public.saved_resources where user_id = '${buyer}' limit 1)`);
 await as(buyer);
 await expectFail('members cannot trigger reminders', () => one(`select public.run_due_reminders()`));
-await db.exec('reset role');
+await svc();
 const sent = (await one(`select public.run_due_reminders() as n`))[0].n;
 const again2 = (await one(`select public.run_due_reminders() as n`))[0].n;
 check('event and deadline reminders sent once', sent === 2 && again2 === 0);
@@ -306,10 +308,10 @@ check('farmer sets an ordering link', (await one(`select order_label from public
 await expectFail('ordering link must be https', () => one(`update public.farms set order_url = 'javascript:alert(1)' where id = $1`, [mine.id]));
 
 // Two-way texting. The farmer was texted about the buyer's message; mark that text sent.
-await db.exec('reset role');
+await svc();
 await db.exec(`update public.notification_deliveries set status = 'sent' where channel = 'sms'`);
 await expectFail('members cannot call sms_inbound', async () => { await as(buyer); await one(`select public.sms_inbound('+15555550100', 'hi')`); });
-await db.exec('reset role');
+await svc();
 const sms1 = (await one(`select public.sms_inbound('(555) 555-0100', 'See you Saturday at 9') as r`))[0].r;
 check('farmer text reply lands in the thread', sms1.handled === true && sms1.conversation_id === conv
   && (await one(`select count(*)::int n from public.messages where conversation_id = $1 and via = 'sms' and body = 'See you Saturday at 9'`, [conv]))[0].n === 1);
@@ -319,7 +321,7 @@ check('unknown numbers fall back to search', unknown.handled === false);
 // A fresh inquiry, answered by text.
 await as(buyer);
 await one(`select public.send_inquiry($1, 'Okra', '5 lb', '2026-10-12', 'Farm stand', '')`, [mine.id]);
-await db.exec('reset role');
+await svc();
 await db.exec(`update public.notification_deliveries set status = 'sent' where channel = 'sms'`);
 const sms2 = (await one(`select public.sms_inbound('+1 555 555 0100', 'part I have 3 lb') as r`))[0].r;
 check('farmer answers an inquiry with PART', sms2.handled === true
@@ -339,7 +341,7 @@ await as(farmer);
 check('draft surveys are hidden', (await one(`select count(*)::int n from public.surveys`))[0].n === 0);
 await as(staff);
 await one(`update public.surveys set status = 'open' where id = $1`, [survey]);
-await db.exec('reset role');
+await svc();
 check('opening a survey notifies its audience only', (await one(`select count(*)::int n from public.notifications where kind = 'survey'`))[0].n === 1
   && (await one(`select user_id from public.notifications where kind = 'survey'`))[0].user_id === farmer);
 await as(farmer);
@@ -357,13 +359,13 @@ await one(`update public.survey_responses set answers = '{}' where survey_id = $
 check('answers lock when a survey closes', (await one(`select answers->>'q1' a from public.survey_responses where survey_id = $1`, [survey]))[0].a === '5');
 
 // Storm check-ins.
-await db.exec('reset role');
+await svc();
 await db.exec(`update public.profiles set region_id = '6' where id = '${buyer}'`);
 await as(farmer);
 await expectFail('members cannot send check-ins', () => one(`insert into public.checkins (title, audience) values ('x', 'everyone')`));
 await as(staff);
 const checkin = (await one(`insert into public.checkins (title, message, audience) values ('Hurricane check-in', 'Hurricane Delta passed through Louisiana.', 'region:6') returning id`))[0].id;
-await db.exec('reset role');
+await svc();
 const ciNotes = await one(`select n.user_id, array_agg(d.channel order by d.channel) ch from public.notifications n left join public.notification_deliveries d on d.notification_id = n.id where n.kind = 'checkin' group by n.user_id`);
 check('check-in reaches the region by push and text', ciNotes.length === 2 && ciNotes.find((r) => r.user_id === farmer)?.ch.join(',') === 'push,sms');
 await as(buyer);
@@ -371,7 +373,7 @@ await one(`insert into public.checkin_responses (checkin_id, status, note) value
 await as(other);
 check('people outside the region do not see the check-in', (await one(`select count(*)::int n from public.checkins`))[0].n === 0);
 await expectFail('outsiders cannot answer', () => one(`insert into public.checkin_responses (checkin_id, status) values ($1, 'ok')`, [checkin]));
-await db.exec('reset role');
+await svc();
 const sms3 = (await one(`select public.sms_inbound('+15555550100', 'SAFE all good here') as r`))[0].r;
 check('farmer answers the check-in by text', sms3.handled === true && sms3.checkin_id === checkin);
 await as(buyer);
@@ -380,5 +382,121 @@ await as(staff);
 const report = (await one(`select public.checkin_report($1) as r`, [checkin]))[0].r;
 check('report counts answers and lists who needs help with a phone', report.reached === 2 && report.ok === 1 && report.need_help === 1
   && report.needs[0].name === 'Marcus' && report.needs[0].note === 'Tree on the barn road');
+
+
+// ---------------------------------------------------------------------------
+// Hardening (October 2026 review): each of these was an attack that used to work.
+// ---------------------------------------------------------------------------
+const attacker = '55555555-5555-4555-8555-555555555555';
+await svc();
+await db.exec(`insert into auth.users (id, email) values ('${attacker}', 'attacker@example.com')`);
+
+// Phone hijack: claiming the farmer's number no longer routes their texts to you.
+await as(attacker);
+await one(`update public.contact_prefs set phone = '(555) 555-0100', sms_opt_in = true, updated_at = '2999-01-01', phone_verified_at = now() where user_id = $1`, [attacker]);
+const atk = (await one(`select phone_verified_at, updated_at from public.contact_prefs where user_id = $1`, [attacker]))[0];
+check('members cannot mark their own number verified or set the clock', atk.phone_verified_at === null && new Date(atk.updated_at).getFullYear() < 2999);
+await expectFail('a number confirmed elsewhere cannot get a code', () => one(`select public.request_phone_code()`));
+await svc();
+const hij = (await one(`select public.sms_inbound('+15555550100', 'Gate code is 4411') as r`))[0].r;
+const hijConv = hij.conversation_id ?? null;
+check('texts from the farmer still reach the farmer, not the claimant',
+  (await one(`select count(*)::int n from public.messages where body = 'Gate code is 4411' and sender_id = $1`, [attacker]))[0].n === 0 && (hij.handled === false || hijConv === conv));
+check('no texts are queued to an unproven number', (await one(`select count(*)::int n from public.notification_deliveries d join public.notifications n on n.id = d.notification_id where n.user_id = $1 and d.channel = 'sms'`, [attacker]))[0].n === 0);
+
+// Proving a number: the code goes only to the phone, never to the inbox.
+await as(buyer);
+await one(`update public.contact_prefs set phone = '+1 555 555 0177', sms_opt_in = true where user_id = $1`, [buyer]);
+await one(`select public.request_phone_code()`);
+const inbox = (await one(`select body from public.notifications where kind = 'verify' and user_id = $1`, [buyer]))[0];
+check('verification inbox entry hides the code', inbox && !/\d{6}/.test(inbox.body));
+await expectFail('members cannot read the code table', async () => { const r = await one(`select count(*)::int n from public.phone_codes`); if (r[0].n === 0) throw new Error('hidden'); });
+check('wrong code is refused', (await one(`select public.confirm_phone_code('000000') as ok`))[0].ok === false);
+await svc();
+const sms = (await one(`select d.body_override from public.notification_deliveries d join public.notifications n on n.id = d.notification_id where n.user_id = $1 and n.kind = 'verify'`, [buyer]))[0].body_override;
+const code = sms.match(/\d{6}/)[0];
+await as(buyer);
+check('right code verifies the number', (await one(`select public.confirm_phone_code($1) as ok`, [code]))[0].ok === true
+  && (await one(`select phone_verified_at from public.contact_prefs where user_id = $1`, [buyer]))[0].phone_verified_at !== null);
+await one(`update public.contact_prefs set phone = '+15555550188' where user_id = $1`, [buyer]);
+check('changing the number clears verification', (await one(`select phone_verified_at from public.contact_prefs where user_id = $1`, [buyer]))[0].phone_verified_at === null);
+for (let i = 0; i < 5; i++) await one(`select public.request_phone_code()`);
+await expectFail('codes are rate limited', () => one(`select public.request_phone_code()`));
+
+// "OK" in a normal reply is a reply, not a check-in answer.
+await svc();
+await db.exec(`update public.notification_deliveries set status = 'sent' where channel = 'sms'`);
+const okReply = (await one(`select public.sms_inbound('+15555550100', 'Ok see you Saturday at 9') as r`))[0].r;
+check('"Ok see you…" goes to the thread while a check-in is open', okReply.handled === true && !okReply.checkin_id);
+
+// Messages: no backdating, pinning, fake "by text", planted transcripts or path tricks.
+await as(buyer);
+await one(`insert into public.messages (conversation_id, sender_id, body, created_at, pinned, hidden, via, transcript) values ($1, $2, 'forged', '2000-01-01', true, true, 'sms', 'fake')`, [conv, buyer]);
+const forged = (await one(`select created_at, pinned, hidden, via, transcript from public.messages where body = 'forged'`))[0];
+check('message inserts ignore created_at, pinned, hidden, via and transcript',
+  new Date(forged.created_at).getFullYear() > 2020 && !forged.pinned && !forged.hidden && forged.via === 'app' && forged.transcript === null);
+await expectFail('voice paths cannot climb out of the folder', () => one(`insert into public.messages (conversation_id, sender_id, kind, audio_path) values ($1, $2, 'voice', $3)`, [conv, buyer, `${conv}/../x/y.m4a`]));
+await one(`insert into public.messages (conversation_id, sender_id, kind, audio_path) values ($1, $2, 'voice', $3)`, [conv, buyer, `${conv}/abc123.m4a`]);
+check('normal voice paths still work', (await one(`select count(*)::int n from public.messages where audio_path = $1`, [`${conv}/abc123.m4a`]))[0].n === 1);
+
+// Events: editing an approved event sends it back to review; ticket links must be https.
+await as(other);
+await one(`insert into public.events (title, starts_at, place, type, host_name) values ('Edit me', now() + interval '3 days', 'Lafayette', 'Market', 'Me')`);
+const ev = (await one(`select id from public.events where title = 'Edit me'`))[0].id;
+await as(staff);
+await one(`select public.review_event($1, 'approved')`, [ev]);
+await as(other);
+await one(`update public.events set starts_at = now() + interval '9 days' where id = $1`, [ev]);
+await as(staff);
+check('edited approved event goes back to review', (await one(`select status from public.events where id = $1`, [ev]))[0].status === 'pending');
+await as(other);
+await expectFail('ticket links must be https', () => one(`update public.events set ticket_url = 'javascript:alert(1)' where id = $1`, [ev]));
+
+// Posts: authors can't un-hide what staff hid.
+await as(farmer);
+await one(`insert into public.posts (kind, title, body, region_id) values ('offer', 'Hide me please', '', '6')`);
+const hp = (await one(`select id from public.posts where title = 'Hide me please'`))[0].id;
+await as(staff);
+await one(`update public.posts set status = 'hidden' where id = $1`, [hp]);
+await as(farmer);
+await one(`update public.posts set status = 'open' where id = $1`, [hp]);
+await as(staff);
+check('authors cannot un-hide a hidden post', (await one(`select status from public.posts where id = $1`, [hp]))[0].status === 'hidden');
+
+// Near-me alerts: a product called "%" no longer matches every alert.
+await svc();
+const nearBefore = (await one(`select count(*)::int n from public.notifications where kind = 'near_me'`))[0].n;
+await as(farmer);
+await one(`insert into public.farm_products (farm_id, name, in_season) values ($1, '%', true)`, [mine.id]);
+await svc();
+check('wildcard product names do not spam near-me alerts', (await one(`select count(*)::int n from public.notifications where kind = 'near_me'`))[0].n === nearBefore);
+
+// Smaller leaks and privileges.
+await as(null);
+check('signed-out visitors cannot read who signed up for shifts', (await one(`select count(*)::int n from public.shift_signups`))[0].n === 0);
+await expectFail('signed-out visitors cannot pad profile views', () => one(`select public.log_farm_view($1)`, [mine.id]));
+await as(buyer);
+check('open spots still count everyone', (await one(`select open_spots from public.shift_availability where id = $1`, [shift]))[0].open_spots === 0);
+await expectFail('members cannot probe other people with in_audience', () => one(`select public.in_audience($1, 'growers')`, [farmer]));
+await svc();
+const coord = '66666666-6666-4666-8666-666666666666';
+await db.exec(`insert into auth.users (id, email) values ('${coord}', 'coord@example.com')`);
+await db.exec(`update public.profiles set role = 'coordinator' where id = '${coord}'`);
+await as(coord);
+await expectFail('coordinators cannot make themselves admin', () => one(`update public.profiles set role = 'admin' where id = $1`, [coord]));
+await one(`update public.profiles set role = 'grower' where id = $1`, [other]);
+check('coordinators can still promote growers', (await one(`select role from public.profiles where id = $1`, [other]))[0].role === 'grower');
+await as(staff);
+await one(`insert into public.farms (name, city, state, region_id) values ('Staff Farm', 'Tyler', 'TX', '6')`);
+check('staff who list a farm own it', (await one(`select owner_id from public.farms where name = 'Staff Farm'`))[0].owner_id === staff);
+
+// Deliveries are claimed once.
+await svc();
+await db.exec(`update public.notification_deliveries set status = 'pending'`);
+const first = (await one(`select count(*)::int n from public.claim_deliveries(1000)`))[0].n;
+const second = (await one(`select count(*)::int n from public.claim_deliveries(1000)`))[0].n;
+check('a second run cannot claim deliveries already being sent', first > 0 && second === 0);
+await as(buyer);
+await expectFail('members cannot claim deliveries', () => one(`select * from public.claim_deliveries(10)`));
 
 console.log(process.exitCode ? 'SOME CHECKS FAILED' : 'ALL CHECKS PASSED');

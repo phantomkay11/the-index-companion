@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AudiencePicker, audienceLabel, useRegions } from '@/components/audience-picker';
 import { Button, Card, Chip, Empty, Field, Row, Screen, ToggleRow, Txt } from '@/components/ui';
@@ -11,6 +11,7 @@ import { QUESTION_TYPES } from '@/lib/survey';
 import type { SurveyQuestion } from '@/lib/types';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 const STARTER: SurveyQuestion[] = [
   { id: 'q1', type: 'scale', prompt: 'How was this growing season for you?', required: true },
@@ -70,7 +71,7 @@ export default function SurveyBuilder() {
       .select('id')
       .single();
     setBusy(null);
-    if (error) return Alert.alert('Not saved', error.message);
+    if (error) return showAlert('Not saved', error.message);
     router.replace({ pathname: '/survey/[id]', params: { id: data.id } });
   };
 

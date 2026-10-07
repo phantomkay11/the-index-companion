@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Button, Chip, Field, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
+import { showAlert } from '@/lib/alert';
 
 const TYPES = ['Farm day', 'Market', 'Workshop', 'Volunteer', 'Town hall'];
 
@@ -26,7 +27,7 @@ export default function PostEvent() {
 
   const submit = async () => {
     const startsAt = new Date(`${date}T${time.padStart(5, '0')}:00`);
-    if (Number.isNaN(startsAt.getTime())) return Alert.alert('Check the date', 'Use year-month-day, like 2026-10-24, and a time like 10:00.');
+    if (Number.isNaN(startsAt.getTime())) return showAlert('Check the date', 'Use year-month-day, like 2026-10-24, and a time like 10:00.');
     setBusy(true);
     const { error } = await supabase.from('events').insert({
       title: title.trim(),
@@ -39,8 +40,8 @@ export default function PostEvent() {
       host_farm_id: myFarm?.id ?? null,
     });
     setBusy(false);
-    if (error) return Alert.alert('Event not sent', error.message);
-    Alert.alert('Sent to BFI', 'Your event will appear for everyone once BFI approves it.');
+    if (error) return showAlert('Event not sent', error.message);
+    showAlert('Sent to BFI', 'Your event will appear for everyone once BFI approves it.');
     router.back();
   };
 

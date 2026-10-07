@@ -51,14 +51,24 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [uid]);
 
   // Tapping a notification opens the screen it's about.
+  // Each tap is handled once: the cold-start response is cleared so it can't reopen later.
   useEffect(() => {
     if (Platform.OS === 'web') return;
-    Notifications.getLastNotificationResponseAsync()
-      .then((last) => last && openRoute(last.notification.request.content.data))
-      .catch(() => {});
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    const handled = new Set<string>();
+    const handle = (response: Notifications.NotificationResponse) => {
+      const id = response.notification.request.identifier;
+      if (handled.has(id)) return;
+      handled.add(id);
       openRoute(response.notification.request.content.data);
-    });
+    };
+    Notifications.getLastNotificationResponseAsync()
+      .then((last) => {
+        if (!last) return;
+        handle(last);
+        return Notifications.clearLastNotificationResponseAsync();
+      })
+      .catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(handle);
     return () => sub.remove();
   }, []);
 

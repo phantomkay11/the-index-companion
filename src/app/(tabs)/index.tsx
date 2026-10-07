@@ -1,7 +1,7 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BfiAsks } from '@/components/bfi-asks';
@@ -21,6 +21,7 @@ import type { Farm, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 export default function Discover() {
   const { colors, t, textScale, saveData } = useSettings();
@@ -33,7 +34,7 @@ export default function Discover() {
   const [locating, setLocating] = useState(false);
   const insets = useSafeAreaInsets();
   useLightStatusBar();
-  const { isTablet, isWide } = useLayout();
+  const { isTablet, isWide, width } = useLayout();
 
   const regions = useQuery(async () => must(await supabase.from('regions').select('*').order('sort_order')) as Region[], [], { cacheKey: 'regions' });
 
@@ -64,18 +65,19 @@ export default function Discover() {
         [f.name, f.city, f.state, ...f.categories, ...f.attributes, ...(f.farm_products ?? []).map((p) => p.name)].join(' ').toLowerCase().includes(needle),
     )
     .map((f) => ({ f, d: here && f.lat != null && f.lon != null ? miles(here.point, { lat: f.lat, lon: f.lon }) : Infinity }))
-    .sort((a, b) => (here ? a.d - b.d : 0))
+    .sort((a, b) => (here ? (a.d === b.d ? 0 : a.d - b.d) : 0))
     .map((x) => x.f);
 
   const selectedRegion = regions.data?.find((r) => r.id === region);
   const heroPic = sectionImage('discover');
+  const compactSearch = width < 380 || textScale > 1.25;
 
   const nearMe = async () => {
     setLocating(true);
     const r = await locate();
     setLocating(false);
     if (r.ok) setHere({ point: r.point, label: r.label });
-    else Alert.alert('Location unavailable', r.reason);
+    else showAlert('Location unavailable', r.reason);
   };
 
   const hero = (
@@ -84,12 +86,12 @@ export default function Discover() {
         <Scrim from={0.2} top />
         <View style={[styles.heroCopy, isTablet && styles.heroCopyTablet]}>
           <Txt variant="smallBold" color="rgba(255,255,255,0.92)">
-            From Black Farmers Index
+            {t('fromBfiIndex')}
           </Txt>
-          <Txt variant="hero" color="#ffffff" style={isTablet ? { fontSize: 46 * textScale, lineHeight: 50 * textScale } : undefined}>
-            Find Black farmers near you
+          <Txt variant="hero" color="#ffffff" accessibilityRole="header" style={isTablet ? { fontSize: 46, lineHeight: 50 } : undefined}>
+            {t('heroTitle')}
           </Txt>
-          <Txt color="rgba(255,255,255,0.9)">Fresh food and friendly faces, straight from the growers.</Txt>
+          <Txt color="rgba(255,255,255,0.9)">{t('heroSub')}</Txt>
         </View>
       </Photo>
       {/* The search floats over the bottom edge of the photo. */}
@@ -108,12 +110,15 @@ export default function Discover() {
           <Pressable
             onPress={nearMe}
             accessibilityRole="button"
-            accessibilityLabel={t('useMyLocation')}
-            style={({ pressed }) => [styles.nearMe, { backgroundColor: colors.harvest, opacity: pressed ? 0.85 : 1 }]}>
-            {locating ? <ActivityIndicator color={colors.onHarvest} /> : <Ionicons name="navigate" size={16} color={colors.onHarvest} />}
-            <Txt variant="smallBold" color={colors.onHarvest}>
-              Near me
-            </Txt>
+            accessibilityLabel={t('nearMe')}
+            style={({ pressed }) => [styles.nearMe, compactSearch && styles.nearMeCompact, { backgroundColor: colors.harvest, opacity: pressed ? 0.85 : 1 }]}>
+            {locating ? <ActivityIndicator color={colors.onHarvest} /> : <Ionicons name="navigate" size={18} color={colors.onHarvest} />}
+            {/* On narrow phones or large text the button shows only its icon; the label is still read aloud. */}
+            {!compactSearch ? (
+              <Txt variant="smallBold" color={colors.onHarvest} numberOfLines={1}>
+                {t('nearMe')}
+              </Txt>
+            ) : null}
           </Pressable>
         </View>
       </View>
@@ -264,10 +269,10 @@ export default function Discover() {
 
       {!myFarm ? (
         <Card>
-          <Txt variant="title">Are you a Black farmer or grower?</Txt>
-          <Txt muted>Listing on the Index is free. BFI reviews every farm before it goes live.</Txt>
+          <Txt variant="title">{t('areYouGrower')}</Txt>
+          <Txt muted>{t('listingFree')}</Txt>
           <Row>
-            <Button label="List my farm" icon="add-circle-outline" onPress={() => router.push('/my-farm')} />
+            <Button label={t('listMyFarm')} icon="add-circle-outline" onPress={() => router.push('/my-farm')} />
             <Button kind="ghost" label={t('nearMeAlerts')} icon="notifications-outline" onPress={() => router.push('/alerts')} />
           </Row>
         </Card>
@@ -297,7 +302,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 6,
   },
-  nearMe: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: Radius.pill, paddingHorizontal: 16, minHeight: 46 },
+  nearMe: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: Radius.pill, paddingHorizontal: 16, minHeight: 48, flexShrink: 0 },
+  nearMeCompact: { paddingHorizontal: 0, width: 48, justifyContent: 'center' },
   tile: { width: 136, height: 172, justifyContent: 'flex-end' },
   tileTablet: { width: 168, height: 200 },
   tileLabel: { position: 'absolute', left: 12, right: 12, bottom: 12 },

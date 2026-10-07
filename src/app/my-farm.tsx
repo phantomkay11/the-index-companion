@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { Alert, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Card, Chip, Field, Pill, Row, Screen, SignInPrompt, ToggleRow, Txt, Verified } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
@@ -15,6 +15,7 @@ import type { FarmInsights, FarmPhoto, FarmProduct, LocationVisibility, Region }
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 export default function MyFarm() {
   const { session, myFarm } = useAuth();
@@ -36,7 +37,7 @@ function ManageFarm() {
 
   const toggleProduct = async (p: FarmProduct) => {
     const { error } = await supabase.from('farm_products').update({ in_season: !p.in_season, updated_at: new Date().toISOString() }).eq('id', p.id);
-    if (error) Alert.alert('Not updated', error.message);
+    if (error) showAlert('Not updated', error.message);
     products.reload();
     refresh();
   };
@@ -45,7 +46,7 @@ function ManageFarm() {
     const name = newProduct.trim();
     if (!name) return;
     const { error } = await supabase.from('farm_products').insert({ farm_id: farm.id, name });
-    if (error) return Alert.alert('Not added', error.message);
+    if (error) return showAlert('Not added', error.message);
     setNewProduct('');
     products.reload();
     refresh();
@@ -53,7 +54,7 @@ function ManageFarm() {
 
   const setFarm = async (patch: Record<string, unknown>) => {
     const { error } = await supabase.from('farms').update(patch).eq('id', farm.id);
-    if (error) Alert.alert('Not saved', error.message);
+    if (error) showAlert('Not saved', error.message);
     refresh();
   };
 
@@ -185,9 +186,9 @@ function ListFarm() {
       pickup_point: visibility === 'pickup_point' ? pickup.trim() || null : null,
     });
     setBusy(false);
-    if (error) return Alert.alert('Listing not sent', error.message);
+    if (error) return showAlert('Listing not sent', error.message);
     await refresh();
-    Alert.alert('Sent to BFI', 'BFI will review your listing. You can add your products while you wait.');
+    showAlert('Sent to BFI', 'BFI will review your listing. You can add your products while you wait.');
   };
 
   return (
@@ -298,7 +299,7 @@ function FarmPhotos({ farmId }: { farmId: string }) {
 
   const pick = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return Alert.alert('Photos are off', 'Allow photo access for The Index in your phone settings.');
+    if (!perm.granted) return showAlert('Photos are off', 'Allow photo access for The Index in your phone settings.');
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [16, 9], quality: 0.7 });
     if (!res.canceled && res.assets[0]) setPicked(res.assets[0]);
   };
@@ -326,7 +327,7 @@ function FarmPhotos({ farmId }: { farmId: string }) {
       photos.reload();
       refresh();
     } catch (e) {
-      Alert.alert('Photo not added', e instanceof Error ? e.message : 'Try again.');
+      showAlert('Photo not added', e instanceof Error ? e.message : 'Try again.');
     } finally {
       setBusy(false);
     }
@@ -335,7 +336,7 @@ function FarmPhotos({ farmId }: { farmId: string }) {
   const remove = async (p: FarmPhoto) => {
     await supabase.storage.from('farm-photos').remove([p.path]);
     const { error } = await supabase.from('farm_photos').delete().eq('id', p.id);
-    if (error) Alert.alert('Not removed', error.message);
+    if (error) showAlert('Not removed', error.message);
     photos.reload();
     refresh();
   };

@@ -24,10 +24,18 @@ Deno.serve(async (req) => {
     if (!uid) return json({ error: 'Sign in first' }, 401);
 
     const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
-    const { data: msg } = await admin.from('messages').select('id, sender_id, kind, audio_path, transcript').eq('id', message_id).single();
+    const { data: msg } = await admin
+      .from('messages')
+      .select('id, sender_id, kind, audio_path, transcript, conversation_id')
+      .eq('id', message_id)
+      .maybeSingle();
     if (!msg || msg.kind !== 'voice' || !msg.audio_path) return json({ error: 'Not a voice note' }, 404);
     if (msg.sender_id !== uid) return json({ error: 'Only the sender can request a transcript' }, 403);
-    if (msg.transcript) return json({ transcript: msg.transcript });
+    // The recording must be a plain file in this conversation's own folder (no "../" tricks).
+    if (!new RegExp(`^${msg.conversation_id}/[A-Za-z0-9_-]+\\.[A-Za-z0-9]{1,5}$`).test(msg.audio_path)) {
+      return json({ error: 'Not a voice note' }, 404);
+    }
+    if (msg.transcript !== null) return json({ transcript: msg.transcript });
 
     const key = Deno.env.get('TRANSCRIBE_API_KEY');
     if (!key) return json({ error: 'Transcription is not set up yet' }, 501);
@@ -50,7 +58,8 @@ Deno.serve(async (req) => {
     await admin.from('messages').update({ transcript }).eq('id', message_id);
     return json({ transcript });
   } catch (e) {
-    return json({ error: String(e) }, 500);
+    console.error(e);
+    return json({ error: 'Transcription failed' }, 500);
   }
 });
 

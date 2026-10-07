@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Linking, View } from 'react-native';
 
 import { audienceLabel, useRegions } from '@/components/audience-picker';
 import { Icon as Ionicons } from '@/components/icon';
@@ -12,6 +12,7 @@ import type { Checkin, CheckinReport, CheckinResponse } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 /** "Are you OK?" after a storm: members answer in one tap; BFI staff see who needs help. */
 export default function CheckinScreen() {
@@ -64,10 +65,9 @@ export default function CheckinScreen() {
       )}
 
       <Card>
-        <Txt variant="smallBold">In an emergency, call 911.</Txt>
+        <Txt variant="smallBold">{t('emergency911')}</Txt>
         <Txt variant="small" muted>
-          BFI reads every “I need help” answer and reaches out as fast as they can, but this isn’t an emergency service.
-          You can also answer by text: reply SAFE, or NEED and what you need.
+          {t('emergencyHint')}
         </Txt>
       </Card>
 
@@ -102,7 +102,7 @@ function Answer({
       .from('checkin_responses')
       .upsert({ checkin_id: checkin.id, status: next, note: next === 'need_help' ? note.trim() : '', via: 'app' }, { onConflict: 'checkin_id,user_id' });
     setBusy(false);
-    if (error) return Alert.alert('Not sent', error.message);
+    if (error) return showAlert('Not sent', error.message);
     onSaved();
   };
 
@@ -119,11 +119,11 @@ function Answer({
       {mine ? (
         <Card tone={mine.status === 'ok' ? 'leaf' : 'soft'}>
           <Txt variant="bodyBold">
-            {mine.status === 'ok' ? 'Thank you. BFI knows you’re OK.' : 'BFI has your request and will reach out.'}
+            {mine.status === 'ok' ? t('thanksOk') : t('thanksHelp')}
           </Txt>
           <Txt variant="mono" muted>
             Sent {shortDate(mine.updated_at)} {timeOfDay(mine.updated_at)}
-            {mine.via === 'sms' ? ' by text' : ''} · you can change it below
+            {mine.via === 'sms' ? ` ${t('byText')}` : ''} · you can change it below
           </Txt>
         </Card>
       ) : null}
@@ -140,14 +140,14 @@ function Answer({
       {status === 'need_help' ? (
         <View style={{ gap: Space.sm }}>
           <Field
-            label="What do you need?"
+            label={t('whatDoYouNeed')}
             value={note}
             onChangeText={setNote}
             multiline
             maxLength={1000}
             placeholder="For example: a chainsaw to clear the road, a generator for the cooler, help moving animals"
           />
-          <Button label="Send to BFI" icon="send-outline" busy={busy} onPress={() => save('need_help')} />
+          <Button label={t('sendToBfi')} icon="send-outline" busy={busy} onPress={() => save('need_help')} />
           <Txt variant="small" color={colors.muted}>
             BFI staff will see your name, this note and the phone number in your settings so they can call you.
           </Txt>

@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert } from 'react-native';
+
 
 import { Button, Field, Screen, Txt } from '@/components/ui';
 import { isConfigured, supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/auth';
+import { showAlert } from '@/lib/alert';
 
 /** Email one-time code sign-in: no passwords to remember or reset. */
 export default function SignIn() {
@@ -22,7 +23,7 @@ export default function SignIn() {
       options: { shouldCreateUser: true, data: name.trim() ? { display_name: name.trim() } : undefined },
     });
     setBusy(false);
-    if (error) return Alert.alert('Code not sent', error.message);
+    if (error) return showAlert('Code not sent', error.message);
     setSent(true);
   };
 
@@ -30,7 +31,7 @@ export default function SignIn() {
     setBusy(true);
     const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
     setBusy(false);
-    if (error) return Alert.alert('That code did not work', 'Check the code in your email, or send a new one.');
+    if (error) return showAlert('That code did not work', 'Check the code in your email, or send a new one.');
     await refresh();
     router.back();
   };

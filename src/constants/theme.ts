@@ -24,6 +24,9 @@ export type Palette = {
   onSun: string;
   /** Harvest yellow: search, highlights and what's fresh. */
   harvest: string;
+  /** Edges of inputs, chips and panels: invisible normally, solid in high contrast. */
+  outline: string;
+  placeholder: string;
   onHarvest: string;
   real: string;
   realSoft: string;
@@ -47,6 +50,8 @@ const light: Palette = {
   onSun: '#5f4100',
   harvest: '#ffd84d',
   onHarvest: '#2a2200',
+  outline: 'transparent',
+  placeholder: '#6b7a71',
   real: '#0d4f8a',
   realSoft: '#e3eef8',
   danger: '#a3341f',
@@ -62,13 +67,15 @@ const dark: Palette = {
   leaf: '#4fc78c',
   onLeaf: '#06130c',
   leafSoft: '#173627',
-  forest: '#0b3a25',
+  forest: '#a8e6c1',
   sprout: '#5fd697',
   sun: '#f2c14e',
   sunSoft: '#3a3014',
   onSun: '#f2c14e',
   harvest: '#ffd84d',
   onHarvest: '#2a2200',
+  outline: 'transparent',
+  placeholder: '#8a9b90',
   real: '#8cc2f2',
   realSoft: '#16283a',
   danger: '#ff8a73',
@@ -85,6 +92,8 @@ const contrastLight: Palette = {
   leaf: '#004a28',
   forest: '#003a20',
   onSun: '#3f2b00',
+  outline: '#000000',
+  placeholder: '#595959',
   real: '#06335c',
 };
 
@@ -97,14 +106,21 @@ const contrastDark: Palette = {
   muted: '#f0f0f0',
   line: '#ffffff',
   leaf: '#7dffbe',
+  forest: '#c9ffe0',
   onLeaf: '#000000',
   onSun: '#ffd76a',
+  outline: '#ffffff',
+  placeholder: '#bdbdbd',
   real: '#b5dcff',
 };
 
-/** The brand gradient: forest into BFI green into fresh sprout. Used sparingly, on bands and buttons. */
+/**
+ * The brand gradient: deep forest into BFI green. It always carries white text, so it uses fixed deep greens
+ * in every mode (white stays above 4.5:1 across the whole band), and goes solid in high contrast.
+ */
 export function brandGradient(colors: Palette) {
-  return [colors.forest, colors.leaf, colors.sprout] as const;
+  if (colors.outline !== 'transparent') return ['#003a20', '#003a20'] as const;
+  return ['#0b4a2f', '#007640', '#0a6b3b'] as const;
 }
 
 /** A dark wash over photos so white text stays readable (bottom of the image). */

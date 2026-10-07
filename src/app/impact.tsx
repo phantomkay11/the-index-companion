@@ -1,4 +1,4 @@
-import { Alert, Share, StyleSheet, View } from 'react-native';
+import { Share, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Empty, ErrorNote, Loading, Row, Screen, Txt } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 type Impact = Record<string, number | string> & { generated_at: string; farms_by_region: Record<string, number> };
 
@@ -67,7 +68,7 @@ export default function ImpactScreen() {
     try {
       await Share.share({ title: 'The Index impact report', message: `The Index impact report, ${shortDate(d.generated_at)}\n\n${lines.join('\n')}` });
     } catch (e) {
-      Alert.alert('Could not share', e instanceof Error ? e.message : '');
+      showAlert('Could not share', e instanceof Error ? e.message : '');
     }
   };
 

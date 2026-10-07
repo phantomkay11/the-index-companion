@@ -1,7 +1,7 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router, Stack } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { TranslateToggle, useTranslation } from '@/components/translate';
 import { Button, ErrorNote, Loading, Row, SignInPrompt, Txt } from '@/components/ui';
@@ -14,6 +14,7 @@ import type { Conversation, InquiryStatus, Message } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 const SELECT = '*, sender:profiles(display_name, role)';
 
@@ -35,19 +36,21 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
     return Boolean(data);
   }, [id, session?.user.id]);
 
-  // Initial load, then live updates for new messages and transcripts.
+  // Live updates first, then the full load, so nothing sent in between is missed.
+  const uid = session?.user.id;
   useEffect(() => {
-    if (!session) return;
+    if (!uid) return;
     let active = true;
-    supabase
-      .from('messages')
-      .select(SELECT)
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: true })
-      .limit(300)
-      .then(({ data }) => {
-        if (active && data) setMessages(data as Message[]);
-      });
+    const loadAll = () =>
+      supabase
+        .from('messages')
+        .select(SELECT)
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: true })
+        .limit(300)
+        .then(({ data }) => {
+          if (active && data) setMessages(data as Message[]);
+        });
     supabase.rpc('mark_read', { p_conversation_id: id });
 
     const channel = supabase
@@ -67,12 +70,16 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
         });
         supabase.rpc('mark_read', { p_conversation_id: id });
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') loadAll();
+      });
+    // Load straight away too, in case live updates are slow or unavailable.
+    loadAll();
     return () => {
       active = false;
       supabase.removeChannel(channel);
     };
-  }, [id, session]);
+  }, [id, uid]);
 
   if (!session) return <View style={{ padding: Space.lg }}><SignInPrompt /></View>;
   if (conv.error) return <View style={{ padding: Space.lg }}><ErrorNote message={conv.error} onRetry={conv.reload} /></View>;
@@ -82,12 +89,14 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
 
   const send = async () => {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || sending) return;
     setSending(true);
-    const { error } = await supabase.from('messages').insert({ conversation_id: id, sender_id: session.user.id, body });
+    const { data, error } = await supabase.from('messages').insert({ conversation_id: id, sender_id: session.user.id, body }).select(SELECT).single();
     setSending(false);
-    if (error) return Alert.alert('Message not sent', error.message);
+    if (error) return showAlert('Message not sent', error.message);
     setDraft('');
+    // Show it right away; the live update (if any) replaces it by id.
+    if (data) setMessages((prev) => (prev.some((m) => m.id === (data as Message).id) ? prev : [...prev, data as Message]));
   };
 
   return (
@@ -158,17 +167,17 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
       open: '',
     }[status];
     const { error } = await supabase.rpc('answer_inquiry', { p_message_id: m.id, p_status: status, p_reply: reply });
-    if (error) Alert.alert('Reply not sent', error.message);
+    if (error) showAlert('Reply not sent', error.message);
   };
 
   const report = async () => {
     const { error } = await supabase.from('reports').insert({ target_type: 'message', target_id: m.id, reason: 'Reported from thread' });
-    Alert.alert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this message.');
+    showAlert(error ? 'Report not sent' : 'Report sent', error ? error.message : 'BFI moderators will review this message.');
   };
 
   const hide = async () => {
     const { error } = await supabase.from('messages').update({ hidden: true }).eq('id', m.id);
-    if (error) Alert.alert('Not hidden', error.message);
+    if (error) showAlert('Not hidden', error.message);
   };
 
   if (m.kind === 'inquiry' && m.inquiry) {
@@ -226,10 +235,10 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
       <Row gap={14}>
         <Txt variant="mono" color={mine ? colors.onLeaf : colors.muted} style={{ fontSize: 11 }}>
           {timeOfDay(m.created_at)}
-          {m.via === 'sms' ? ' · by text message' : ''}
+          {m.via === 'sms' ? ` · ${t('byText')}` : ''}
         </Txt>
         {text ? (
-          <Pressable onPress={() => speak(`${name}: ${tr.text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')}: ${name}`} hitSlop={8}>
+          <Pressable onPress={() => speak(`${name}: ${tr.text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')}: ${name}`} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
             <Txt variant="small" color={fg} style={{ textDecorationLine: 'underline' }}>
               {t('listen')}
             </Txt>
@@ -237,14 +246,14 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
         ) : null}
         {text && !mine ? <TranslateToggle tr={tr} color={fg} /> : null}
         {!mine ? (
-          <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`${t('report')}: ${name}`} hitSlop={8}>
+          <Pressable onPress={report} accessibilityRole="button" accessibilityLabel={`${t('report')}: ${name}`} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
             <Txt variant="small" style={{ textDecorationLine: 'underline' }}>
               {t('report')}
             </Txt>
           </Pressable>
         ) : null}
         {isStaff && !mine && !m.hidden ? (
-          <Pressable onPress={hide} accessibilityRole="button" accessibilityLabel={`Hide message from ${name}`} hitSlop={8}>
+          <Pressable onPress={hide} accessibilityRole="button" accessibilityLabel={`Hide message from ${name}`} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
             <Txt variant="small" color={colors.danger} style={{ textDecorationLine: 'underline' }}>
               Hide
             </Txt>

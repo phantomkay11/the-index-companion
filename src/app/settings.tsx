@@ -1,7 +1,7 @@
 import Slider from '@react-native-community/slider';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Platform, View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { Button, Card, Chip, Field, Row, Screen, ToggleRow, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
@@ -13,6 +13,7 @@ import type { ContactPrefs } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { showAlert } from '@/lib/alert';
 
 export default function Settings() {
   const s = useSettings();
@@ -55,6 +56,7 @@ export default function Settings() {
           maximumTrackTintColor={s.colors.line}
           thumbTintColor={s.colors.leaf}
           accessibilityLabel={s.t('textSize')}
+          accessibilityValue={{ min: 100, max: 160, now: Math.round(s.textScale * 100), text: `${Math.round(s.textScale * 100)}%` }}
           style={{ height: 44 }}
         />
         <Txt variant="small" muted>
@@ -64,7 +66,7 @@ export default function Settings() {
 
       <ToggleRow label={s.t('highContrast')} hint="Black and white text, stronger borders." value={s.highContrast} onChange={(v) => s.update({ highContrast: v })} />
       <ToggleRow label={s.t('reduceMotion')} hint="Turns off sliding and fading between screens." value={s.reduceMotion} onChange={(v) => s.update({ reduceMotion: v })} />
-      <ToggleRow label="Save data" hint="Hides photos and maps on slow or limited connections." value={s.saveData} onChange={(v) => s.update({ saveData: v })} />
+      <ToggleRow label={s.t('saveData')} hint={s.t('saveDataHint')} value={s.saveData} onChange={(v) => s.update({ saveData: v })} />
 
       <View style={{ gap: Space.sm }}>
         <Txt variant="bodyBold">{s.t('language')}</Txt>
@@ -100,7 +102,7 @@ export default function Settings() {
               onPress={async () => {
                 await unregisterPush(session.user.id).catch(() => {});
                 await signOut();
-                Alert.alert('Signed out');
+                showAlert('Signed out');
               }}
             />
           </Row>
@@ -128,10 +130,12 @@ export default function Settings() {
 }
 
 function NotificationPrefs({ userId }: { userId: string }) {
-  const { t } = useSettings();
+  const { t, colors } = useSettings();
   const prefs = useQuery(async () => must(await supabase.from('contact_prefs').select('*').eq('user_id', userId).single()) as ContactPrefs, [userId]);
   const [phone, setPhone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [code, setCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
 
   if (!prefs.data) return null;
   const p = prefs.data;
@@ -139,9 +143,9 @@ function NotificationPrefs({ userId }: { userId: string }) {
 
   const save = async (patch: Partial<ContactPrefs>) => {
     prefs.setData({ ...p, ...patch });
-    const { error } = await supabase.from('contact_prefs').update({ ...patch, updated_at: new Date().toISOString() }).eq('user_id', userId);
+    const { error } = await supabase.from('contact_prefs').update(patch).eq('user_id', userId);
     if (error) {
-      Alert.alert('Not saved', error.message);
+      showAlert('Not saved', error.message);
       prefs.reload();
     }
   };
@@ -151,16 +155,36 @@ function NotificationPrefs({ userId }: { userId: string }) {
     setBusy(true);
     const result = await registerForPush(userId);
     setBusy(false);
-    if (!result.ok) Alert.alert('Phone notifications are off', result.reason);
+    if (!result.ok) showAlert('Phone notifications are off', result.reason);
     prefs.reload();
   };
 
   const savePhone = () => {
     const digits = phoneValue.replace(/[^\d+]/g, '');
     const e164 = digits.startsWith('+') ? digits : digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : null;
-    if (!e164) return Alert.alert('Check the number', 'Use a 10-digit US number, or include the country code.');
+    if (!e164) return showAlert('Check the number', 'Use a 10-digit US number, or include the country code.');
     setPhone(e164);
+    setCodeSent(false);
     save({ phone: e164 });
+  };
+
+  // Prove the number before any texts go to it, so nobody can sign up with someone else's phone.
+  const sendCode = async () => {
+    setBusy(true);
+    const { error } = await supabase.rpc('request_phone_code');
+    setBusy(false);
+    if (error) return showAlert('Code not sent', error.message);
+    setCodeSent(true);
+  };
+  const confirmCode = async () => {
+    setBusy(true);
+    const { data, error } = await supabase.rpc('confirm_phone_code', { p_code: code.trim() });
+    setBusy(false);
+    if (error) return showAlert('Not confirmed', error.message);
+    if (!data) return showAlert('That code didn’t match', 'Check the text and try again.');
+    setCode('');
+    setCodeSent(false);
+    prefs.reload();
   };
 
   return (
@@ -184,7 +208,33 @@ function NotificationPrefs({ userId }: { userId: string }) {
           </View>
           <Button small kind="ghost" label="Save number" onPress={savePhone} style={{ alignSelf: 'flex-end' }} />
         </Row>
-        <ToggleRow label="Send me texts" value={p.sms_opt_in} onChange={(v) => (v && !p.phone ? Alert.alert('Add your number first') : save({ sms_opt_in: v }))} />
+        {p.phone && p.phone_verified_at && phoneValue === p.phone ? (
+          <Txt variant="smallBold" color={colors.leaf}>
+            {t('numberConfirmed')}
+          </Txt>
+        ) : p.phone && phoneValue === p.phone ? (
+          <View style={{ gap: Space.sm }}>
+            <Txt variant="small" muted>
+              {t('confirmNumber')}: we’ll text a 6-digit code to {p.phone}.
+            </Txt>
+            {!codeSent ? (
+              <Button small label={t('sendCode')} icon="chatbubble-ellipses-outline" busy={busy} onPress={sendCode} style={{ alignSelf: 'flex-start' }} />
+            ) : (
+              <Row>
+                <View style={{ flex: 1, minWidth: 140 }}>
+                  <Field label={t('enterCode')} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="sms-otp" maxLength={6} />
+                </View>
+                <Button small label="Confirm" busy={busy} disabled={code.trim().length !== 6} onPress={confirmCode} style={{ alignSelf: 'flex-end' }} />
+              </Row>
+            )}
+          </View>
+        ) : null}
+        <ToggleRow
+          label="Send me texts"
+          hint={p.phone_verified_at ? undefined : 'Texts start once your number is confirmed.'}
+          value={p.sms_opt_in}
+          onChange={(v) => (v && !p.phone ? showAlert('Add your number first') : save({ sms_opt_in: v }))}
+        />
       </Card>
       <Txt variant="smallBold" style={{ marginTop: Space.sm }}>
         Tell me about

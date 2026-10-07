@@ -1,3 +1,4 @@
+import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { Platform, View } from 'react-native';
 
@@ -14,6 +15,10 @@ import { useSettings } from '@/providers/settings';
 export function FarmMap(props: MapProps) {
   const { colors, scheme } = useSettings();
   const { farms, here, height = 320 } = props;
+  // The blue "you are here" dot needs location permission. A typed town sets `here` without it,
+  // and turning the dot on without permission crashes Google Maps on Android.
+  const [permission] = Location.useForegroundPermissions();
+  const showMe = !!here && !!permission?.granted;
   if (isExpoGo) return <SketchMap {...props} />;
 
   // Loaded lazily so Expo Go never touches the native module.
@@ -34,7 +39,7 @@ export function FarmMap(props: MapProps) {
           cameraPosition={camera}
           markers={markers.map((m) => ({ ...m, tintColor: colors.leaf }))}
           onMarkerClick={open}
-          properties={{ isMyLocationEnabled: !!here }}
+          properties={{ isMyLocationEnabled: showMe }}
         />
       ) : Platform.OS === 'android' ? (
         <GoogleMaps.View
@@ -42,7 +47,7 @@ export function FarmMap(props: MapProps) {
           cameraPosition={camera}
           markers={markers}
           onMarkerClick={open}
-          properties={{ isMyLocationEnabled: !!here }}
+          properties={{ isMyLocationEnabled: showMe }}
           colorScheme={scheme === 'dark' ? GoogleMaps.MapColorScheme.DARK : GoogleMaps.MapColorScheme.LIGHT}
         />
       ) : (

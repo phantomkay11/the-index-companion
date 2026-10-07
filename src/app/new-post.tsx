@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Button, Chip, Field, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import type { PostKind, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
+import { showAlert } from '@/lib/alert';
 
 export default function NewPost() {
   const { session, profile, myFarm } = useAuth();
@@ -38,7 +39,7 @@ export default function NewPost() {
       happens_on: date.trim() || null,
     });
     setBusy(false);
-    if (error) return Alert.alert('Not posted', error.message);
+    if (error) return showAlert('Not posted', error.message);
     router.back();
   };
 
