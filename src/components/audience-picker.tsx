@@ -5,6 +5,7 @@ import { Space } from '@/constants/theme';
 import { supabase } from '@/lib/supabase';
 import type { Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
+import { useSettings } from '@/providers/settings';
 
 export const AUDIENCES = [
   { value: 'everyone', label: 'Everyone' },
@@ -37,6 +38,7 @@ export function AudiencePicker({
   label?: string;
 }) {
   const regions = useRegions();
+  const { t } = useSettings();
   return (
     <View style={{ gap: Space.sm }}>
       <Txt variant="smallBold">{label}</Txt>
@@ -51,7 +53,7 @@ export function AudiencePicker({
         {(regions.data ?? []).map((r) => (
           <Chip
             key={r.id}
-            label={r.id === 'intl' ? 'International' : r.name}
+            label={r.id === 'intl' ? t('international') : r.name}
             selected={value === `region:${r.id}`}
             onPress={() => onChange(`region:${r.id}`)}
           />

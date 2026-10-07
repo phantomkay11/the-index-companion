@@ -3,7 +3,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { Platform, Share, View } from 'react-native';
 
 import { audienceLabel, useRegions } from '@/components/audience-picker';
-import { Button, Card, Empty, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -13,6 +13,7 @@ import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
+import { StaffOnly } from '@/components/staff-only';
 
 /** Staff: totals for each question, quotable written answers, and a CSV with no names in it. */
 export default function SurveyResults() {
@@ -25,7 +26,7 @@ export default function SurveyResults() {
     [id],
   );
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can see survey results.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly>Only BFI staff can see survey results.</StaffOnly>;
   if (!survey.data || !responses.data) {
     const err = survey.error ?? responses.error;
     return err ? <Screen><ErrorNote message={err} onRetry={() => { survey.reload(); responses.reload(); }} /></Screen> : <Loading />;

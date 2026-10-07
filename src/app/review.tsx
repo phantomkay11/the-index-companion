@@ -9,6 +9,7 @@ import type { EventRow, Farm } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { showAlert } from '@/lib/alert';
+import { StaffOnly } from '@/components/staff-only';
 
 type Report = { id: string; target_type: string; target_id: string; reason: string; created_at: string };
 
@@ -23,7 +24,7 @@ export default function Review() {
     return { farms, events, reports };
   }, [isStaff]);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff and regional coordinators can see the review queue.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly>Only BFI staff and regional coordinators can see the review queue.</StaffOnly>;
   if (q.error) return <Screen><ErrorNote message={q.error} onRetry={q.reload} /></Screen>;
   if (!q.data) return <Screen><Loading /></Screen>;
 

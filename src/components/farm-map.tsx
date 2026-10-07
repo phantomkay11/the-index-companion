@@ -1,5 +1,6 @@
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
+import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 
 import { SketchMap, type MapProps } from '@/components/sketch-map';
@@ -17,7 +18,11 @@ export function FarmMap(props: MapProps) {
   const { farms, here, height = 320 } = props;
   // The blue "you are here" dot needs location permission. A typed town sets `here` without it,
   // and turning the dot on without permission crashes Google Maps on Android.
-  const [permission] = Location.useForegroundPermissions();
+  const [permission, , refreshPermission] = Location.useForegroundPermissions();
+  // Permission may be granted after the map first mounts (Near me asks for it), so check again when `here` changes.
+  useEffect(() => {
+    if (here) refreshPermission();
+  }, [here?.lat, here?.lon]); // eslint-disable-line react-hooks/exhaustive-deps
   const showMe = !!here && !!permission?.granted;
   if (isExpoGo) return <SketchMap {...props} />;
 

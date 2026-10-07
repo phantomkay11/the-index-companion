@@ -1,6 +1,6 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router, Tabs } from 'expo-router';
-import { Pressable, View, type ColorValue } from 'react-native';
+import { Pressable, Text, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NetworkBanner } from '@/components/network-banner';
@@ -80,10 +80,16 @@ export default function TabsLayout() {
           tabBarLabelPosition: 'below-icon',
           tabBarStyle: isTablet
             ? { backgroundColor: colors.surface, borderRightColor: colors.line, borderRightWidth: 1, width: 112, paddingTop: 12 }
-            : { backgroundColor: colors.surface, borderTopWidth: 0, height: 64 + insets.bottom, paddingTop: 6, shadowColor: '#0b2a1b', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -2 }, elevation: 8 },
+            : { backgroundColor: colors.surface, borderTopWidth: 0, height: 72 + insets.bottom, paddingTop: 6, shadowColor: '#0b2a1b', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: -2 }, elevation: 8 },
           tabBarActiveBackgroundColor: isTablet ? colors.leafSoft : undefined,
-          // Five labels share the bar, so they grow only a little with the text size; the full name is still read aloud.
-          tabBarLabelStyle: { fontFamily: Fonts.ui, fontSize: (width < 380 ? 10.5 : 11.5) * Math.min(textScale, 1.1) },
+          // Five labels share the bar, so they grow only a little with the text size and may take two lines.
+          tabBarLabel: ({ color, children }) => (
+            <Text
+              numberOfLines={2}
+              style={{ color, fontFamily: Fonts.ui, fontSize: (width < 380 ? 10 : 11.5) * Math.min(textScale, 1.1), lineHeight: (width < 380 ? 12 : 14) * Math.min(textScale, 1.1), textAlign: 'center' }}>
+              {children}
+            </Text>
+          ),
           tabBarItemStyle: isTablet ? { minHeight: 72, marginVertical: 2 } : { paddingHorizontal: 0 },
           tabBarActiveTintColor: colors.forest,
         }}

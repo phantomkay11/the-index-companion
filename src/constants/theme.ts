@@ -27,6 +27,8 @@ export type Palette = {
   /** Edges of inputs, chips and panels: invisible normally, solid in high contrast. */
   outline: string;
   placeholder: string;
+  /** Edge of text boxes: always visible (3:1 against the page), so empty fields never vanish. */
+  field: string;
   onHarvest: string;
   real: string;
   realSoft: string;
@@ -51,7 +53,8 @@ const light: Palette = {
   harvest: '#ffd84d',
   onHarvest: '#2a2200',
   outline: 'transparent',
-  placeholder: '#6b7a71',
+  placeholder: '#5f6e66',
+  field: '#7f8f86',
   real: '#0d4f8a',
   realSoft: '#e3eef8',
   danger: '#a3341f',
@@ -75,7 +78,8 @@ const dark: Palette = {
   harvest: '#ffd84d',
   onHarvest: '#2a2200',
   outline: 'transparent',
-  placeholder: '#8a9b90',
+  placeholder: '#9fb0a5',
+  field: '#62786b',
   real: '#8cc2f2',
   realSoft: '#16283a',
   danger: '#ff8a73',
@@ -94,6 +98,7 @@ const contrastLight: Palette = {
   onSun: '#3f2b00',
   outline: '#000000',
   placeholder: '#595959',
+  field: '#000000',
   real: '#06335c',
 };
 
@@ -111,6 +116,7 @@ const contrastDark: Palette = {
   onSun: '#ffd76a',
   outline: '#ffffff',
   placeholder: '#bdbdbd',
+  field: '#ffffff',
   real: '#b5dcff',
 };
 

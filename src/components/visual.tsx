@@ -23,6 +23,11 @@ export function Photo({ picture, style, rounded, children }: { picture: Picture;
     <View style={[{ overflow: 'hidden', backgroundColor: colors.leafSoft, borderRadius: rounded }, style]}>
       {hide ? (
         <LinearGradient colors={[colors.leafSoft, colors.sunk]} style={StyleSheet.absoluteFill} />
+      ) : picture.art ? (
+        // Decorative art: hidden from screen readers on every platform (expo-image drops alt="" on the web).
+        <View style={StyleSheet.absoluteFill} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden aria-hidden>
+          <Image source={picture.source} contentFit="cover" transition={reduceMotion ? 0 : 250} style={StyleSheet.absoluteFill} />
+        </View>
       ) : (
         <Image
           source={picture.source}

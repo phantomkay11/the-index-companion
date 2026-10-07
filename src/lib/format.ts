@@ -46,7 +46,8 @@ export function nextSaturday(now = new Date()) {
   const d = new Date(now);
   const add = (6 - d.getDay() + 7) % 7 || 7;
   d.setDate(d.getDate() + add);
-  return d.toISOString().slice(0, 10);
+  // Local calendar date (toISOString would use UTC and can land on Sunday in US evenings).
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 export function initials(name: string) {

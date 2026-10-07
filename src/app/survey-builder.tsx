@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { AudiencePicker, audienceLabel, useRegions } from '@/components/audience-picker';
-import { Button, Card, Chip, Empty, Field, Row, Screen, ToggleRow, Txt } from '@/components/ui';
+import { Button, Card, Chip, Field, Row, Screen, ToggleRow, Txt } from '@/components/ui';
 import { Space } from '@/constants/theme';
 import { randomId } from '@/lib/files';
 import { supabase } from '@/lib/supabase';
@@ -12,6 +12,7 @@ import type { SurveyQuestion } from '@/lib/types';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
+import { StaffOnly } from '@/components/staff-only';
 
 const STARTER: SurveyQuestion[] = [
   { id: 'q1', type: 'scale', prompt: 'How was this growing season for you?', required: true },
@@ -33,7 +34,7 @@ export default function SurveyBuilder() {
   const [questions, setQuestions] = useState<SurveyQuestion[]>(STARTER);
   const [busy, setBusy] = useState<'draft' | 'open' | null>(null);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can write surveys.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly>Only BFI staff can write surveys.</StaffOnly>;
 
   const update = (id: string, patch: Partial<SurveyQuestion>) => setQuestions((qs) => qs.map((q) => (q.id === id ? { ...q, ...patch } : q)));
   const move = (i: number, d: -1 | 1) =>
@@ -98,7 +99,7 @@ export default function SurveyBuilder() {
         <Card key={q.id}>
           <Row style={{ justifyContent: 'space-between' }}>
             <Txt variant="label">Question {i + 1}</Txt>
-            <Row gap={4}>
+            <Row gap={4} style={{ flexShrink: 1, maxWidth: '100%' }}>
               <Button small kind="ghost" label="Up" icon="arrow-up" accessibilityLabel={`Move question ${i + 1} up`} disabled={i === 0} onPress={() => move(i, -1)} />
               <Button small kind="ghost" label="Down" icon="arrow-down" accessibilityLabel={`Move question ${i + 1} down`} disabled={i === questions.length - 1} onPress={() => move(i, 1)} />
               <Button small kind="ghost" label="Remove" icon="trash-outline" accessibilityLabel={`Remove question ${i + 1}`} onPress={() => setQuestions((qs) => qs.filter((x) => x.id !== q.id))} />

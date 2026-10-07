@@ -9,6 +9,7 @@ import type { Checkin } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
+import { StaffOnly } from '@/components/staff-only';
 
 /** Staff: every check-in, newest first, with a link to its results. */
 export default function Checkins() {
@@ -17,7 +18,7 @@ export default function Checkins() {
   const regions = useRegions();
   const list = useQuery(async () => must(await supabase.from('checkins').select('*').order('created_at', { ascending: false }).limit(50)) as Checkin[]);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can see check-in results.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly>Only BFI staff can see check-in results.</StaffOnly>;
 
   return (
     <Screen>

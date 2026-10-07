@@ -50,13 +50,25 @@ export const BFI = {
 };
 
 /** BFI's own grower types, used for browsing. Icon names are Ionicons. */
+// `id` is the value stored in the database; `label` is the translation key shown to members.
 export const CATEGORIES = [
-  { id: 'Row crops', icon: 'leaf-outline' },
-  { id: 'Ranchers', icon: 'paw-outline' },
-  { id: 'Vegetables & fruit', icon: 'nutrition-outline' },
-  { id: 'Beekeepers', icon: 'flower-outline' },
-  { id: 'Fisherfolk', icon: 'fish-outline' },
-  { id: 'Foragers', icon: 'trail-sign-outline' },
-  { id: 'Vintners', icon: 'wine-outline' },
-  { id: 'Organic', icon: 'ribbon-outline' },
+  { id: 'Row crops', icon: 'leaf-outline', label: 'cat_rowCrops' },
+  { id: 'Ranchers', icon: 'paw-outline', label: 'cat_ranchers' },
+  { id: 'Vegetables & fruit', icon: 'nutrition-outline', label: 'cat_vegFruit' },
+  { id: 'Beekeepers', icon: 'flower-outline', label: 'cat_beekeepers' },
+  { id: 'Fisherfolk', icon: 'fish-outline', label: 'cat_fisherfolk' },
+  { id: 'Foragers', icon: 'trail-sign-outline', label: 'cat_foragers' },
+  { id: 'Vintners', icon: 'wine-outline', label: 'cat_vintners' },
+  { id: 'Organic', icon: 'ribbon-outline', label: 'cat_organic' },
 ] as const;
+
+/** A grower type in the member's language (unknown types show as stored). */
+export function categoryLabel(id: string, t: (key: (typeof CATEGORIES)[number]['label']) => string) {
+  const c = CATEGORIES.find((x) => x.id === id);
+  return c ? t(c.label) : id;
+}
+
+/** "Region 6" / "Región 6", or "International". */
+export function regionLabel(id: string, t: (key: 'region' | 'international') => string) {
+  return id === 'intl' ? t('international') : `${t('region')} ${id}`;
+}

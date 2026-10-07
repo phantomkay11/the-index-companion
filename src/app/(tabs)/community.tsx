@@ -9,6 +9,7 @@ import { TranslateToggle, useTranslation } from '@/components/translate';
 import { Button, Card, Grid, Chip, Empty, ErrorNote, Loading, Row, Screen, SignInPrompt, Txt } from '@/components/ui';
 import { Photo, Scrim } from '@/components/visual';
 import { Space } from '@/constants/theme';
+import { regionLabel } from '@/lib/bfi';
 import { kindLabel, POST_KINDS } from '@/lib/board';
 import { initials, shortDate } from '@/lib/format';
 import { sectionImage } from '@/lib/imagery';
@@ -84,7 +85,7 @@ export default function Community() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
           <Chip label={t('allRegions')} selected={!region} onPress={() => setRegion(null)} />
           {(regions.data ?? []).map((r) => (
-            <Chip key={r.id} label={r.id === 'intl' ? 'International' : r.name} selected={region === r.id} onPress={() => setRegion(r.id)} />
+            <Chip key={r.id} label={regionLabel(r.id, t)} selected={region === r.id} onPress={() => setRegion(r.id)} />
           ))}
         </ScrollView>
       </View>
@@ -145,7 +146,7 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
             </Txt>
             <Txt variant="small" muted>
               {shortDate(post.created_at)}
-              {post.region_id ? `, ${post.region_id === 'intl' ? 'International' : `Region ${post.region_id}`}` : ''}
+              {post.region_id ? `, ${regionLabel(post.region_id, t)}` : ''}
             </Txt>
           </View>
         </Row>
@@ -171,7 +172,12 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
         )}
         {post.body ? <TranslateToggle tr={body} color={colors.muted} /> : null}
         {!mine ? (
-          <Pressable onPress={report} accessibilityRole="button" hitSlop={8} style={{ minHeight: 36, justifyContent: 'center' }}>
+          <Pressable
+            onPress={report}
+            accessibilityRole="button"
+            accessibilityLabel={`${t('reportPost')}: ${post.title}`}
+            hitSlop={8}
+            style={{ minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
             <Txt variant="small" muted style={{ textDecorationLine: 'underline' }}>
               {t('report')}
             </Txt>

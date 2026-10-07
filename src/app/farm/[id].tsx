@@ -10,6 +10,7 @@ import { Button, Card, ErrorNote, Loading, Pill, Row, Screen, Txt } from '@/comp
 import { BackDisc, Credit, GlassChip, Photo, Scrim, useLightStatusBar } from '@/components/visual';
 import { Radius } from '@/constants/theme';
 import { shortDate, updatedAgo } from '@/lib/format';
+import { categoryLabel, regionLabel } from '@/lib/bfi';
 import { farmCover, farmPhotos } from '@/lib/imagery';
 import { useLayout } from '@/lib/layout';
 import { speak } from '@/lib/speak';
@@ -22,7 +23,7 @@ import { showAlert } from '@/lib/alert';
 
 export default function FarmProfile() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { colors, t, language, saveData } = useSettings();
+  const { colors, t, language, saveData, textScale } = useSettings();
   const { isTablet, width } = useLayout();
   const { session } = useAuth();
   const [busy, setBusy] = useState<'follow' | 'message' | null>(null);
@@ -121,7 +122,7 @@ export default function FarmProfile() {
   const showBar = isOwner || canMessage;
 
   const hero = (
-    <Photo picture={cover} style={{ height: (isTablet ? 500 : 420) + insets.top }}>
+    <Photo picture={cover} style={{ height: (isTablet ? 500 : 420) * Math.max(1, textScale * 0.85) + insets.top }}>
       <Scrim from={0.3} top />
       <View style={[styles.heroCopy, isTablet && { left: Math.max(48, (width - 760) / 2 + 32), right: 48, bottom: 60 }]}>
         <Row gap={8}>
@@ -150,7 +151,7 @@ export default function FarmProfile() {
         <Txt variant="hero" color="#ffffff" accessibilityRole="header" numberOfLines={3}>
           {f.name}
         </Txt>
-        <Txt color="rgba(255,255,255,0.92)">{[`${f.city}, ${f.state}`, kind, `Region ${f.region_id}`].filter(Boolean).join('  ·  ')}</Txt>
+        <Txt color="rgba(255,255,255,0.92)">{[`${f.city}, ${f.state}`, kind ? categoryLabel(kind, t) : null, regionLabel(f.region_id, t)].filter(Boolean).join('  ·  ')}</Txt>
       </View>
       <Credit picture={cover} style={{ bottom: 40 }} />
       {/* The page curves up over the photo, like a sheet. */}
@@ -160,7 +161,7 @@ export default function FarmProfile() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <Stack.Screen options={{ title: '', headerTransparent: true, headerTintColor: '#ffffff', headerLeft: () => <BackDisc /> }} />
+      <Stack.Screen options={{ title: f.name, headerTitle: () => null, headerTransparent: true, headerTintColor: '#ffffff', headerLeft: () => <BackDisc /> }} />
       <Screen hero={hero} style={{ paddingTop: 4, paddingBottom: showBar ? 132 : 48 }}>
         <Txt variant="small" muted>
           On the Index since {new Date(f.listed_since).getFullYear()}

@@ -11,8 +11,9 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { useEffect } from 'react';
-import { Dimensions, Platform, Pressable, Text, View } from 'react-native';
+import { Dimensions, Platform, Pressable, Text, useColorScheme, View } from 'react-native';
 
+import { Icon } from '@/components/icon';
 import { Fonts } from '@/constants/theme';
 import { AuthProvider } from '@/providers/auth';
 import { NotificationsProvider } from '@/providers/notifications';
@@ -26,17 +27,35 @@ export const unstable_settings = { initialRouteName: '(tabs)' };
 
 /** If a screen crashes, show a way out instead of a blank page. */
 export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  // The app's own settings may be what broke, so this screen only follows the phone's light or dark mode.
+  const dark = useColorScheme() === 'dark';
+  const ink = dark ? '#e8f0ea' : '#13241b';
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16, backgroundColor: '#ffffff' }}>
-      <Text style={{ fontSize: 22, fontWeight: '700', color: '#13241b', textAlign: 'center' }}>Something went wrong on this screen</Text>
-      <Text style={{ fontSize: 16, color: '#55665c', textAlign: 'center' }}>Try again, or go back to Discover.</Text>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16, backgroundColor: dark ? '#0b1310' : '#ffffff' }}>
+      <Text accessibilityRole="header" style={{ fontSize: 22, fontWeight: '700', color: ink, textAlign: 'center' }}>
+        Something went wrong on this screen
+      </Text>
+      <Text style={{ fontSize: 16, color: dark ? '#9db0a4' : '#55665c', textAlign: 'center' }}>Try again, or go back to Discover.</Text>
       <Pressable accessibilityRole="button" onPress={retry} style={{ minHeight: 48, paddingHorizontal: 24, borderRadius: 999, backgroundColor: '#007640', justifyContent: 'center' }}>
         <Text style={{ color: '#ffffff', fontSize: 16, fontWeight: '700' }}>Try again</Text>
       </Pressable>
       <Pressable accessibilityRole="link" onPress={() => router.replace('/')} style={{ minHeight: 44, justifyContent: 'center' }}>
-        <Text style={{ color: '#007640', fontSize: 16, fontWeight: '700' }}>Go to Discover</Text>
+        <Text style={{ color: dark ? '#4fc78c' : '#007640', fontSize: 16, fontWeight: '700' }}>Go to Discover</Text>
       </Pressable>
     </View>
+  );
+}
+
+function HeaderBack({ color, label }: { color: string; label: string }) {
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      accessibilityRole="button"
+      accessibilityLabel={router.canGoBack() ? 'Back' : `Back to ${label}`}
+      hitSlop={4}
+      style={({ pressed }) => ({ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
+      <Icon name="chevron-back" size={26} color={color} />
+    </Pressable>
   );
 }
 
@@ -97,13 +116,15 @@ function AppStack() {
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
+          // A 44-point back button that says "Back" to screen readers, and goes to Discover when there's no history.
+          headerLeft: () => <HeaderBack color={colors.text} label={t('discover')} />,
           headerTitleStyle: { fontFamily: Fonts.heading },
           headerShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
           animation: reduceMotion ? 'none' : 'default',
           contentStyle: { backgroundColor: colors.background },
         }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: t('discover') }} />
         <Stack.Screen name="farm/[id]" options={{ title: '' }} />
         <Stack.Screen name="thread/[id]" options={{ title: '' }} />
         <Stack.Screen name="inquiry/[farmId]" options={{ title: t('sendInquiry'), presentation: 'modal' }} />
@@ -125,7 +146,7 @@ function AppStack() {
         <Stack.Screen name="checkin/[id]" options={{ title: t('checkIn') }} />
         <Stack.Screen name="checkins" options={{ title: t('checkIn') }} />
         <Stack.Screen name="send-checkin" options={{ title: t('sendCheckin'), presentation: 'modal' }} />
-        <Stack.Screen name="+not-found" options={{ title: t('notFound') }} />
+        <Stack.Screen name="+not-found" options={{ title: t('notFound'), headerTitle: () => null }} />
       </Stack>
     </ThemeProvider>
   );

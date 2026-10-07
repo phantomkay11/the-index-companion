@@ -24,6 +24,9 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 import { routeText } from './route.ts';
 
+// BFI's grower types (src/lib/bfi.ts).
+const GROWER_TYPES = ['Row crops', 'Ranchers', 'Vegetables & fruit', 'Beekeepers', 'Fisherfolk', 'Foragers', 'Vintners', 'Organic'];
+
 type FarmHit = { name: string; city: string; state: string; how_to_buy: string[]; replies_by_sms: boolean };
 
 const HELP =
@@ -116,10 +119,17 @@ async function searchGrowers(supabase: SupabaseClient, keyword: string, state?: 
     .eq('status', 'approved')
     .order('verified_at', { ascending: false, nullsFirst: false })
     .limit(3);
-  // Grower types are plural ("Beekeepers"): try the word as typed, singular and plural.
-  const kinds = [...new Set([raw, keyword, `${keyword}s`].filter(Boolean).map((w) => cap(w!.replace(/[^a-z &]/gi, '').trim())))].filter(Boolean);
+  // Grower types come from a fixed list; match the text against it, ignoring case and plurals.
+  const words = [raw, keyword].filter(Boolean).map((w) => w!.toLowerCase());
+  const kinds = GROWER_TYPES.filter((g) => {
+    const name = g.toLowerCase();
+    return words.some((w) => name === w || name === `${w}s` || name.replace(/s$/, '') === w || (w.length >= 4 && name.startsWith(w)));
+  });
   const kindList = kinds.map((k) => `"${k}"`).join(',');
-  q = ids.length ? q.or(`id.in.(${ids.join(',')}),categories.ov.{${kindList}}`) : q.overlaps('categories', kinds);
+  if (ids.length && kinds.length) q = q.or(`id.in.(${ids.join(',')}),categories.ov.{${kindList}}`);
+  else if (ids.length) q = q.in('id', ids);
+  else if (kinds.length) q = q.overlaps('categories', kinds);
+  else return `No growers found for ${keyword.toUpperCase()}${state ? ` in ${state}` : ''}. Try another word, or text HELP.`;
   if (state) q = q.eq('state', state);
   const { data: rows, error } = await q;
   if (error) throw error;
@@ -153,10 +163,6 @@ async function isFromTwilio(signature: string | null, pairs: [string, string][])
 
 function shortDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function cap(s: string) {
-  return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function xml(s: string) {

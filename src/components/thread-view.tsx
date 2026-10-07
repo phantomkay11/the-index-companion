@@ -49,9 +49,17 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
         .order('created_at', { ascending: true })
         .limit(300)
         .then(({ data }) => {
-          if (active && data) setMessages(data as Message[]);
+          if (!active || !data) return;
+          // Merge rather than replace: keep anything that arrived (or was sent) after this load started.
+          const loaded = data as Message[];
+          setMessages((prev) => {
+            const ids = new Set(loaded.map((m) => m.id));
+            const newest = loaded.length ? loaded[loaded.length - 1].created_at : '';
+            const extra = prev.filter((m) => !ids.has(m.id) && m.created_at >= newest);
+            return [...loaded, ...extra];
+          });
         });
-    supabase.rpc('mark_read', { p_conversation_id: id });
+    supabase.rpc('mark_read', { p_conversation_id: id }).then(() => {}); // queries only run once awaited or then-ed
 
     const channel = supabase
       .channel(`thread:${id}`)
@@ -68,7 +76,7 @@ export function ThreadView({ id, embedded = false }: { id: string; embedded?: bo
           next[i] = data as Message;
           return next;
         });
-        supabase.rpc('mark_read', { p_conversation_id: id });
+        supabase.rpc('mark_read', { p_conversation_id: id }).then(() => {});
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') loadAll();
@@ -238,7 +246,7 @@ function MessageRow({ m, mine, canAnswer, isStaff }: { m: Message; mine: boolean
           {m.via === 'sms' ? ` · ${t('byText')}` : ''}
         </Txt>
         {text ? (
-          <Pressable onPress={() => speak(`${name}: ${tr.text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')}: ${name}`} hitSlop={8} style={{ minHeight: 44, justifyContent: 'center' }}>
+          <Pressable onPress={() => speak(`${name}: ${tr.text}`, language)} accessibilityRole="button" accessibilityLabel={`${t('listen')}: ${name}`} hitSlop={8} style={{ minHeight: 44, minWidth: 44, justifyContent: 'center' }}>
             <Txt variant="small" color={fg} style={{ textDecorationLine: 'underline' }}>
               {t('listen')}
             </Txt>

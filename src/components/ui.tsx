@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import { Fonts, Radius, Space, TapTarget } from '@/constants/theme';
+import { friendlyError } from '@/lib/errors';
 import { useLayout } from '@/lib/layout';
 import { useSettings } from '@/providers/settings';
 
@@ -220,8 +221,9 @@ export function Chip({
   return (
     <Pressable
       onPress={onPress}
-      accessibilityRole="togglebutton"
-      accessibilityState={{ checked: !!selected, selected: !!selected }}
+      // Native: a toggle button ("on"/"off"). Web has no such role: a button with aria-pressed.
+      accessibilityRole={Platform.OS === 'web' ? 'button' : 'togglebutton'}
+      accessibilityState={Platform.OS === 'web' ? undefined : { checked: !!selected }}
       aria-pressed={!!selected}
       style={[
         styles.chip,
@@ -247,7 +249,7 @@ export function Pill({ label, tone = 'plain', icon }: { label: string; tone?: 'p
   return (
     <View style={[styles.pill, { backgroundColor: t.bg, borderColor: t.border, borderStyle: t.dashed ? 'dashed' : 'solid' }]}>
       {icon ? <Ionicons name={icon} size={13} color={t.fg} /> : null}
-      <Txt variant="small" color={t.fg} style={{ fontSize: 12.5 }}>
+      <Txt variant="small" color={t.fg} style={{ fontSize: 12.5, flexShrink: 1 }}>
         {label}
       </Txt>
     </View>
@@ -292,7 +294,8 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            style={[styles.segmentItem, on && [styles.segmentOn, { backgroundColor: colors.surface }]]}>
+            aria-selected={on}
+            style={[styles.segmentItem, on && [styles.segmentOn, { backgroundColor: colors.surface, borderColor: colors.outline === 'transparent' ? colors.surface : colors.outline }]]}>
             <Txt variant="smallBold" color={on ? colors.text : colors.muted}>
               {o.label}
             </Txt>
@@ -314,7 +317,7 @@ export function Field({ label, hint, ...input }: TextInputProps & { label: strin
         {...input}
         style={[
           styles.input,
-          { borderColor: colors.outline === 'transparent' ? colors.sunk : colors.outline, backgroundColor: colors.sunk, color: colors.text, fontSize: 16 * textScale },
+          { borderColor: colors.field, backgroundColor: colors.surface, color: colors.text, fontSize: 16 * textScale },
           input.multiline && { minHeight: 96, textAlignVertical: 'top' },
           input.style,
         ]}
@@ -340,8 +343,15 @@ export function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   const { colors } = useSettings();
+  // The whole row is one big switch: easier to hit, and read as a single control.
   return (
-    <View style={[styles.toggle, { backgroundColor: colors.sunk, borderColor: colors.outline }]}>
+    <Pressable
+      onPress={() => onChange(!value)}
+      accessibilityRole="switch"
+      accessibilityState={{ checked: value }}
+      aria-checked={value}
+      accessibilityLabel={hint ? `${label}. ${hint}` : label}
+      style={({ pressed }) => [styles.toggle, { backgroundColor: colors.sunk, borderColor: colors.outline, opacity: pressed ? 0.85 : 1 }]}>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="bodyBold">{label}</Txt>
         {hint ? (
@@ -350,14 +360,10 @@ export function ToggleRow({
           </Txt>
         ) : null}
       </View>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        accessibilityLabel={label}
-        trackColor={{ true: colors.leaf, false: colors.line }}
-        thumbColor={value ? colors.onLeaf : undefined}
-      />
-    </View>
+      <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Switch value={value} trackColor={{ true: colors.leaf, false: colors.field }} thumbColor={value ? colors.onLeaf : undefined} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -373,13 +379,7 @@ export function Loading() {
   );
 }
 
-/** Turns raw network and database errors into something a member can act on. */
-export function friendlyError(message: string) {
-  if (/JSON object requested|multiple \(or no\) rows|PGRST116/i.test(message)) return 'We couldn’t find that. It may have been removed or is no longer public.';
-  if (/Failed to fetch|Network request failed|NetworkError|Load failed|timed? ?out/i.test(message)) return 'You’re offline or the connection dropped. Try again when you have signal.';
-  if (/JWT|not authorized|permission denied|row-level security/i.test(message)) return 'You don’t have access to this. Try signing in again.';
-  return message;
-}
+export { friendlyError } from '@/lib/errors';
 
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   const { colors, t } = useSettings();
@@ -390,7 +390,7 @@ export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () 
       </Txt>
       <Row>
         {onRetry ? <Button small kind="ghost" label={t('tryAgain')} onPress={onRetry} /> : null}
-        <Button small kind="ghost" label="Go to Discover" onPress={() => router.replace('/')} />
+        <Button small kind="ghost" label={t('goDiscover')} onPress={() => router.replace('/')} />
       </Row>
     </View>
   );
@@ -454,9 +454,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     alignSelf: 'flex-start',
+    maxWidth: '100%',
   },
   segment: { flexDirection: 'row', borderRadius: Radius.pill, padding: 3, alignSelf: 'flex-start', borderWidth: 1, maxWidth: '100%' },
-  segmentItem: { minHeight: 40, paddingHorizontal: 14, justifyContent: 'center', borderRadius: Radius.pill, flexShrink: 1 },
+  segmentItem: { minHeight: TapTarget, paddingHorizontal: 14, justifyContent: 'center', borderRadius: Radius.pill, flexShrink: 1, borderWidth: 2, borderColor: 'transparent' },
   segmentOn: { shadowColor: '#0b2a1b', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, minHeight: TapTarget + 4 },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderRadius: Radius.lg, padding: 16, borderWidth: 1 },

@@ -46,6 +46,26 @@ export default function Settings() {
           <Txt variant="bodyBold">{s.t('textSize')}</Txt>
           <Txt variant="mono">{Math.round(s.textScale * 100)}%</Txt>
         </Row>
+        {/* Buttons work for everyone (including screen readers and keyboards); the slider is a shortcut on phones. */}
+        <Row>
+          <Button
+            small
+            kind="ghost"
+            label="A−"
+            accessibilityLabel={`${s.t('smallerText')}, ${Math.round(s.textScale * 100)}%`}
+            disabled={s.textScale <= 1}
+            onPress={() => s.update({ textScale: Math.max(1, Math.round((s.textScale - 0.1) * 10) / 10) })}
+          />
+          <Button
+            small
+            kind="ghost"
+            label="A+"
+            accessibilityLabel={`${s.t('largerText')}, ${Math.round(s.textScale * 100)}%`}
+            disabled={s.textScale >= 1.6}
+            onPress={() => s.update({ textScale: Math.min(1.6, Math.round((s.textScale + 0.1) * 10) / 10) })}
+          />
+        </Row>
+        {Platform.OS !== 'web' ? (
         <Slider
           minimumValue={1}
           maximumValue={1.6}
@@ -59,13 +79,14 @@ export default function Settings() {
           accessibilityValue={{ min: 100, max: 160, now: Math.round(s.textScale * 100), text: `${Math.round(s.textScale * 100)}%` }}
           style={{ height: 44 }}
         />
+        ) : null}
         <Txt variant="small" muted>
           This works on top of your phone’s own text size setting.
         </Txt>
       </Card>
 
-      <ToggleRow label={s.t('highContrast')} hint="Black and white text, stronger borders." value={s.highContrast} onChange={(v) => s.update({ highContrast: v })} />
-      <ToggleRow label={s.t('reduceMotion')} hint="Turns off sliding and fading between screens." value={s.reduceMotion} onChange={(v) => s.update({ reduceMotion: v })} />
+      <ToggleRow label={s.t('highContrast')} hint={s.t('highContrastHint')} value={s.highContrast} onChange={(v) => s.update({ highContrast: v })} />
+      <ToggleRow label={s.t('reduceMotion')} hint={s.t('reduceMotionHint')} value={s.reduceMotion} onChange={(v) => s.update({ reduceMotion: v })} />
       <ToggleRow label={s.t('saveData')} hint={s.t('saveDataHint')} value={s.saveData} onChange={(v) => s.update({ saveData: v })} />
 
       <View style={{ gap: Space.sm }}>
@@ -83,7 +104,7 @@ export default function Settings() {
       {session ? <NotificationPrefs userId={session.user.id} /> : null}
 
       <Txt variant="label" style={{ marginTop: Space.md }}>
-        Account
+        {s.t('account')}
       </Txt>
       {session ? (
         <Card>
@@ -143,7 +164,8 @@ function NotificationPrefs({ userId }: { userId: string }) {
 
   const save = async (patch: Partial<ContactPrefs>) => {
     prefs.setData({ ...p, ...patch });
-    const { error } = await supabase.from('contact_prefs').update(patch).eq('user_id', userId);
+    const { phone_verified_at: _localOnly, ...serverPatch } = patch;
+    const { error } = await supabase.from('contact_prefs').update(serverPatch).eq('user_id', userId);
     if (error) {
       showAlert('Not saved', error.message);
       prefs.reload();
@@ -165,7 +187,14 @@ function NotificationPrefs({ userId }: { userId: string }) {
     if (!e164) return showAlert('Check the number', 'Use a 10-digit US number, or include the country code.');
     setPhone(e164);
     setCodeSent(false);
-    save({ phone: e164 });
+    // A new number is unconfirmed until proven; reflect that right away, then reload what the server holds.
+    if (e164 !== p.phone) save({ phone: e164, phone_verified_at: null }).then(() => prefs.reload());
+  };
+
+  const removePhone = () => {
+    setPhone('');
+    setCodeSent(false);
+    save({ phone: null, sms_opt_in: false, phone_verified_at: null }).then(() => prefs.reload());
   };
 
   // Prove the number before any texts go to it, so nobody can sign up with someone else's phone.
@@ -204,10 +233,13 @@ function NotificationPrefs({ userId }: { userId: string }) {
         </Txt>
         <Row>
           <View style={{ flex: 1, minWidth: 180 }}>
-            <Field label="Mobile number" value={phoneValue} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="337 555 0100" />
+            <Field label={t('mobileNumber')} value={phoneValue} onChangeText={setPhone} keyboardType="phone-pad" autoComplete="tel" placeholder="337 555 0100" />
           </View>
-          <Button small kind="ghost" label="Save number" onPress={savePhone} style={{ alignSelf: 'flex-end' }} />
+          <Button small kind="ghost" label={t('saveNumber')} onPress={savePhone} style={{ alignSelf: 'flex-end' }} />
         </Row>
+        {p.phone ? (
+          <Button small kind="ghost" label={t('removeNumber')} icon="close-circle-outline" onPress={removePhone} style={{ alignSelf: 'flex-start' }} />
+        ) : null}
         {p.phone && p.phone_verified_at && phoneValue === p.phone ? (
           <Txt variant="smallBold" color={colors.leaf}>
             {t('numberConfirmed')}
@@ -215,35 +247,43 @@ function NotificationPrefs({ userId }: { userId: string }) {
         ) : p.phone && phoneValue === p.phone ? (
           <View style={{ gap: Space.sm }}>
             <Txt variant="small" muted>
-              {t('confirmNumber')}: we’ll text a 6-digit code to {p.phone}.
+              {t('confirmNumber')}. {t('codeWillBeSent')} {p.phone}.
             </Txt>
             {!codeSent ? (
               <Button small label={t('sendCode')} icon="chatbubble-ellipses-outline" busy={busy} onPress={sendCode} style={{ alignSelf: 'flex-start' }} />
             ) : (
               <Row>
                 <View style={{ flex: 1, minWidth: 140 }}>
-                  <Field label={t('enterCode')} value={code} onChangeText={setCode} keyboardType="number-pad" autoComplete="sms-otp" maxLength={6} />
+                  <Field
+                    label={t('enterCode')}
+                    value={code}
+                    onChangeText={(v) => setCode(v.replace(/\D/g, ''))}
+                    keyboardType="number-pad"
+                    autoComplete="one-time-code"
+                    textContentType="oneTimeCode"
+                    maxLength={6}
+                  />
                 </View>
-                <Button small label="Confirm" busy={busy} disabled={code.trim().length !== 6} onPress={confirmCode} style={{ alignSelf: 'flex-end' }} />
+                <Button small label={t('confirm')} busy={busy} disabled={!/^\d{6}$/.test(code)} onPress={confirmCode} style={{ alignSelf: 'flex-end' }} />
               </Row>
             )}
           </View>
         ) : null}
         <ToggleRow
-          label="Send me texts"
-          hint={p.phone_verified_at ? undefined : 'Texts start once your number is confirmed.'}
+          label={t('sendMeTexts')}
+          hint={p.phone_verified_at ? undefined : t('textsStartHint')}
           value={p.sms_opt_in}
           onChange={(v) => (v && !p.phone ? showAlert('Add your number first') : save({ sms_opt_in: v }))}
         />
       </Card>
       <Txt variant="smallBold" style={{ marginTop: Space.sm }}>
-        Tell me about
+        {t('tellMeAbout')}
       </Txt>
-      <ToggleRow label="Messages and inquiries" value={p.notify_messages} onChange={(v) => save({ notify_messages: v })} />
-      <ToggleRow label="Farms I follow and near-me alerts" value={p.notify_follows} onChange={(v) => save({ notify_follows: v })} />
-      <ToggleRow label="Event reminders" value={p.notify_events} onChange={(v) => save({ notify_events: v })} />
-      <ToggleRow label="Program deadlines" value={p.notify_deadlines} onChange={(v) => save({ notify_deadlines: v })} />
-      <ToggleRow label="Announcements from BFI" value={p.notify_broadcasts} onChange={(v) => save({ notify_broadcasts: v })} />
+      <ToggleRow label={t('notifyMessages')} value={p.notify_messages} onChange={(v) => save({ notify_messages: v })} />
+      <ToggleRow label={t('notifyFollows')} value={p.notify_follows} onChange={(v) => save({ notify_follows: v })} />
+      <ToggleRow label={t('notifyEvents')} value={p.notify_events} onChange={(v) => save({ notify_events: v })} />
+      <ToggleRow label={t('notifyDeadlines')} value={p.notify_deadlines} onChange={(v) => save({ notify_deadlines: v })} />
+      <ToggleRow label={t('notifyBroadcasts')} value={p.notify_broadcasts} onChange={(v) => save({ notify_broadcasts: v })} />
       <Txt variant="small" muted>
         Everything also appears in your notifications inbox, whichever channels you choose.
       </Txt>

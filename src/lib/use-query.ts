@@ -4,6 +4,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 const CACHE_PREFIX = 'the-index/cache/';
 
+// Bumped whenever saved data is cleared (sign-out, account switch): requests that started before
+// can't save or show their results afterwards.
+let generation = 0;
+
 /**
  * Small data hook: runs `fetcher` on first focus, when `deps` change and whenever the screen regains focus.
  * Keeps the last good data while reloading so screens don't flash empty.
@@ -28,15 +32,15 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
     keyRef.current = key;
   });
 
-  // A new key (new filter, new account) starts clean, then shows its own saved copy while loading.
+  // A new key (a new filter) keeps the old results on screen while loading, so lists and maps don't jump,
+  // and swaps in the new key's saved copy if there is one.
   const prevKey = useRef(key);
   useEffect(() => {
     if (prevKey.current !== key) {
       prevKey.current = key;
       fresh.current = false;
-      setData(undefined);
-      setCachedAt(null);
       setError(null);
+      setCachedAt(null); // the old results on screen aren't a saved copy of the new filter
     }
     if (!key) return;
     let active = true;
@@ -56,17 +60,18 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
   const load = useCallback(async () => {
     const id = ++latest.current;
     const forKey = keyRef.current;
+    const gen = generation;
     setLoading(true);
     try {
       const result = await fetcherRef.current();
-      if (id !== latest.current) return;
+      if (id !== latest.current || gen !== generation) return;
       fresh.current = true;
       setData(result);
       setError(null);
       setCachedAt(null);
       if (forKey) AsyncStorage.setItem(forKey, JSON.stringify({ at: new Date().toISOString(), value: result })).catch(() => {});
     } catch (e) {
-      if (id !== latest.current) return;
+      if (id !== latest.current || gen !== generation) return;
       setError(e instanceof Error ? e.message : 'Something went wrong. Check your connection and try again.');
     } finally {
       if (id === latest.current) setLoading(false);
@@ -91,6 +96,7 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
   );
 
   // A failed refresh with a saved copy on screen isn't an error worth shouting about: the screen says it's a saved copy.
+  // (cachedAt is cleared when the filter changes, so old results from a previous filter don't count and its error shows.)
   const visibleError = error && data !== undefined && cachedAt ? null : error;
 
   // cachedAt is set while the screen shows the phone's saved copy: before the first refresh lands, or after it failed.
@@ -99,6 +105,7 @@ export function useQuery<T>(fetcher: () => Promise<T>, deps: unknown[] = [], opt
 
 /** Forget every saved copy, so the next person to sign in on this phone never sees the last one's data. */
 export async function clearQueryCache() {
+  generation++;
   try {
     const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(CACHE_PREFIX));
     if (keys.length) await AsyncStorage.multiRemove(keys);

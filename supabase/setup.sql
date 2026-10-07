@@ -1889,6 +1889,17 @@ create policy "update check-in answer" on public.checkin_responses for update to
 -- ---------------------------------------------------------------------------
 alter table public.contact_prefs add column phone_verified_at timestamptz;
 
+-- Compare whole numbers, not just the last 10 digits (a +91 number shouldn't match a +1 one).
+-- A bare 10-digit number is taken as North American (+1).
+create or replace function public.phone_key(p text)
+returns text
+language sql
+immutable
+as $$
+  select case when length(d) = 10 then '1' || d else d end
+  from (select regexp_replace(coalesce(p, ''), '\D', '', 'g') as d) x;
+$$;
+
 -- Members can change their number and switches, but never the verified stamp or the clock.
 create or replace function public.guard_contact_prefs()
 returns trigger
@@ -1903,6 +1914,7 @@ begin
     new.phone_verified_at := null;
   elsif public.phone_key(new.phone) is distinct from public.phone_key(old.phone) then
     new.phone_verified_at := null; -- a new number has to be proven again
+    delete from public.phone_codes where user_id = new.user_id; -- and any code sent to the old one is void
   else
     new.phone_verified_at := old.phone_verified_at;
   end if;
@@ -1931,8 +1943,17 @@ create table public.phone_codes (
 );
 alter table public.phone_codes enable row level security; -- no policies: functions only
 
--- A delivery can carry its own text (for codes), never stored where members can read it.
-alter table public.notification_deliveries add column body_override text;
+-- A delivery can carry its own text and destination (for codes), never stored where members can read it.
+-- The code goes to the number it was issued for, whatever the account says by the time it's sent.
+alter table public.notification_deliveries add column body_override text, add column to_phone text;
+
+-- Codes sent per number, across all accounts, so nobody can flood a phone (or run up the bill).
+create table public.phone_code_log (
+  phone_key text not null,
+  sent_at timestamptz not null default now()
+);
+create index phone_code_log_idx on public.phone_code_log (phone_key, sent_at);
+alter table public.phone_code_log enable row level security; -- no policies: functions only
 
 -- Text a 6-digit code to the member's number. At most 5 codes an hour.
 create or replace function public.request_phone_code()
@@ -1944,7 +1965,8 @@ as $$
 declare
   v_uid uuid := auth.uid();
   v_phone text;
-  v_code text := lpad((floor(random() * 1000000))::int::text, 6, '0');
+  -- gen_random_uuid() draws from a strong random source.
+  v_code text := lpad(((('x' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 8))::bit(32)::bigint) % 1000000)::text, 6, '0');
   v_prev public.phone_codes;
   v_note uuid;
 begin
@@ -1962,6 +1984,10 @@ begin
   if v_prev.user_id is not null and v_prev.window_start > now() - interval '1 hour' and v_prev.sent_count >= 5 then
     raise exception 'Too many codes. Try again in an hour.';
   end if;
+  if (select count(*) from public.phone_code_log where phone_key = public.phone_key(v_phone) and sent_at > now() - interval '1 hour') >= 3 then
+    raise exception 'Too many codes have gone to that number. Try again in an hour.';
+  end if;
+  insert into public.phone_code_log (phone_key) values (public.phone_key(v_phone));
 
   insert into public.phone_codes (user_id, phone, code_hash, expires_at)
   values (v_uid, v_phone, md5(v_code || v_uid::text), now() + interval '15 minutes')
@@ -1977,8 +2003,8 @@ begin
   insert into public.notifications (user_id, kind, title, body, data)
   values (v_uid, 'verify', 'Confirm your number', 'We texted a code to your phone.', '{"route": "/settings"}')
   returning id into v_note;
-  insert into public.notification_deliveries (notification_id, channel, body_override)
-  values (v_note, 'sms', 'Your code for The Index is ' || v_code || '. It expires in 15 minutes. If you didn''t ask for it, ignore this text.');
+  insert into public.notification_deliveries (notification_id, channel, body_override, to_phone)
+  values (v_note, 'sms', 'Your code for The Index is ' || v_code || '. It expires in 15 minutes. If you didn''t ask for it, ignore this text.', v_phone);
 end;
 $$;
 
@@ -2173,6 +2199,10 @@ begin
   new.hidden := false;
   new.via := 'app';
   new.transcript := null;
+  if new.kind <> 'inquiry' then
+    new.inquiry := null;
+    new.inquiry_status := null; -- only a real inquiry can carry "Farmer says: ready"
+  end if;
   return new;
 end;
 $$;
@@ -2213,9 +2243,9 @@ begin
     new.is_sample := old.is_sample;
     -- Changing what people see on an approved event sends it back to BFI.
     if old.status = 'approved' and (
-      new.title, new.description, new.type, new.starts_at, new.ends_at, new.place, new.ticket_url, new.ticket_label, new.host_name, new.host_farm_id
+      new.title, new.description, new.type, new.starts_at, new.ends_at, new.place, new.region_id, new.ticket_url, new.ticket_label, new.host_name, new.host_farm_id
     ) is distinct from (
-      old.title, old.description, old.type, old.starts_at, old.ends_at, old.place, old.ticket_url, old.ticket_label, old.host_name, old.host_farm_id
+      old.title, old.description, old.type, old.starts_at, old.ends_at, old.place, old.region_id, old.ticket_url, old.ticket_label, old.host_name, old.host_farm_id
     ) then
       new.status := 'pending';
     else
@@ -2227,12 +2257,39 @@ end;
 $$;
 
 alter table public.events add constraint events_ticket_url_https check (ticket_url is null or ticket_url ~ '^https://');
-alter table public.farms add constraint farms_website_http check (website is null or website ~* '^https?://');
+alter table public.farms add constraint farms_website_https check (website is null or website ~ '^https://');
+
+-- Members can't choose when their post was made or how long it stays up.
+create or replace function public.guard_post()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or public.is_staff() then return new; end if;
+  if tg_op = 'INSERT' then
+    new.created_at := now();
+  else
+    new.created_at := old.created_at;
+  end if;
+  new.expires_at := least(coalesce(new.expires_at, new.created_at + interval '45 days'), new.created_at + interval '45 days');
+  return new;
+end;
+$$;
+
+create trigger posts_guard
+  before insert or update on public.posts
+  for each row execute function public.guard_post();
+
+drop policy "authors delete posts" on public.posts;
+create policy "authors delete posts" on public.posts for delete to authenticated
+  using ((author_id = auth.uid() and status <> 'hidden') or public.is_staff());
 
 drop policy "authors and staff edit posts" on public.posts;
 create policy "authors and staff edit posts" on public.posts for update to authenticated
   using ((author_id = auth.uid() and status <> 'hidden') or public.is_staff())
-  with check ((author_id = auth.uid() and status in ('open', 'closed') and expires_at <= created_at + interval '46 days') or public.is_staff());
+  with check ((author_id = auth.uid() and status in ('open', 'closed')) or public.is_staff());
 
 -- ---------------------------------------------------------------------------
 -- 5. Near-me alerts: match words literally (a product named "%" used to match every alert).
@@ -2384,6 +2441,12 @@ begin
     new.verified_by := old.verified_by;
     new.is_sample := old.is_sample;
     new.owner_id := old.owner_id;
+    -- A new name or new links on a verified farm go back to BFI before they show
+    -- (everyday edits like what's fresh, the story or harvest mode don't).
+    if old.status = 'approved' and (new.name, new.website, new.order_url) is distinct from (old.name, old.website, old.order_url) then
+      new.status := 'pending';
+      new.verified_at := null;
+    end if;
   end if;
   new.updated_at := now();
   return new;
@@ -2405,8 +2468,12 @@ security definer
 set search_path = public
 as $$
 begin
-  -- A run that died mid-send leaves rows "sending"; after 10 minutes they're tried again.
-  update public.notification_deliveries set status = 'pending'
+  -- A run that died mid-send leaves rows "sending". After 10 minutes they count as a failed try,
+  -- and after three tries they stop, so one bad message can't loop forever.
+  update public.notification_deliveries
+  set attempts = attempts + 1,
+      status = case when attempts + 1 >= 3 then 'failed' else 'pending' end,
+      last_error = coalesce(last_error, 'interrupted while sending')
   where status = 'sending' and claimed_at < now() - interval '10 minutes';
   return query
   update public.notification_deliveries d set status = 'sending', claimed_at = now()

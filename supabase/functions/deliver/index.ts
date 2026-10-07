@@ -16,6 +16,7 @@ type Delivery = {
   channel: 'push' | 'sms' | 'email';
   attempts: number;
   body_override: string | null;
+  to_phone: string | null;
   notification: { id: string; user_id: string; kind: string; title: string; body: string; data: Record<string, unknown> };
 };
 
@@ -25,7 +26,7 @@ type Result = { id: string; ok: boolean; skip?: boolean; error?: string };
 export const isExpoToken = (t: unknown): t is string => typeof t === 'string' && /^Expo(nent)?PushToken\[[^\]]+\]$/.test(t);
 
 const MAX_ATTEMPTS = 3;
-const BATCH = 300;
+const BATCH = 100; // small enough to finish well inside the function's time limit
 
 Deno.serve(async (req) => {
   const secret = Deno.env.get('CRON_SECRET');
@@ -43,15 +44,34 @@ Deno.serve(async (req) => {
   // Claim a batch atomically, so an overlapping run can't send the same message twice.
   const { data: claimed, error: claimErr } = await db.rpc('claim_deliveries', { p_limit: BATCH });
   if (claimErr) return json({ error: 'Could not claim deliveries' }, 500);
-  const claimedRows = (claimed ?? []) as { id: string; channel: Delivery['channel']; attempts: number; body_override: string | null; notification_id: string }[];
+  const claimedRows = (claimed ?? []) as {
+    id: string;
+    channel: Delivery['channel'];
+    attempts: number;
+    body_override: string | null;
+    to_phone: string | null;
+    notification_id: string;
+  }[];
   const noteIds = [...new Set(claimedRows.map((d) => d.notification_id))];
-  const { data: notes } = noteIds.length
+  const { data: notes, error: notesErr } = noteIds.length
     ? await db.from('notifications').select('id, user_id, kind, title, body, data').in('id', noteIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (notesErr) {
+    // Hand the batch straight back rather than leaving it stuck until the 10-minute reset.
+    await db.from('notification_deliveries').update({ status: 'pending' }).in('id', claimedRows.map((d) => d.id));
+    return json({ error: 'Could not load notifications' }, 500);
+  }
   const notesById = new Map((notes ?? []).map((n) => [n.id as string, n as Delivery['notification']]));
   const deliveries: Delivery[] = claimedRows
     .filter((d) => notesById.has(d.notification_id))
-    .map((d) => ({ id: d.id, channel: d.channel, attempts: d.attempts, body_override: d.body_override, notification: notesById.get(d.notification_id)! }));
+    .map((d) => ({
+      id: d.id,
+      channel: d.channel,
+      attempts: d.attempts,
+      body_override: d.body_override,
+      to_phone: d.to_phone,
+      notification: notesById.get(d.notification_id)!,
+    }));
 
   const userIds = [...new Set(deliveries.map((d) => d.notification.user_id))];
   const { data: prefs } = userIds.length
@@ -66,10 +86,14 @@ Deno.serve(async (req) => {
     results.push(r);
     const attempts = (byId.get(r.id)?.attempts ?? 0) + 1;
     const status = r.ok ? 'sent' : r.skip ? 'skipped' : attempts >= MAX_ATTEMPTS ? 'failed' : 'pending';
-    await db
-      .from('notification_deliveries')
-      .update({ status, attempts, last_error: r.error?.slice(0, 500) ?? null, sent_at: r.ok ? new Date().toISOString() : null })
-      .eq('id', r.id);
+    const patch = { status, attempts, last_error: r.error?.slice(0, 500) ?? null, sent_at: r.ok ? new Date().toISOString() : null };
+    // If the write fails, try once more; a row left "sending" is retried only after the 10-minute reset,
+    // which counts it as an attempt, so a sent message can't loop.
+    for (let tryNo = 0; tryNo < 2; tryNo++) {
+      const { error } = await db.from('notification_deliveries').update(patch).eq('id', r.id);
+      if (!error) return;
+      console.error('could not record delivery', r.id, error.message);
+    }
   };
 
   // Push: Expo accepts up to 100 messages per request.
@@ -109,8 +133,11 @@ Deno.serve(async (req) => {
       for (let j = 0; j < sendable.length; j++) {
         const t = tickets[j];
         if (t?.status === 'ok') await record({ id: sendable[j].d.id, ok: true });
-        else if (!t) {
-          // No ticket came back for this one: we can't tell whether it went, so don't risk a duplicate.
+        else if (!t && !res.ok) {
+          // Expo was down or busy (5xx, 429): nothing was sent, so try again next run.
+          await record({ id: sendable[j].d.id, ok: false, error: `push service error (HTTP ${res.status})` });
+        } else if (!t) {
+          // A success response without this message's ticket: we can't tell whether it went, so don't risk a duplicate.
           await record({ id: sendable[j].d.id, ok: false, skip: true, error: `no ticket (HTTP ${res.status})` });
         } else {
           await record({ id: sendable[j].d.id, ok: false, error: t.message ?? `HTTP ${res.status}` });
@@ -131,7 +158,9 @@ Deno.serve(async (req) => {
   for (const d of deliveries.filter((x) => x.channel === 'sms')) {
     const p = prefsByUser.get(d.notification.user_id);
     // Codes go to the number being confirmed; everything else only to a proven, opted-in number.
-    const allowed = d.notification.kind === 'verify' ? !!p?.phone : !!(p?.sms_opt_in && p?.phone && p?.phone_verified_at);
+    const isCode = d.notification.kind === 'verify';
+    const to = isCode ? d.to_phone : (p?.phone as string | null | undefined);
+    const allowed = isCode ? !!d.to_phone : !!(p?.sms_opt_in && p?.phone && p?.phone_verified_at);
     if (!sid || !token || !from || !allowed) {
       await record({ id: d.id, ok: false, skip: true, error: 'sms not configured, not opted in or number not confirmed' });
       continue;
@@ -141,13 +170,19 @@ Deno.serve(async (req) => {
       const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
         method: 'POST',
         headers: { Authorization: 'Basic ' + btoa(`${sid}:${token}`), 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ To: p!.phone as string, From: from, Body: text }),
+        body: new URLSearchParams({ To: to as string, From: from, Body: text }),
       });
       if (res.ok) await record({ id: d.id, ok: true });
       else {
         const detail = await res.text();
+        let code: number | undefined;
+        try {
+          code = JSON.parse(detail)?.code;
+        } catch {
+          code = undefined;
+        }
         // 21610: the person texted STOP. Don't retry, and stop texting them.
-        if (detail.includes('21610')) {
+        if (code === 21610) {
           await db.from('contact_prefs').update({ sms_opt_in: false }).eq('user_id', d.notification.user_id);
           await record({ id: d.id, ok: false, skip: true, error: 'recipient opted out (STOP)' });
         } else await record({ id: d.id, ok: false, error: `Twilio ${res.status}: ${detail}` });

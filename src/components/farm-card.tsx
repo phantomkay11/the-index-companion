@@ -5,6 +5,7 @@ import { Icon as Ionicons } from '@/components/icon';
 import { Txt } from '@/components/ui';
 import { Credit, GlassChip, Photo, Scrim } from '@/components/visual';
 import { Radius } from '@/constants/theme';
+import { categoryLabel } from '@/lib/bfi';
 import { farmCover, photoUrl } from '@/lib/imagery';
 import { miles, type Point } from '@/lib/location';
 import type { Farm } from '@/lib/types';
@@ -68,7 +69,7 @@ export function FarmCard({ farm, here, compact }: { farm: Farm; here?: Point | n
             {farm.name}
           </Txt>
           <Txt variant="small" color="rgba(255,255,255,0.88)">
-            {[`${farm.city}, ${farm.state}`, kind, distance != null ? `${distance} mi` : null].filter(Boolean).join('  ·  ')}
+            {[`${farm.city}, ${farm.state}`, kind ? categoryLabel(kind, t) : null, distance != null ? `${distance} mi` : null].filter(Boolean).join('  ·  ')}
           </Txt>
         </View>
         <Credit picture={cover} style={{ top: 46, bottom: undefined, right: 12 }} />

@@ -68,7 +68,7 @@ export default function NotificationsScreen() {
       </Row>
       {list.error ? <ErrorNote message={list.error} onRetry={list.reload} /> : null}
       {!list.data && !list.error ? <Loading /> : null}
-      {list.data && !list.data.length ? <Empty>{t('noNotifications')}</Empty> : null}
+      {list.data && !list.data.length && !list.error ? <Empty>{t('noNotifications')}</Empty> : null}
       {list.data?.map((n) => (
         <Pressable
           key={n.id}

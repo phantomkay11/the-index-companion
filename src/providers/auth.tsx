@@ -12,6 +12,8 @@ type AuthContextValue = {
   myFarm: Farm | null;
   isStaff: boolean;
   ready: boolean;
+  /** Whether the member's profile and farm loaded: screens wait on 'loading' and offer a retry on 'error'. */
+  memberStatus: 'loading' | 'ready' | 'error';
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [myFarm, setMyFarm] = useState<Farm | null>(null);
   const [ready, setReady] = useState(false);
+  const [memberStatus, setMemberStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
   // Only the newest member load may land, so a slow answer for a previous account can't come back after sign-out.
   const latest = useRef(0);
@@ -31,21 +34,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!s) {
       setProfile(null);
       setMyFarm(null);
+      setMemberStatus('ready');
       return;
     }
-    const [{ data: p }, { data: f }] = await Promise.all([
+    setMemberStatus('loading');
+    const [{ data: p, error: pErr }, { data: f, error: fErr }] = await Promise.all([
       supabase.from('profiles').select('id, display_name, role, region_id, language').eq('id', s.user.id).maybeSingle(),
       supabase.from('farms').select('*, farm_products(*), farm_photos(*)').eq('owner_id', s.user.id).limit(1).maybeSingle(),
     ]);
     if (id !== latest.current) return;
+    // A failed load is not "no profile" or "no farm": keep what we had and let screens offer a retry.
+    if (pErr || fErr) {
+      setMemberStatus('error');
+      return;
+    }
     setProfile((p as Profile) ?? null);
     setMyFarm((f as Farm) ?? null);
+    setMemberStatus('ready');
   }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
-      await loadMember(data.session).catch(() => {});
+      await loadMember(data.session).catch(() => setMemberStatus('error'));
       setReady(true);
     });
     let lastUser: string | null | undefined;
@@ -56,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'TOKEN_REFRESHED' && uid === lastUser) return;
       if (lastUser && uid !== lastUser) clearQueryCache();
       lastUser = uid;
-      loadMember(s).catch(() => {});
+      loadMember(s).catch(() => setMemberStatus('error'));
     });
     return () => sub.subscription.unsubscribe();
   }, [loadMember]);
@@ -68,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       myFarm,
       isStaff: profile?.role === 'coordinator' || profile?.role === 'admin',
       ready,
+      memberStatus,
       refresh: async () => {
         const { data } = await supabase.auth.getSession();
         await loadMember(data.session);
@@ -77,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await clearQueryCache();
       },
     }),
-    [session, profile, myFarm, ready, loadMember],
+    [session, profile, myFarm, ready, memberStatus, loadMember],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

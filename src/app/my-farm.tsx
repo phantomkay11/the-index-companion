@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { StyleSheet, View } from 'react-native';
 
-import { Button, Card, Chip, Field, Pill, Row, Screen, SignInPrompt, ToggleRow, Txt, Verified } from '@/components/ui';
+import { Button, Card, Chip, ErrorNote, Field, Loading, Pill, Row, Screen, SignInPrompt, ToggleRow, Txt, Verified } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { CATEGORIES } from '@/lib/bfi';
 import { extensionOf, randomId, readBytes } from '@/lib/files';
@@ -18,8 +18,11 @@ import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
 
 export default function MyFarm() {
-  const { session, myFarm } = useAuth();
+  const { session, myFarm, memberStatus, refresh } = useAuth();
   if (!session) return <Screen><SignInPrompt /></Screen>;
+  // Never offer "list your farm" just because the farm didn't load: that would invite a duplicate listing.
+  if (memberStatus === 'loading' && !myFarm) return <Screen><Loading /></Screen>;
+  if (memberStatus === 'error' && !myFarm) return <Screen><ErrorNote message="Failed to fetch" onRetry={refresh} /></Screen>;
   return myFarm ? <ManageFarm /> : <ListFarm />;
 }
 

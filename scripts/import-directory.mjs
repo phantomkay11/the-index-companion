@@ -145,15 +145,17 @@ for (const { farm, products, line } of farms) {
     continue;
   }
   let id = existing?.id;
+  const locked = !!existing && (!!existing.owner_id || existing.status === 'rejected');
+  if (locked) {
+    console.log(`Row ${line}: ${farm.name} is claimed or was turned down; left as is.`);
+    continue;
+  }
   if (id) {
     // Re-importing never undoes BFI's review or a farmer's own edits: once a farmer has claimed a listing
-    // or staff rejected it, only fill in what's missing.
+    // or staff rejected it, the import leaves it (and its products) alone.
     const patch = { ...farm };
     delete patch.status;
     delete patch.verified_at;
-    if (existing.owner_id || existing.status === 'rejected') {
-      for (const k of Object.keys(patch)) if (!['name', 'city', 'state'].includes(k)) delete patch[k];
-    }
     const { error } = await db.from('farms').update(patch).eq('id', id);
     if (error) {
       console.error(`Row ${line}: ${error.message}`);
@@ -170,7 +172,10 @@ for (const { farm, products, line } of farms) {
     created++;
   }
   if (products.length) {
-    await db.from('farm_products').upsert(products.map((name) => ({ farm_id: id, name, in_season: true })), { onConflict: 'farm_id,name' });
+    const { error } = await db
+      .from('farm_products')
+      .upsert(products.map((name) => ({ farm_id: id, name, in_season: true })), { onConflict: 'farm_id,name' });
+    if (error) console.error(`Row ${line}: products not saved (${error.message}).`);
   }
 }
 console.log(`Done: ${created} added, ${updated} updated.`);

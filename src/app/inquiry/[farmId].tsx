@@ -29,12 +29,16 @@ export default function Inquiry() {
   // Default to the first product in season and the farm's first way to buy.
   const product = productChoice || products[0] || '';
   // Farms that list no way to buy still get inquiries: the farmer says how in the reply.
-  const howOptions = f.how_to_buy.length ? f.how_to_buy : ['Message me to arrange'];
+  const howOptions = f.how_to_buy.length ? f.how_to_buy : [t('messageToArrange')];
   const how = howChoice || howOptions[0];
 
-  // A real calendar date, today or later.
+  // A real calendar date, from today (on this phone's calendar) up to a year ahead.
+  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T12:00:00`) : null;
-  const dateOk = !!parsed && !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date && date >= new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = ymd(now);
+  const inAYear = ymd(new Date(now.getFullYear() + 1, now.getMonth(), now.getDate() + 1));
+  const dateOk = !!parsed && !Number.isNaN(parsed.getTime()) && ymd(parsed) === date && date >= today && date <= inAYear;
   const valid = product.trim() && amount.trim() && dateOk && how.trim();
 
   const submit = async () => {
@@ -58,7 +62,7 @@ export default function Inquiry() {
     <Screen>
       <View style={{ gap: 4 }}>
         <Txt variant="label">To {f.name}</Txt>
-        <Txt muted>A short, structured request the farmer can answer in one tap.</Txt>
+        <Txt muted>{t('inquiryIntro')}</Txt>
       </View>
 
       <View style={{ gap: Space.sm }}>
@@ -71,14 +75,14 @@ export default function Inquiry() {
         {!products.length ? <Field label="What are you looking for?" value={product} onChangeText={setProduct} maxLength={80} /> : null}
       </View>
 
-      <Field label={t('amount')} value={amount} onChangeText={setAmount} placeholder="For example: 2 lb, 6 jars, 10 bunches" maxLength={80} />
+      <Field label={t('amount')} value={amount} onChangeText={setAmount} placeholder={t('amountPlaceholder')} maxLength={80} />
       <Field
         label={`${t('when')} (year-month-day)`}
         value={date}
         onChangeText={setDate}
         placeholder="2026-10-10"
         keyboardType="numbers-and-punctuation"
-        hint={date && !dateOk ? 'Use a real date from today on, like 2026-10-10.' : undefined}
+        hint={date && !dateOk ? `${t('dateHint')} ${today}.` : undefined}
       />
 
       <View style={{ gap: Space.sm }}>
@@ -90,8 +94,8 @@ export default function Inquiry() {
         </Row>
       </View>
 
-      <Field label={t('noteOptional')} value={note} onChangeText={setNote} placeholder="Anything the farmer should know" multiline maxLength={500} />
-      <Button label="Send inquiry" icon="send" onPress={submit} busy={busy} disabled={!valid} />
+      <Field label={t('noteOptional')} value={note} onChangeText={setNote} placeholder={t('notePlaceholder')} multiline maxLength={500} />
+      <Button label={t('sendInquiry')} icon="send" onPress={submit} busy={busy} disabled={!valid} />
     </Screen>
   );
 }

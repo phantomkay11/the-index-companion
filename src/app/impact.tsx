@@ -1,6 +1,6 @@
 import { Share, StyleSheet, View } from 'react-native';
 
-import { Button, Card, Empty, ErrorNote, Loading, Row, Screen, Txt } from '@/components/ui';
+import { Button, Card, ErrorNote, Loading, Row, Screen, Txt } from '@/components/ui';
 import { Radius, Space } from '@/constants/theme';
 import { shortDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -8,6 +8,7 @@ import { must, useQuery } from '@/lib/use-query';
 import { useAuth } from '@/providers/auth';
 import { useSettings } from '@/providers/settings';
 import { showAlert } from '@/lib/alert';
+import { StaffOnly } from '@/components/staff-only';
 
 type Impact = Record<string, number | string> & { generated_at: string; farms_by_region: Record<string, number> };
 
@@ -57,7 +58,7 @@ export default function ImpactScreen() {
   const { isStaff } = useAuth();
   const q = useQuery(async () => must(await supabase.rpc('impact_stats')) as Impact, [isStaff]);
 
-  if (!isStaff) return <Screen><Empty>Only BFI staff can see the impact report.</Empty></Screen>;
+  if (!isStaff) return <StaffOnly>Only BFI staff can see the impact report.</StaffOnly>;
   if (q.error) return <Screen><ErrorNote message={q.error} onRetry={q.reload} /></Screen>;
   if (!q.data) return <Screen><Loading /></Screen>;
   const d = q.data;

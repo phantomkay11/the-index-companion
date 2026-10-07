@@ -12,7 +12,7 @@ import { PlacePicker } from '@/components/place-picker';
 import { Button, Card, Chip, Empty, ErrorNote, Grid, Loading, Pill, Row, Screen, Segmented, Txt } from '@/components/ui';
 import { GradientBand, Photo, Scrim, useLightStatusBar } from '@/components/visual';
 import { Fonts, Radius, Space } from '@/constants/theme';
-import { BFI, CATEGORIES } from '@/lib/bfi';
+import { BFI, CATEGORIES, categoryLabel, regionLabel } from '@/lib/bfi';
 import { useLayout } from '@/lib/layout';
 import { categoryImage, sectionImage } from '@/lib/imagery';
 import { locate, miles, setHere, useHere } from '@/lib/location';
@@ -82,13 +82,17 @@ export default function Discover() {
 
   const hero = (
     <View>
-      <Photo picture={heroPic} style={{ height: isTablet ? 440 : 470 + insets.top }}>
+      <Photo picture={heroPic} style={{ height: (isTablet ? 440 : 470) * Math.max(1, textScale * 0.85) + insets.top }}>
         <Scrim from={0.2} top />
         <View style={[styles.heroCopy, isTablet && styles.heroCopyTablet]}>
           <Txt variant="smallBold" color="rgba(255,255,255,0.92)">
             {t('fromBfiIndex')}
           </Txt>
-          <Txt variant="hero" color="#ffffff" accessibilityRole="header" style={isTablet ? { fontSize: 46, lineHeight: 50 } : undefined}>
+          <Txt
+            variant="hero"
+            color="#ffffff"
+            accessibilityRole="header"
+            style={isTablet ? { fontSize: 46, lineHeight: 50 } : width < 380 ? { fontSize: 28, lineHeight: 32 } : undefined}>
             {t('heroTitle')}
           </Txt>
           <Txt color="rgba(255,255,255,0.9)">{t('heroSub')}</Txt>
@@ -159,7 +163,7 @@ export default function Discover() {
                 onPress={() => setCategory(on ? null : c.id)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={c.id}
+                accessibilityLabel={t(c.label)}
                 style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1, marginLeft: 4 }]}>
                 <Photo
                   picture={categoryImage(c.id)}
@@ -172,7 +176,7 @@ export default function Discover() {
                     </View>
                   ) : null}
                   <Txt variant="heading" color="#ffffff" style={styles.tileLabel}>
-                    {c.id}
+                    {t(c.label)}
                   </Txt>
                 </Photo>
               </Pressable>
@@ -185,7 +189,7 @@ export default function Discover() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           <Chip label={t('allRegions')} selected={region === 'all'} onPress={() => setRegion('all')} />
           {(regions.data ?? []).map((r) => (
-            <Chip key={r.id} label={r.id === 'intl' ? 'International' : `Region ${r.id}`} selected={region === r.id} onPress={() => setRegion(r.id)} />
+            <Chip key={r.id} label={regionLabel(r.id, t)} selected={region === r.id} onPress={() => setRegion(r.id)} />
           ))}
         </ScrollView>
         {selectedRegion && selectedRegion.states.length ? (
@@ -204,7 +208,7 @@ export default function Discover() {
               {visible.length} {visible.length === 1 ? 'grower' : 'growers'}
             </Txt>
             <Txt variant="small" muted>
-              {here ? `Nearest first, from ${here.label ?? 'your location'}` : category ?? 'Verified by BFI, newest first'}
+              {here ? `Nearest first, from ${here.label ?? 'your location'}` : category ? categoryLabel(category, t) : 'Verified by BFI, newest first'}
             </Txt>
             <SavedCopyNote at={farms.cachedAt} />
           </View>
@@ -264,7 +268,7 @@ export default function Discover() {
             </View>
           ))}
         </View>
-        <Button kind="inverse" label="About BFI" icon="information-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/about')} />
+        <Button kind="inverse" label={t('aboutBfi')} icon="information-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/about')} />
       </GradientBand>
 
       {!myFarm ? (

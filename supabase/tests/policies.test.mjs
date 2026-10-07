@@ -305,6 +305,10 @@ await expectFail('real farms cannot use linked photos', () => one(`insert into p
 await as(farmer);
 await one(`update public.farms set order_url = 'https://shop.example.com', order_label = 'Join our CSA' where id = $1`, [mine.id]);
 check('farmer sets an ordering link', (await one(`select order_label from public.farms where id = $1`, [mine.id]))[0].order_label === 'Join our CSA');
+await as(staff);
+check('a new ordering link goes to BFI for review first', (await one(`select status from public.farms where id = $1`, [mine.id]))[0].status === 'pending');
+await one(`select public.review_farm($1, 'approved')`, [mine.id]);
+await as(farmer);
 await expectFail('ordering link must be https', () => one(`update public.farms set order_url = 'javascript:alert(1)' where id = $1`, [mine.id]));
 
 // Two-way texting. The farmer was texted about the buyer's message; mark that text sent.
@@ -420,8 +424,8 @@ check('right code verifies the number', (await one(`select public.confirm_phone_
   && (await one(`select phone_verified_at from public.contact_prefs where user_id = $1`, [buyer]))[0].phone_verified_at !== null);
 await one(`update public.contact_prefs set phone = '+15555550188' where user_id = $1`, [buyer]);
 check('changing the number clears verification', (await one(`select phone_verified_at from public.contact_prefs where user_id = $1`, [buyer]))[0].phone_verified_at === null);
-for (let i = 0; i < 5; i++) await one(`select public.request_phone_code()`);
-await expectFail('codes are rate limited', () => one(`select public.request_phone_code()`));
+for (let i = 0; i < 3; i++) await one(`select public.request_phone_code()`);
+await expectFail('codes to one number are rate limited', () => one(`select public.request_phone_code()`));
 
 // "OK" in a normal reply is a reply, not a check-in answer.
 await svc();
@@ -490,12 +494,66 @@ await as(staff);
 await one(`insert into public.farms (name, city, state, region_id) values ('Staff Farm', 'Tyler', 'TX', '6')`);
 check('staff who list a farm own it', (await one(`select owner_id from public.farms where name = 'Staff Farm'`))[0].owner_id === staff);
 
+// Round 2: switching numbers while the code text waits can't confirm a stranger's number.
+const switcher = '77777777-7777-4777-8777-777777777777';
+await svc();
+await db.exec(`insert into auth.users (id, email) values ('${switcher}', 'switch@example.com')`);
+await as(switcher);
+await one(`update public.contact_prefs set phone = '+15555550123' where user_id = $1`, [switcher]); // the victim's number
+await one(`select public.request_phone_code()`);
+await svc();
+const dest = (await one(`select d.to_phone, d.body_override from public.notification_deliveries d join public.notifications n on n.id = d.notification_id where n.user_id = $1 and n.kind = 'verify'`, [switcher]))[0];
+check('a code is addressed to the number it was issued for', dest.to_phone === '+15555550123');
+const stolen = dest.body_override.match(/\d{6}/)[0];
+await as(switcher);
+await one(`update public.contact_prefs set phone = '+15555550999' where user_id = $1`, [switcher]); // their own phone
+await one(`update public.contact_prefs set phone = '+15555550123' where user_id = $1`, [switcher]); // and back
+await expectFail('a code dies when the number changes', () => one(`select public.confirm_phone_code($1)`, [stolen]));
+check('the stranger’s number stays unconfirmed', (await one(`select phone_verified_at from public.contact_prefs where user_id = $1`, [switcher]))[0].phone_verified_at === null);
+
+// Whole numbers: a +91 number no longer matches a +1 member with the same last 10 digits.
+await svc();
+check('foreign numbers with the same last 10 digits do not match', (await one(`select public.sms_inbound('+915555550100', 'SAFE') as r`))[0].r.handled === false);
+check('phone_key keeps the country code', (await one(`select public.phone_key('+44 5555550177') <> public.phone_key('+1 555 555 0177') as ok`))[0].ok === true);
+
+// Buyers can't fake "Farmer says: ready" on their own messages.
+await as(buyer);
+await one(`insert into public.messages (conversation_id, sender_id, body, inquiry_status) values ($1, $2, 'fake ready', 'ready')`, [conv, buyer]);
+check('only real inquiries carry an inquiry status', (await one(`select inquiry_status from public.messages where body = 'fake ready'`))[0].inquiry_status === null);
+
+// Posts can't be pinned to the top by choosing their dates.
+await as(farmer);
+await one(`insert into public.posts (kind, title, body, region_id, created_at, expires_at) values ('offer', 'Forever post', '', '6', '2099-01-01', '2099-02-01')`);
+const fp = (await one(`select created_at, expires_at from public.posts where title = 'Forever post'`))[0];
+check('posts keep a real creation date and at most 45 days', new Date(fp.created_at).getFullYear() < 2099 && new Date(fp.expires_at) <= new Date(Date.now() + 46 * 864e5));
+await as(staff);
+await one(`update public.posts set status = 'hidden' where title = 'Forever post'`);
+await as(farmer);
+await one(`delete from public.posts where title = 'Forever post'`);
+await as(staff);
+check('authors cannot delete a post staff hid', (await one(`select count(*)::int n from public.posts where title = 'Forever post'`))[0].n === 1);
+
+// A verified farm that changes its name or links goes back to BFI.
+await as(farmer);
+await one(`update public.farms set story = 'New story' where id = $1`, [mine.id]);
+check('everyday edits keep the farm live', (await one(`select status from public.farms where id = $1`, [mine.id]))[0].status === 'approved');
+await one(`update public.farms set website = 'https://phish.example' where id = $1`, [mine.id]);
+await as(staff);
+check('a new website sends the farm back to review', (await one(`select status from public.farms where id = $1`, [mine.id]))[0].status === 'pending');
+await one(`select public.review_farm($1, 'approved')`, [mine.id]);
+await as(farmer);
+await expectFail('websites must be https', () => one(`update public.farms set website = 'http://plain.example' where id = $1`, [mine.id]));
+
 // Deliveries are claimed once.
 await svc();
 await db.exec(`update public.notification_deliveries set status = 'pending'`);
 const first = (await one(`select count(*)::int n from public.claim_deliveries(1000)`))[0].n;
 const second = (await one(`select count(*)::int n from public.claim_deliveries(1000)`))[0].n;
 check('a second run cannot claim deliveries already being sent', first > 0 && second === 0);
+await db.exec(`update public.notification_deliveries set claimed_at = now() - interval '11 minutes', attempts = 2 where status = 'sending'`);
+await one(`select count(*) from public.claim_deliveries(0)`);
+check('deliveries stuck mid-send count as tries and stop after three', (await one(`select count(*)::int n from public.notification_deliveries where status = 'sending'`))[0].n === 0
+  && (await one(`select count(*)::int n from public.notification_deliveries where status = 'failed' and last_error is not null`))[0].n > 0);
 await as(buyer);
 await expectFail('members cannot claim deliveries', () => one(`select * from public.claim_deliveries(10)`));
 
