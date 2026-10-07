@@ -7,7 +7,7 @@ import { geocode, locate, setHere, useHere } from '@/lib/location';
 import { useSettings } from '@/providers/settings';
 
 /** Pick "where I am": phone location, or a typed town or ZIP for people who'd rather not share. */
-export function PlacePicker({ compact }: { compact?: boolean }) {
+export function PlacePicker({ compact, hideGps }: { compact?: boolean; hideGps?: boolean }) {
   const { t } = useSettings();
   const here = useHere();
   const [typing, setTyping] = useState(false);
@@ -48,7 +48,7 @@ export function PlacePicker({ compact }: { compact?: boolean }) {
   return (
     <View style={{ gap: Space.sm }}>
       <Row>
-        <Button small={compact} label={t('useMyLocation')} icon="locate-outline" busy={busy && !typing} onPress={useGps} />
+        {!hideGps ? <Button small={compact} label={t('useMyLocation')} icon="locate-outline" busy={busy && !typing} onPress={useGps} /> : null}
         {!typing ? <Button small={compact} kind="ghost" label="Enter a town or ZIP" onPress={() => setTyping(true)} /> : null}
       </Row>
       {typing ? (

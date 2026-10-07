@@ -2,6 +2,7 @@ import {
   AtkinsonHyperlegible_400Regular,
   AtkinsonHyperlegible_700Bold,
 } from '@expo-google-fonts/atkinson-hyperlegible';
+import { Figtree_600SemiBold, Figtree_700Bold, Figtree_800ExtraBold } from '@expo-google-fonts/figtree';
 import { IBMPlexMono_400Regular, IBMPlexMono_500Medium } from '@expo-google-fonts/ibm-plex-mono';
 import { YoungSerif_400Regular } from '@expo-google-fonts/young-serif';
 import { useFonts } from 'expo-font';
@@ -32,6 +33,9 @@ export default function RootLayout() {
     AtkinsonHyperlegible_400Regular,
     AtkinsonHyperlegible_700Bold,
     YoungSerif_400Regular,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
+    Figtree_800ExtraBold,
     IBMPlexMono_400Regular,
     IBMPlexMono_500Medium,
   });
@@ -73,7 +77,8 @@ function AppStack() {
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          headerTitleStyle: { fontFamily: Fonts.display },
+          headerTitleStyle: { fontFamily: Fonts.heading },
+          headerShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
           animation: reduceMotion ? 'none' : 'default',
           contentStyle: { backgroundColor: colors.background },

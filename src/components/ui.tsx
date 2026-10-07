@@ -26,15 +26,16 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 // Text
 // ---------------------------------------------------------------------------
 const VARIANTS = {
-  display: { fontFamily: Fonts.display, fontSize: 26, lineHeight: 31 },
-  title: { fontFamily: Fonts.display, fontSize: 21, lineHeight: 26 },
-  heading: { fontFamily: Fonts.bodyBold, fontSize: 17, lineHeight: 22 },
+  hero: { fontFamily: Fonts.hero, fontSize: 34, lineHeight: 38, letterSpacing: -0.6 },
+  display: { fontFamily: Fonts.hero, fontSize: 28, lineHeight: 33, letterSpacing: -0.4 },
+  title: { fontFamily: Fonts.display, fontSize: 21, lineHeight: 26, letterSpacing: -0.2 },
+  heading: { fontFamily: Fonts.heading, fontSize: 17, lineHeight: 22 },
   body: { fontFamily: Fonts.body, fontSize: 16, lineHeight: 23 },
   bodyBold: { fontFamily: Fonts.bodyBold, fontSize: 16, lineHeight: 23 },
   small: { fontFamily: Fonts.body, fontSize: 14, lineHeight: 20 },
   smallBold: { fontFamily: Fonts.bodyBold, fontSize: 14, lineHeight: 20 },
-  label: { fontFamily: Fonts.monoMedium, fontSize: 11.5, lineHeight: 16, letterSpacing: 0.8, textTransform: 'uppercase' },
-  mono: { fontFamily: Fonts.mono, fontSize: 13, lineHeight: 18 },
+  label: { fontFamily: Fonts.ui, fontSize: 14, lineHeight: 19 },
+  mono: { fontFamily: Fonts.body, fontSize: 13, lineHeight: 18 },
 } satisfies Record<string, TextStyle>;
 
 export type TxtVariant = keyof typeof VARIANTS;
@@ -76,11 +77,14 @@ export function Screen({
   scroll = true,
   width = 'reading',
   style,
+  hero,
 }: {
   children: ReactNode;
   scroll?: boolean;
   width?: 'reading' | 'wide' | 'full';
   style?: StyleProp<ViewStyle>;
+  /** Full-bleed content above the page column, edge to edge (a photo hero). */
+  hero?: ReactNode;
 }) {
   const { colors } = useSettings();
   const { isTablet } = useLayout();
@@ -88,11 +92,9 @@ export function Screen({
     isTablet && width !== 'full' ? { width: '100%', maxWidth: width === 'wide' ? 1180 : 760, alignSelf: 'center' } : null;
   if (!scroll) return <View style={[{ flex: 1, backgroundColor: colors.background }, style]}>{children}</View>;
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={[styles.screen, isTablet && styles.screenTablet, column, style]}
-      keyboardShouldPersistTaps="handled">
-      {children}
+    <ScrollView style={{ flex: 1, backgroundColor: colors.background }} keyboardShouldPersistTaps="handled">
+      {hero}
+      <View style={[styles.screen, isTablet && styles.screenTablet, column, style]}>{children}</View>
     </ScrollView>
   );
 }
@@ -126,11 +128,12 @@ export function Card({
   tone?: 'plain' | 'leaf' | 'soft' | 'sun';
 }) {
   const { colors } = useSettings();
+  // Tinted panels instead of outlined boxes.
   const toneStyle = {
-    plain: { backgroundColor: colors.surface, borderColor: colors.line },
-    leaf: { backgroundColor: colors.leaf, borderColor: colors.leaf },
-    soft: { backgroundColor: colors.leafSoft, borderColor: colors.leaf },
-    sun: { backgroundColor: colors.sunSoft, borderColor: colors.sunSoft },
+    plain: { backgroundColor: colors.sunk },
+    leaf: { backgroundColor: colors.leaf },
+    soft: { backgroundColor: colors.leafSoft },
+    sun: { backgroundColor: colors.sunSoft },
   }[tone];
   return <View style={[styles.card, toneStyle, style]}>{children}</View>;
 }
@@ -164,9 +167,10 @@ export function Button({
   style?: StyleProp<ViewStyle>;
 }) {
   const { colors } = useSettings();
-  const bg = kind === 'primary' ? colors.leaf : kind === 'inverse' ? colors.onLeaf : 'transparent';
-  const fg = kind === 'primary' ? colors.onLeaf : colors.leaf;
-  const border = kind === 'inverse' ? colors.onLeaf : colors.leaf;
+  // Primary: solid brand green. Ghost: a soft green tint (no outline). Inverse: white on photos and bands.
+  const bg = kind === 'primary' ? colors.leaf : kind === 'inverse' ? colors.onLeaf : colors.leafSoft;
+  const fg = kind === 'primary' ? colors.onLeaf : colors.forest;
+  const border = bg;
   return (
     <Pressable
       onPress={onPress}
@@ -207,10 +211,12 @@ export function Chip({
       accessibilityState={{ selected: !!selected }}
       style={[
         styles.chip,
-        { backgroundColor: selected ? colors.leafSoft : colors.surface, borderColor: selected ? colors.leaf : colors.line },
+        { backgroundColor: selected ? colors.forest : colors.sunk, borderColor: selected ? colors.forest : colors.sunk },
       ]}>
-      {icon ? <Ionicons name={icon} size={16} color={colors.leaf} /> : null}
-      <Txt variant={selected ? 'smallBold' : 'small'}>{label}</Txt>
+      {icon ? <Ionicons name={icon} size={16} color={selected ? colors.onLeaf : colors.leaf} /> : null}
+      <Txt variant="smallBold" color={selected ? colors.onLeaf : colors.text}>
+        {label}
+      </Txt>
     </Pressable>
   );
 }
@@ -218,7 +224,7 @@ export function Chip({
 export function Pill({ label, tone = 'plain', icon }: { label: string; tone?: 'plain' | 'leaf' | 'sun' | 'real' | 'sample'; icon?: IconName }) {
   const { colors } = useSettings();
   const t = {
-    plain: { bg: 'transparent', fg: colors.muted, border: colors.line, dashed: false },
+    plain: { bg: colors.sunk, fg: colors.muted, border: colors.sunk, dashed: false },
     leaf: { bg: colors.leafSoft, fg: colors.text, border: colors.leafSoft, dashed: false },
     sun: { bg: colors.sunSoft, fg: colors.onSun, border: colors.sunSoft, dashed: false },
     real: { bg: colors.realSoft, fg: colors.real, border: colors.realSoft, dashed: false },
@@ -263,7 +269,7 @@ export function Segmented<T extends string>({
 }) {
   const { colors } = useSettings();
   return (
-    <View style={[styles.segment, { borderColor: colors.line }]} accessibilityRole="tablist">
+    <View style={[styles.segment, { backgroundColor: colors.sunk }]} accessibilityRole="tablist">
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -272,8 +278,8 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.value)}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            style={[styles.segmentItem, { backgroundColor: on ? colors.text : colors.surface }]}>
-            <Txt variant={on ? 'smallBold' : 'small'} color={on ? colors.surface : colors.muted}>
+            style={[styles.segmentItem, on && [styles.segmentOn, { backgroundColor: colors.surface }]]}>
+            <Txt variant="smallBold" color={on ? colors.text : colors.muted}>
               {o.label}
             </Txt>
           </Pressable>
@@ -294,7 +300,7 @@ export function Field({ label, hint, ...input }: TextInputProps & { label: strin
         {...input}
         style={[
           styles.input,
-          { borderColor: colors.line, backgroundColor: colors.sunk, color: colors.text, fontSize: 16 * textScale },
+          { borderColor: colors.sunk, backgroundColor: colors.sunk, color: colors.text, fontSize: 16 * textScale },
           input.multiline && { minHeight: 96, textAlignVertical: 'top' },
           input.style,
         ]}
@@ -321,7 +327,7 @@ export function ToggleRow({
 }) {
   const { colors } = useSettings();
   return (
-    <View style={[styles.toggle, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+    <View style={[styles.toggle, { backgroundColor: colors.sunk }]}>
       <View style={{ flex: 1, gap: 2 }}>
         <Txt variant="bodyBold">{label}</Txt>
         {hint ? (
@@ -356,7 +362,7 @@ export function Loading() {
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   const { colors, t } = useSettings();
   return (
-    <View style={[styles.notice, { borderColor: colors.danger }]} accessibilityRole="alert">
+    <View style={[styles.notice, { borderWidth: 1, borderColor: colors.danger }]} accessibilityRole="alert">
       <Txt variant="small" color={colors.danger}>
         {message}
       </Txt>
@@ -368,7 +374,7 @@ export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () 
 export function Empty({ children }: { children: ReactNode }) {
   const { colors } = useSettings();
   return (
-    <View style={[styles.notice, { borderColor: colors.line, borderStyle: 'dashed', alignItems: 'center' }]}>
+    <View style={[styles.notice, { backgroundColor: colors.sunk, alignItems: 'center' }]}>
       <Txt variant="small" muted style={{ textAlign: 'center' }}>
         {children}
       </Txt>
@@ -387,22 +393,22 @@ export function SignInPrompt() {
 }
 
 const styles = StyleSheet.create({
-  screen: { padding: Space.lg, gap: Space.lg, paddingBottom: Space.xxl },
-  screenTablet: { padding: Space.xl, gap: Space.xl },
-  card: { borderWidth: 1, borderRadius: Radius.lg, padding: Space.lg, gap: Space.sm },
+  screen: { padding: 20, gap: Space.xl, paddingBottom: 48 },
+  screenTablet: { padding: Space.xxl, gap: Space.xxl },
+  card: { borderRadius: Radius.lg, padding: 18, gap: Space.sm },
   button: {
-    minHeight: TapTarget,
+    minHeight: 48,
     borderWidth: 1,
-    borderRadius: Radius.md,
-    paddingHorizontal: Space.lg,
+    borderRadius: Radius.pill,
+    paddingHorizontal: 22,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Space.sm,
   },
-  buttonSmall: { minHeight: 36, paddingHorizontal: Space.md, borderRadius: Radius.sm },
+  buttonSmall: { minHeight: 38, paddingHorizontal: 16 },
   chip: {
-    minHeight: 36,
+    minHeight: 40,
     borderWidth: 1,
     borderRadius: Radius.pill,
     paddingHorizontal: 14,
@@ -420,9 +426,10 @@ const styles = StyleSheet.create({
     gap: 4,
     alignSelf: 'flex-start',
   },
-  segment: { flexDirection: 'row', borderWidth: 1, borderRadius: Radius.sm, overflow: 'hidden', alignSelf: 'flex-start' },
-  segmentItem: { minHeight: 38, paddingHorizontal: 14, justifyContent: 'center' },
-  input: { borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: 12, paddingVertical: 10, minHeight: TapTarget },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderWidth: 1, borderRadius: Radius.md, padding: Space.md },
-  notice: { borderWidth: 1, borderRadius: Radius.md, padding: Space.lg, gap: Space.sm },
+  segment: { flexDirection: 'row', borderRadius: Radius.pill, padding: 3, alignSelf: 'flex-start' },
+  segmentItem: { minHeight: 36, paddingHorizontal: 16, justifyContent: 'center', borderRadius: Radius.pill },
+  segmentOn: { shadowColor: '#0b2a1b', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 14, paddingVertical: 12, minHeight: TapTarget + 4 },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: Space.md, borderRadius: Radius.lg, padding: 16 },
+  notice: { borderRadius: Radius.lg, padding: 18, gap: Space.sm },
 });

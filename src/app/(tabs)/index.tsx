@@ -1,7 +1,8 @@
 import { Icon as Ionicons } from '@/components/icon';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BfiAsks } from '@/components/bfi-asks';
 import { FarmCard } from '@/components/farm-card';
@@ -9,10 +10,12 @@ import { FarmMap } from '@/components/farm-map';
 import { SavedCopyNote } from '@/components/network-banner';
 import { PlacePicker } from '@/components/place-picker';
 import { Button, Card, Chip, Empty, ErrorNote, Grid, Loading, Pill, Row, Screen, Segmented, Txt } from '@/components/ui';
-import { Radius, Space } from '@/constants/theme';
+import { GradientBand, Photo, Scrim, useLightStatusBar } from '@/components/visual';
+import { Fonts, Radius, Space } from '@/constants/theme';
 import { BFI, CATEGORIES } from '@/lib/bfi';
 import { useLayout } from '@/lib/layout';
-import { miles, useHere } from '@/lib/location';
+import { categoryImage, sectionImage } from '@/lib/imagery';
+import { locate, miles, setHere, useHere } from '@/lib/location';
 import { supabase } from '@/lib/supabase';
 import type { Farm, Region } from '@/lib/types';
 import { must, useQuery } from '@/lib/use-query';
@@ -27,6 +30,9 @@ export default function Discover() {
   const [category, setCategory] = useState<string | null>(null);
   const [region, setRegion] = useState<string>('all');
   const [view, setView] = useState<'list' | 'map'>('list');
+  const [locating, setLocating] = useState(false);
+  const insets = useSafeAreaInsets();
+  useLightStatusBar();
   const { isTablet, isWide } = useLayout();
 
   const regions = useQuery(async () => must(await supabase.from('regions').select('*').order('sort_order')) as Region[], [], { cacheKey: 'regions' });
@@ -62,84 +68,124 @@ export default function Discover() {
     .map((x) => x.f);
 
   const selectedRegion = regions.data?.find((r) => r.id === region);
+  const heroPic = sectionImage('discover');
+
+  const nearMe = async () => {
+    setLocating(true);
+    const r = await locate();
+    setLocating(false);
+    if (r.ok) setHere({ point: r.point, label: r.label });
+    else Alert.alert('Location unavailable', r.reason);
+  };
+
+  const hero = (
+    <View>
+      <Photo picture={heroPic} style={{ height: isTablet ? 440 : 470 + insets.top }}>
+        <Scrim from={0.2} top />
+        <View style={[styles.heroCopy, isTablet && styles.heroCopyTablet]}>
+          <Txt variant="smallBold" color="rgba(255,255,255,0.92)">
+            From Black Farmers Index
+          </Txt>
+          <Txt variant="hero" color="#ffffff" style={isTablet ? { fontSize: 46 * textScale, lineHeight: 50 * textScale } : undefined}>
+            Find Black farmers near you
+          </Txt>
+          <Txt color="rgba(255,255,255,0.9)">Fresh food and friendly faces, straight from the growers.</Txt>
+        </View>
+      </Photo>
+      {/* The search floats over the bottom edge of the photo. */}
+      <View style={[styles.searchWrap, isTablet && styles.searchWrapTablet]}>
+        <View style={[styles.search, { backgroundColor: colors.surface }]}>
+          <Ionicons name="search" size={20} color={colors.forest} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={t('search')}
+            placeholderTextColor={colors.muted}
+            accessibilityLabel={t('search')}
+            returnKeyType="search"
+            style={{ flex: 1, minHeight: 52, color: colors.text, fontSize: 16 * textScale, fontFamily: Fonts.body }}
+          />
+          <Pressable
+            onPress={nearMe}
+            accessibilityRole="button"
+            accessibilityLabel={t('useMyLocation')}
+            style={({ pressed }) => [styles.nearMe, { backgroundColor: colors.harvest, opacity: pressed ? 0.85 : 1 }]}>
+            {locating ? <ActivityIndicator color={colors.onHarvest} /> : <Ionicons name="navigate" size={16} color={colors.onHarvest} />}
+            <Txt variant="smallBold" color={colors.onHarvest}>
+              Near me
+            </Txt>
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
 
   return (
-    <Screen width="wide">
+    <Screen width="wide" hero={hero} style={{ paddingTop: 12 }}>
+      <PlacePicker compact hideGps />
       <BfiAsks />
       {myFarm ? (
         <Card tone="soft">
           <Row style={{ justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
-              <Txt variant="label">{t('myFarm')}</Txt>
-              <Txt variant="heading">{myFarm.name}</Txt>
+              <Txt variant="label" color={colors.forest}>
+                {t('myFarm')}
+              </Txt>
+              <Txt variant="title">{myFarm.name}</Txt>
             </View>
             {myFarm.status !== 'approved' ? <Pill label="Waiting for BFI review" tone="sun" /> : null}
           </Row>
-          <Button small label="Update what's fresh" icon="leaf-outline" onPress={() => router.push('/my-farm')} />
+          <Button small label="Update what's fresh" icon="leaf-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/my-farm')} />
         </Card>
-      ) : (
-        <Card tone="leaf" style={{ gap: Space.md }}>
-          <Row style={{ justifyContent: 'space-between' }}>
-            <Txt variant="label" color={colors.onLeaf}>
-              Black Farmers Index · 501(c)(3)
-            </Txt>
-            <Button small kind="inverse" label="About" icon="information-circle-outline" onPress={() => router.push('/about')} />
-          </Row>
-          <Txt variant="title" color={colors.onLeaf}>
-            {BFI.tagline}
-          </Txt>
-          <View style={styles.stats}>
-            {BFI.stats.map((s) => (
-              <View key={s.label} style={[styles.stat, { borderTopColor: colors.onLeaf }]}>
-                <Txt variant="mono" color={colors.onLeaf} style={{ fontSize: 19 * textScale, lineHeight: 24 * textScale }}>
-                  {s.value}
-                </Txt>
-                <Txt variant="small" color={colors.onLeaf} style={{ fontSize: 12 * textScale }}>
-                  {s.label}
-                </Txt>
-              </View>
-            ))}
-          </View>
-        </Card>
-      )}
+      ) : null}
 
-      {isStaff ? <Button kind="ghost" label={t('review')} icon="shield-checkmark-outline" onPress={() => router.push('/review')} /> : null}
+      {isStaff ? <Button kind="ghost" label={t('review')} icon="shield-checkmark-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/review')} /> : null}
 
-      <View style={[styles.search, { borderColor: colors.line, backgroundColor: colors.sunk }]}>
-        <Ionicons name="search" size={18} color={colors.muted} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('search')}
-          placeholderTextColor={colors.muted}
-          accessibilityLabel={t('search')}
-          returnKeyType="search"
-          style={{ flex: 1, minHeight: 44, color: colors.text, fontSize: 16 * textScale }}
-        />
-      </View>
-
-      <PlacePicker compact />
-
-      <View style={{ gap: Space.sm }}>
-        <Txt variant="label">{t('browse')}</Txt>
-        <Row gap={6}>
-          {CATEGORIES.map((c) => (
-            <Chip key={c.id} label={c.id} icon={c.icon as never} selected={category === c.id} onPress={() => setCategory(category === c.id ? null : c.id)} />
-          ))}
-        </Row>
+      <View style={{ gap: Space.md }}>
+        <Txt variant="title" accessibilityRole="header">
+          {t('browse')}
+        </Txt>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 8 }} style={{ marginHorizontal: -4 }}>
+          {CATEGORIES.map((c) => {
+            const on = category === c.id;
+            return (
+              <Pressable
+                key={c.id}
+                onPress={() => setCategory(on ? null : c.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={c.id}
+                style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1, marginLeft: 4 }]}>
+                <Photo
+                  picture={categoryImage(c.id)}
+                  rounded={Radius.lg}
+                  style={[styles.tile, isTablet && styles.tileTablet, on && { borderWidth: 3, borderColor: colors.forest }]}>
+                  <Scrim from={0.35} />
+                  {on ? (
+                    <View style={[styles.tileCheck, { backgroundColor: colors.harvest }]}>
+                      <Ionicons name="checkmark" size={14} color={colors.onHarvest} />
+                    </View>
+                  ) : null}
+                  <Txt variant="heading" color="#ffffff" style={styles.tileLabel}>
+                    {c.id}
+                  </Txt>
+                </Photo>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <View style={{ gap: Space.sm }}>
-        <Txt variant="label">{t('region')}</Txt>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           <Chip label={t('allRegions')} selected={region === 'all'} onPress={() => setRegion('all')} />
           {(regions.data ?? []).map((r) => (
-            <Chip key={r.id} label={r.id === 'intl' ? 'International' : r.id} selected={region === r.id} onPress={() => setRegion(r.id)} />
+            <Chip key={r.id} label={r.id === 'intl' ? 'International' : `Region ${r.id}`} selected={region === r.id} onPress={() => setRegion(r.id)} />
           ))}
         </ScrollView>
-        {selectedRegion ? (
+        {selectedRegion && selectedRegion.states.length ? (
           <Txt variant="small" muted>
-            {selectedRegion.name}: {selectedRegion.states.join(', ')}
+            {selectedRegion.states.join(', ')}
           </Txt>
         ) : null}
       </View>
@@ -147,11 +193,13 @@ export default function Discover() {
       {farms.error ? <ErrorNote message={farms.error} onRetry={farms.reload} /> : null}
       {farms.loading && !farms.data ? <Loading /> : null}
       {farms.data ? (
-        <Row style={{ justifyContent: 'space-between' }}>
-          <View>
-            <Txt variant="small" muted accessibilityLiveRegion="polite">
+        <Row style={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <View style={{ gap: 2 }}>
+            <Txt variant="title" accessibilityRole="header" accessibilityLiveRegion="polite">
               {visible.length} {visible.length === 1 ? 'grower' : 'growers'}
-              {here ? ` · ${t('nearest').toLowerCase()}` : ''}
+            </Txt>
+            <Txt variant="small" muted>
+              {here ? `Nearest first, from ${here.label ?? 'your location'}` : category ?? 'Verified by BFI, newest first'}
             </Txt>
             <SavedCopyNote at={farms.cachedAt} />
           </View>
@@ -172,43 +220,88 @@ export default function Discover() {
         isWide ? (
           // iPad landscape: map and list side by side.
           <View style={{ flexDirection: 'row', gap: Space.lg, height: 640 }}>
-            <View style={{ flex: 3 }}>
+            <View style={{ flex: 3, borderRadius: Radius.xl, overflow: 'hidden' }}>
               <FarmMap farms={visible} here={here?.point ?? null} height={640} />
             </View>
-            <ScrollView style={{ flex: 2 }} contentContainerStyle={{ gap: Space.md }}>
+            <ScrollView style={{ flex: 2 }} contentContainerStyle={{ gap: Space.xl }}>
               {visible.map((f) => (
-                <FarmCard key={f.id} farm={f} here={here?.point} />
+                <FarmCard key={f.id} farm={f} here={here?.point} compact />
               ))}
             </ScrollView>
           </View>
         ) : (
-          <FarmMap farms={visible} here={here?.point ?? null} height={isTablet ? 520 : 320} />
+          <View style={{ borderRadius: Radius.xl, overflow: 'hidden' }}>
+            <FarmMap farms={visible} here={here?.point ?? null} height={isTablet ? 520 : 360} />
+          </View>
         )
       ) : null}
       {view === 'list' || saveData ? (
-        <Grid>
+        <Grid gap={Space.xl}>
           {visible.map((f) => (
             <FarmCard key={f.id} farm={f} here={here?.point} />
           ))}
         </Grid>
       ) : null}
 
+      <GradientBand>
+        <Txt variant="display" color="#ffffff">
+          {BFI.tagline}
+        </Txt>
+        <View style={styles.stats}>
+          {BFI.stats.map((x) => (
+            <View key={x.label} style={styles.stat}>
+              <Txt variant="display" color="#ffffff">
+                {x.value}
+              </Txt>
+              <Txt variant="small" color="rgba(255,255,255,0.88)">
+                {x.label}
+              </Txt>
+            </View>
+          ))}
+        </View>
+        <Button kind="inverse" label="About BFI" icon="information-circle-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/about')} />
+      </GradientBand>
+
       {!myFarm ? (
-        <Card style={{ borderRadius: Radius.lg }}>
-          <Txt variant="heading">Are you a Black farmer or grower?</Txt>
-          <Txt variant="small" muted>
-            Listing on the Index is free. BFI reviews every farm before it goes live.
-          </Txt>
-          <Button kind="ghost" label="List my farm" icon="add-circle-outline" onPress={() => router.push('/my-farm')} />
+        <Card>
+          <Txt variant="title">Are you a Black farmer or grower?</Txt>
+          <Txt muted>Listing on the Index is free. BFI reviews every farm before it goes live.</Txt>
+          <Row>
+            <Button label="List my farm" icon="add-circle-outline" onPress={() => router.push('/my-farm')} />
+            <Button kind="ghost" label={t('nearMeAlerts')} icon="notifications-outline" onPress={() => router.push('/alerts')} />
+          </Row>
         </Card>
-      ) : null}
-      <Button kind="ghost" label={t('nearMeAlerts')} icon="notifications-outline" onPress={() => router.push('/alerts')} />
+      ) : (
+        <Button kind="ghost" label={t('nearMeAlerts')} icon="notifications-outline" style={{ alignSelf: 'flex-start' }} onPress={() => router.push('/alerts')} />
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  stats: { flexDirection: 'row', gap: Space.sm },
-  stat: { flex: 1, borderTopWidth: 1, paddingTop: 6, gap: 2 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: Space.sm, borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 12 },
+  heroCopy: { position: 'absolute', left: 20, right: 20, bottom: 58, gap: 8 },
+  heroCopyTablet: { left: 48, right: 48, bottom: 72, maxWidth: 720 },
+  searchWrap: { marginTop: -30, paddingHorizontal: 16 },
+  searchWrapTablet: { paddingHorizontal: 48, maxWidth: 820, width: '100%', alignSelf: 'flex-start' },
+  search: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: Radius.pill,
+    paddingLeft: 18,
+    paddingRight: 6,
+    minHeight: 60,
+    shadowColor: '#0b2a1b',
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+  nearMe: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: Radius.pill, paddingHorizontal: 16, minHeight: 46 },
+  tile: { width: 136, height: 172, justifyContent: 'flex-end' },
+  tileTablet: { width: 168, height: 200 },
+  tileLabel: { position: 'absolute', left: 12, right: 12, bottom: 12 },
+  tileCheck: { position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+  stats: { flexDirection: 'row', gap: Space.lg, flexWrap: 'wrap' },
+  stat: { flex: 1, minWidth: 90, gap: 2 },
 });
