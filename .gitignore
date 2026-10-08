@@ -47,3 +47,7 @@ example
 supabase/.temp/
 supabase/.branches/
 store/out/
+
+# Python bytecode from the store scripts
+__pycache__/
+*.pyc
