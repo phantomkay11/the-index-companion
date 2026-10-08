@@ -35,3 +35,16 @@ python3 store/preview_compose.py ipad
 - **Record from the iPhone build for the final upload.** Apple asks that previews show the app itself. These frames come from the same code running in a browser, so they look the same, but the map in particular differs (Apple Maps on iPhone, a plotted map here). For the final upload, record the same steps in the iOS Simulator (`xcrun simctl io booted recordVideo`) or on a phone with screen recording, and keep these captions.
 - The video has a silent stereo track because App Store Connect expects audio. Add music or narration in any editor if you like; keep the frame rate and size.
 - Poster frame: App Store Connect uses the 5-second mark by default, which lands on the farm profile.
+
+
+## Pitch video
+
+A 16:9, 73-second story for presentations: what BFI is, each feature on a real phone or iPad, the staff tools, and why it's ready. It is silent, so it can play while someone talks, or have music added in any editor.
+
+```bash
+npx expo export --platform web
+node store/preview.mjs iphone && node store/preview.mjs ipad   # records the app footage
+python3 store/pitch.py                                         # -> store/out/the-index-pitch.mp4 and a poster frame
+```
+
+The headlines and the BFI figures live at the bottom of `store/pitch.py` (`story()`), so they are easy to change.
