@@ -1,0 +1,8 @@
+{
+  "name": "The Index",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "postCreateCommand": "npm ci",
+  "customizations": {
+    "codespaces": { "openFiles": ["docs/IPAD-TESTFLIGHT.md"] }
+  }
+}
