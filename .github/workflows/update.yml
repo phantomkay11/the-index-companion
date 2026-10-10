@@ -38,6 +38,15 @@ jobs:
       - name: Publish the update
         env:
           MESSAGE: ${{ inputs.message }}
-        run: eas update --channel production --environment production --platform ios --message "$MESSAGE" --non-interactive
+        run: |
+          set +e
+          eas update --channel production --environment production --platform ios --message "$MESSAGE" --non-interactive 2>&1 | tee "$RUNNER_TEMP/eas.log"
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ]; then
+            grep -iE "error|failed|invalid|not found|denied|required|missing" "$RUNNER_TEMP/eas.log" | grep -v "^\s*at " | sort -u | head -6 | while IFS= read -r line; do
+              echo "::error title=Update failed::${line:0:400}"
+            done
+            exit 1
+          fi
       - name: Done
         run: echo "::notice title=Update sent::Close and reopen The Index on your iPad (sometimes twice) to see it."

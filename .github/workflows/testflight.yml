@@ -31,6 +31,15 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - run: npm ci
       - name: Start the build
-        run: eas build --platform ios --profile production --auto-submit --non-interactive --no-wait
+        run: |
+          set +e
+          eas build --platform ios --profile production --auto-submit --non-interactive --no-wait 2>&1 | tee "$RUNNER_TEMP/eas.log"
+          code=${PIPESTATUS[0]}
+          if [ "$code" != "0" ]; then
+            grep -iE "error|failed|invalid|not found|denied|required|missing" "$RUNNER_TEMP/eas.log" | grep -v "^\s*at " | sort -u | head -6 | while IFS= read -r line; do
+              echo "::error title=Expo build didn't start::${line:0:400}"
+            done
+            exit 1
+          fi
       - name: Done
         run: echo "::notice title=Build started::Expo is building The Index now. Follow it at expo.dev → The Index → Builds. Apple emails you when it reaches TestFlight."
