@@ -106,9 +106,28 @@ export function sectionImage(section: Section): Picture {
   return EDITORIAL[section] ?? { source: SECTION_ART[section], alt: '', art: true };
 }
 
+/**
+ * Real photography for each grower type. These are the owner's PLACEHOLDER photos: the match
+ * between a type and a photo is only a stand-in. Replace with BFI's own photos before launch.
+ * The illustrated landscapes stay as the fallback for any type not listed here.
+ */
+const CATEGORY_PHOTOS: Partial<Record<keyof typeof LANDSCAPES, number>> = {
+  'Row crops': PHOTOS.plantingSeedlings,
+  Ranchers: PHOTOS.dairyBarn,
+  'Vegetables & fruit': PHOTOS.cabbageFieldBasket,
+  Beekeepers: PHOTOS.farmerInField,
+  Fisherfolk: PHOTOS.greenhouseHarvestCrate,
+  Foragers: PHOTOS.handsInSoil,
+  Vintners: PHOTOS.tractorPortrait,
+  Organic: PHOTOS.lettuceSeedlingHands,
+};
+
 export function categoryImage(category: string): Picture {
-  const source = LANDSCAPES[category as keyof typeof LANDSCAPES] ?? SECTION_ART.discover;
-  return { source, alt: '', art: true };
+  const key = category as keyof typeof LANDSCAPES;
+  const photo = CATEGORY_PHOTOS[key];
+  const landscape = LANDSCAPES[key] ?? SECTION_ART.discover;
+  if (photo) return { source: photo, alt: '', fallback: landscape };
+  return { source: landscape, alt: '', art: true };
 }
 
 function fromPhoto(p: FarmPhoto, category?: string): Picture {
