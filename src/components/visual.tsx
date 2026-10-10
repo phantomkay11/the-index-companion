@@ -15,7 +15,20 @@ import { openLink } from '@/lib/links';
  * A photo (or landscape art) that fills its frame. Art is decorative, so screen readers skip it;
  * photos are described with their alt text. In save-data mode, photos give way to a soft brand tint.
  */
-export function Photo({ picture, style, rounded, children }: { picture: Picture; style?: StyleProp<ViewStyle>; rounded?: number; children?: ReactNode }) {
+export function Photo({
+  picture,
+  style,
+  rounded,
+  creditTop,
+  children,
+}: {
+  picture: Picture;
+  style?: StyleProp<ViewStyle>;
+  rounded?: number;
+  /** Show the photo credit in the top-right corner, this far from the top. */
+  creditTop?: number;
+  children?: ReactNode;
+}) {
   const { colors, saveData } = useSettings();
   const hide = saveData && !picture.art;
   return (
@@ -25,6 +38,8 @@ export function Photo({ picture, style, rounded, children }: { picture: Picture;
       ) : (
         <Image
           source={picture.source}
+          placeholder={picture.fallback}
+          placeholderContentFit="cover"
           // Illustrations are decorative: an empty alt tells screen readers to skip them.
           alt={picture.art ? '' : picture.alt}
           accessible={!picture.art}
@@ -35,6 +50,7 @@ export function Photo({ picture, style, rounded, children }: { picture: Picture;
         />
       )}
       {children}
+      {creditTop != null && !hide ? <Credit picture={picture} style={{ top: creditTop, bottom: undefined }} /> : null}
     </View>
   );
 }

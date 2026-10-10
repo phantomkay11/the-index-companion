@@ -33,3 +33,12 @@ Paste each line, press Return, and answer the questions it asks.
    App Store Connect → your app → TestFlight, add yourself as a tester, and install it with the TestFlight app.
 
 When you're done, stop the Codespace (github.com → Codespaces → … → Stop) so it doesn't use your free hours.
+
+## After the first build: buttons instead of the terminal
+
+Add one repository secret (github.com/phantomkay11/the-index-companion/settings/secrets/actions → New repository secret):
+Name `EXPO_TOKEN`, Secret = a token from expo.dev → Account settings → Access tokens (the same one Paceline uses is fine).
+
+- **Actions → TestFlight → Run workflow**: a full new build, sent to TestFlight.
+- **Actions → Instant update → Run workflow**: design, text and photo changes reach phones in about a minute; close and
+  reopen the app (sometimes twice). Works on builds made after instant updates were added.

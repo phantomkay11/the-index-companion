@@ -18,7 +18,7 @@ export default function About() {
   };
 
   const hero = (
-    <Photo picture={sectionImage('discover')} style={{ height: 260 }}>
+    <Photo picture={sectionImage('discover')} creditTop={10} style={{ height: 260 }}>
       <Scrim from={0.15} />
       <View style={{ position: 'absolute', left: 20, right: 20, bottom: 22, gap: 4 }}>
         <Txt variant="smallBold" color="rgba(255,255,255,0.9)">

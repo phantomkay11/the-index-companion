@@ -47,7 +47,7 @@ export default function Community() {
   );
 
   const hero = (
-    <Photo picture={sectionImage('community')} style={{ height: isTablet ? 300 : 230 }}>
+    <Photo picture={sectionImage('community')} creditTop={10} style={{ height: isTablet ? 300 : 230 }}>
       <Scrim from={0.15} />
       <View style={{ position: 'absolute', left: isTablet ? 48 : 20, right: 20, bottom: 22, gap: 4 }}>
         <Txt variant="display" color="#ffffff">

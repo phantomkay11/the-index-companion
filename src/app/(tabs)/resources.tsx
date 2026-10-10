@@ -57,7 +57,7 @@ export default function Resources() {
   const saved = (q.data?.resources ?? []).filter((r) => q.data?.saved.includes(r.id));
 
   const hero = (
-    <Photo picture={sectionImage('resources')} style={{ height: isTablet ? 300 : 230 }}>
+    <Photo picture={sectionImage('resources')} creditTop={10} style={{ height: isTablet ? 300 : 230 }}>
       <Scrim from={0.15} />
       <View style={{ position: 'absolute', left: isTablet ? 48 : 20, right: 20, bottom: 22, gap: 4 }}>
         <Txt variant="display" color="#ffffff">

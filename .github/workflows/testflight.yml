@@ -1,0 +1,36 @@
+name: TestFlight
+
+# Builds a new iPhone version on Expo's servers and sends it to TestFlight.
+# Start it from Actions → TestFlight → Run workflow. Needs one repository secret:
+#   EXPO_TOKEN   an access token from expo.dev → Account settings → Access tokens
+# GitHub only starts the build (about a minute). Expo builds it (about 20–30 min),
+# then hands it to Apple, which emails you when it shows up in TestFlight.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check setup
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=EXPO_TOKEN is missing::Add a repository secret named EXPO_TOKEN (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Start the build
+        run: eas build --platform ios --profile production --auto-submit --non-interactive --no-wait
+      - name: Done
+        run: echo "::notice title=Build started::Expo is building The Index now. Follow it at expo.dev → The Index → Builds. Apple emails you when it reaches TestFlight."
