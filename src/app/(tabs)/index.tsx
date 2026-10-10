@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, TextInput,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BfiAsks } from '@/components/bfi-asks';
+import { FrontDoor } from '@/components/front-door';
 import { FarmCard } from '@/components/farm-card';
 import { FarmMap } from '@/components/farm-map';
 import { SavedCopyNote } from '@/components/network-banner';
@@ -122,8 +123,9 @@ export default function Discover() {
 
   return (
     <Screen width="wide" hero={hero} style={{ paddingTop: 12 }}>
-      <PlacePicker compact hideGps />
+      <FrontDoor onBuy={nearMe} isTablet={isTablet} />
       <BfiAsks />
+      <PlacePicker compact hideGps />
       {myFarm ? (
         <Card tone="soft">
           <Row style={{ justifyContent: 'space-between' }}>
