@@ -1,0 +1,43 @@
+name: Instant update
+
+# Sends design and text changes straight to The Index on phones that have the
+# latest TestFlight build. No new build, no Apple wait: close and reopen the app
+# (sometimes twice) to get it. Start it from Actions → Instant update → Run workflow.
+# If a change needs a full build (new permissions, new native code, the watch app),
+# phones simply keep the version they have until you run TestFlight instead.
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: What changed (shows up in Expo's update list)
+        required: false
+        default: Design update
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check setup
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::error title=EXPO_TOKEN is missing::Add a repository secret named EXPO_TOKEN (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - name: Publish the update
+        env:
+          MESSAGE: ${{ inputs.message }}
+        run: eas update --channel production --environment production --platform ios --message "$MESSAGE" --non-interactive
+      - name: Done
+        run: echo "::notice title=Update sent::Close and reopen The Index on your iPad (sometimes twice) to see it."
