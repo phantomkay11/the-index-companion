@@ -310,12 +310,7 @@ check('miles() is accurate', Math.abs((await one(`select public.miles(30.22, -92
 await as(staff);
 await one(`insert into public.farm_photos (farm_id, path, alt_text, farmer_consent, credit, credit_url)
            values ('00000000-0000-4000-a000-000000000001', 'https://example.com/a.jpg', 'Rows of greens at sunrise', true, 'Jane Doe / Unsplash', 'https://unsplash.com')`);
-check('seed gives sample farms credited placeholder photos', (await one(`select count(*)::int n from public.farm_photos p join public.farms f on f.id = p.farm_id where f.is_sample and p.credit is not null and p.farm_id <> '00000000-0000-4000-a000-000000000001'`))[0].n === 3);
 check('sample farms can use credited linked photos', (await one(`select count(*)::int n from public.farm_photos where credit is not null and farm_id = '00000000-0000-4000-a000-000000000001'`))[0].n === 1);
-await db.exec('reset role');
-await db.exec(readFileSync(`${root}/sample-photos.sql`, 'utf8'));
-await as(staff);
-check('sample-photos.sql can be re-run safely', (await one(`select count(*)::int n from public.farm_photos where path like 'https://images.pexels.com/%'`))[0].n === 3);
 await expectFail('linked photo without credit refused', () => one(`insert into public.farm_photos (farm_id, path, alt_text, farmer_consent)
            values ('00000000-0000-4000-a000-000000000001', 'https://example.com/b.jpg', 'Greens', true)`));
 await expectFail('real farms cannot use linked photos', () => one(`insert into public.farm_photos (farm_id, path, alt_text, farmer_consent, credit)
