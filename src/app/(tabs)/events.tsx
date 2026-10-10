@@ -89,7 +89,7 @@ export default function Events() {
   };
 
   const hero = (
-    <Photo picture={sectionImage('events')} style={{ height: isTablet ? 300 : 230 }}>
+    <Photo picture={sectionImage('events')} creditTop={10} style={{ height: isTablet ? 300 : 230 }}>
       <Scrim from={0.15} />
       <View style={[styles.heroCopy, isTablet && { left: 48, right: 48 }]}>
         <Txt variant="display" color="#ffffff">

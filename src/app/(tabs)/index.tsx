@@ -80,7 +80,7 @@ export default function Discover() {
 
   const hero = (
     <View>
-      <Photo picture={heroPic} style={{ height: isTablet ? 440 : 470 + insets.top }}>
+      <Photo picture={heroPic} creditTop={insets.top + 10} style={{ height: isTablet ? 440 : 470 + insets.top }}>
         <Scrim from={0.2} top />
         <View style={[styles.heroCopy, isTablet && styles.heroCopyTablet]}>
           <Txt variant="smallBold" color="rgba(255,255,255,0.92)">
