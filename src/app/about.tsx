@@ -3,7 +3,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Pill, Provenance, Row, Screen, Txt } from '@/components/ui';
 import { Photo, Scrim } from '@/components/visual';
-import { sectionImage } from '@/lib/imagery';
+import { ABOUT_PHOTO } from '@/lib/imagery';
 import { Space } from '@/constants/theme';
 import { BFI } from '@/lib/bfi';
 import { useSettings } from '@/providers/settings';
@@ -18,7 +18,7 @@ export default function About() {
   };
 
   const hero = (
-    <Photo picture={sectionImage('discover')} creditTop={10} style={{ height: 260 }}>
+    <Photo picture={ABOUT_PHOTO} style={{ height: 260 }}>
       <Scrim from={0.15} />
       <View style={{ position: 'absolute', left: 20, right: 20, bottom: 22, gap: 4 }}>
         <Txt variant="smallBold" color="rgba(255,255,255,0.9)">

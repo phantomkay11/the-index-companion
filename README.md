@@ -55,7 +55,7 @@ npm install
    npx supabase db push     # creates every table, policy and BFI's reference data
    ```
    No command line? Paste `supabase/setup.sql` into the Supabase SQL editor instead (regenerate it with `npm run build:setup-sql` after adding a migration).
-3. **Demo only:** load the sample farms and events by pasting `supabase/seed.sql` into the Supabase SQL editor. Skip this for the real BFI project. (Already loaded the samples before photos were added? Paste `supabase/sample-photos.sql` to give them placeholder photos.)
+3. **Demo only:** load the sample farms and events by pasting `supabase/seed.sql` into the Supabase SQL editor. Skip this for the real BFI project.
 4. **Sign-in codes:** in Supabase, open Authentication → Emails → Magic Link and make sure the template includes `{{ .Token }}`, so members receive a 6-digit code. For production, connect your own email sender under Authentication → SMTP.
 
 ### 3. Connect the app
@@ -125,7 +125,6 @@ src/lib/                 Supabase client, types, BFI content, five languages, lo
 src/providers/           accessibility settings, sign-in state, notifications
 supabase/migrations/     schema, row level security, BFI reference data, v2 features
 supabase/seed.sql        sample farms and events (demo only)
-supabase/sample-photos.sql  placeholder stock photos for the sample farms
 supabase/functions/      deliver (push, text, email), transcribe, translate, sms-line
 supabase/tests/          database security checks
 scripts/                 import-directory.mjs for loading BFI's directory

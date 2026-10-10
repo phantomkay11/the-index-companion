@@ -15,8 +15,9 @@ export function photoUrl(path: string) {
  * - A farm's own photos (uploaded with the farmer's consent) always come first.
  * - Otherwise the app shows brand landscape art for the farm's grower type. The art is an
  *   illustration, never a photo, so it can't be mistaken for a real farm or person.
- * - Section heroes (Discover, Events, Resources, Community) use the EDITORIAL photos below
- *   (stock placeholders for now), with the landscape art while they load or when offline.
+ * - Section heroes (Discover, Events, Resources, Community) and About use the bundled
+ *   PLACEHOLDER photos below until BFI's own photography arrives.
+ * - Sample farms show bundled placeholder photos (SAMPLE_FARM_PHOTOS).
  *
  * To add an editorial photo: put the file in assets/images/photos/, then add an entry like
  *   discover: { source: require('@/assets/images/photos/market-morning.jpg'), alt: '…', credit: 'Name / Unsplash' },
@@ -52,51 +53,53 @@ const SECTION_ART = {
 
 export type Section = keyof typeof SECTION_ART;
 
-/** A free-license stock photo, loaded by link. Placeholders until BFI's own photography arrives. */
-const stock = (url: string, alt: string, credit: string, creditUrl: string, section: Section): Picture => ({
-  source: { uri: url },
-  alt,
-  credit,
-  creditUrl,
-  fallback: SECTION_ART[section],
-});
+/**
+ * PLACEHOLDER PHOTOGRAPHY, bundled with the app so it shows offline.
+ * Stock images supplied by the project owner for demos. Replace them with BFI's own
+ * photography, with permission, before launch, and never present them as a real listed farm.
+ */
+const PHOTOS = {
+  handsInSoil: require('@/assets/images/photos/hands-in-soil.jpg'),
+  plantingSeedlings: require('@/assets/images/photos/planting-seedlings.jpg'),
+  cabbageHarvestPortrait: require('@/assets/images/photos/cabbage-harvest-portrait.jpg'),
+  greenhouseFamily: require('@/assets/images/photos/greenhouse-family.jpg'),
+  cabbageFieldBasket: require('@/assets/images/photos/cabbage-field-basket.jpg'),
+  greenhouseHarvestLaughing: require('@/assets/images/photos/greenhouse-harvest-laughing.jpg'),
+  greenhouseHarvestCrate: require('@/assets/images/photos/greenhouse-harvest-crate.jpg'),
+  dairyBarn: require('@/assets/images/photos/dairy-barn.jpg'),
+  tractorPortrait: require('@/assets/images/photos/tractor-portrait.jpg'),
+  lettuceSeedlingHands: require('@/assets/images/photos/lettuce-seedling-hands.jpg'),
+  farmerInField: require('@/assets/images/photos/farmer-in-field.jpg'),
+  seedlingTrays: require('@/assets/images/photos/seedling-trays.jpg'),
+} as const;
 
-const pexels = (id: number) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=1400`;
+const photo = (source: number, alt: string): Picture => ({ source, alt });
+
+/** Editorial photographs for section heroes (placeholders for now). */
+const EDITORIAL: Partial<Record<Section, Picture>> = {
+  discover: photo(PHOTOS.cabbageHarvestPortrait, 'A smiling farmer holding a basket of freshly picked cabbages in a green field'),
+  events: photo(PHOTOS.greenhouseHarvestLaughing, 'A farmer in a straw hat laughing as she carries a crate of carrots, beets and greens through a greenhouse'),
+  community: photo(PHOTOS.greenhouseFamily, 'A father in a greenhouse handing a young seedling to his daughter as her mother looks on'),
+  resources: photo(PHOTOS.lettuceSeedlingHands, 'A farmer holding a lettuce seedling with its roots and soil in cupped hands'),
+};
+
+/** The About page's photo. */
+export const ABOUT_PHOTO: Picture = photo(PHOTOS.handsInSoil, 'A farmer kneeling in a field at sunset, holding a handful of soil');
 
 /**
- * Editorial photographs for section heroes.
- * PLACEHOLDERS: free-license stock (Pexels and Unsplash licenses allow app use; credited anyway).
- * Replace them with BFI's own photography, with permission, before launch.
+ * Placeholder photos for the invented sample farms (is_sample), by farm id.
+ * These replace any linked photos on sample farms; real farms always use their own uploads.
  */
-const EDITORIAL: Partial<Record<Section, Picture>> = {
-  discover: stock(
-    pexels(8540273),
-    'A smiling farmer selling fresh vegetables at an outdoor market stand',
-    'RDNE Stock project / Pexels',
-    'https://www.pexels.com/photo/a-smiling-man-selling-organic-vegetables-8540273/',
-    'discover',
-  ),
-  events: stock(
-    pexels(8540249),
-    'A farmer in a cowboy hat holding up a watermelon at a busy farmers market',
-    'RDNE Stock project / Pexels',
-    'https://www.pexels.com/photo/a-man-holding-a-watermelon-8540249/',
-    'events',
-  ),
-  resources: stock(
-    pexels(10697799),
-    'An older farmer in a sun hat working in a green field',
-    'Josiah Matthew / Pexels',
-    'https://www.pexels.com/photo/elderly-man-in-hat-working-in-garden-10697799/',
-    'resources',
-  ),
-  community: stock(
-    'https://images.unsplash.com/photo-1697175386304-20e09a88c5a1?auto=format&fit=crop&w=1400&q=80',
-    'A young person in a knit cardigan holding a box of oranges',
-    'Eye for Ebony / Unsplash',
-    'https://unsplash.com/photos/young-person-holding-box-of-oranges-SAh6doRUdZg',
-    'community',
-  ),
+const SAMPLE_FARM_PHOTOS: Record<string, Picture[]> = {
+  '00000000-0000-4000-a000-000000000003': [photo(PHOTOS.dairyBarn, 'Two farmers checking on a row of cows at the feeding rail in a barn')],
+  '00000000-0000-4000-a000-000000000004': [
+    photo(PHOTOS.greenhouseHarvestCrate, 'A farmer in a straw hat carrying a crate of fresh greens through a greenhouse'),
+    photo(PHOTOS.plantingSeedlings, 'A hand planting young greens in a raised bed with drip irrigation'),
+  ],
+  '00000000-0000-4000-a000-000000000005': [photo(PHOTOS.seedlingTrays, 'Two farmers working among lavender and trays of seedlings')],
+  '00000000-0000-4000-a000-000000000006': [photo(PHOTOS.farmerInField, 'A farmer in a wide straw hat crouching in a green field')],
+  '00000000-0000-4000-a000-000000000007': [photo(PHOTOS.cabbageFieldBasket, 'A farmer kneeling in a cabbage field with a basket of harvested heads')],
+  '00000000-0000-4000-a000-000000000008': [photo(PHOTOS.tractorPortrait, 'A farmer in overalls sitting between two tractors in a barn')],
 };
 
 export function sectionImage(section: Section): Picture {
@@ -120,12 +123,16 @@ function fromPhoto(p: FarmPhoto, category?: string): Picture {
 
 /** The farm's cover: its first photo, or the art for its grower type. */
 export function farmCover(farm: Farm): Picture {
+  const sample = farm.is_sample ? SAMPLE_FARM_PHOTOS[farm.id] : undefined;
+  if (sample?.length) return sample[0];
   const first = [...(farm.farm_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0];
   if (first) return fromPhoto(first, farm.categories[0]);
   return categoryImage(farm.categories[0] ?? 'Vegetables & fruit');
 }
 
 export function farmPhotos(farm: Farm): Picture[] {
+  const sample = farm.is_sample ? SAMPLE_FARM_PHOTOS[farm.id] : undefined;
+  if (sample?.length) return sample;
   return [...(farm.farm_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order).map((p) => fromPhoto(p, farm.categories[0]));
 }
 
