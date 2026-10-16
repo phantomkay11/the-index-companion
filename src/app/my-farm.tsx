@@ -113,6 +113,7 @@ function ManageFarm() {
       <OrderLink key={`${farm.order_url}|${farm.order_label}`} url={farm.order_url ?? ''} label={farm.order_label ?? ''} onSave={setFarm} />
       <FarmPhotos farmId={farm.id} />
       <Button kind="ghost" label="View my public profile" onPress={() => router.push({ pathname: '/farm/[id]', params: { id: farm.id } })} />
+      <Button kind="ghost" label="Print my farm card" icon="qr-code-outline" onPress={() => router.push('/farm-card')} />
     </Screen>
   );
 }

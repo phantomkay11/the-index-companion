@@ -92,6 +92,7 @@ function AppStack() {
         <Stack.Screen name="settings" options={{ title: t('settings'), presentation: 'modal' }} />
         <Stack.Screen name="sign-in" options={{ title: t('signIn'), presentation: 'modal' }} />
         <Stack.Screen name="my-farm" options={{ title: t('myFarm') }} />
+        <Stack.Screen name="farm-card" options={{ title: 'My farm card' }} />
         <Stack.Screen name="post-event" options={{ title: t('postEvent'), presentation: 'modal' }} />
         <Stack.Screen name="review" options={{ title: t('review') }} />
         <Stack.Screen name="notifications" options={{ title: t('notifications') }} />
