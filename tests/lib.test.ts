@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { daysUntil, localDate, nextSaturday, shortDate, toE164, validDate, validTime } from '../src/lib/format.ts';
+import { farmProfileUrl, qrMatrix, textKeyword } from '../src/lib/farm-card.ts';
 import { toCsv } from '../src/lib/survey.ts';
 
 test('date-only values show the same calendar day in every US time zone', () => {
@@ -60,4 +61,34 @@ test('phone numbers match the server\'s normalize_phone()', () => {
   assert.equal(toE164('1 504 555 0100'), '+15045550100');
   assert.equal(toE164('+44 20 7946 0958'), '+442079460958');
   for (const bad of ['+', '+12', '555-0100', '+0123456789', 'call me']) assert.equal(toE164(bad), null, bad);
+});
+
+test('farm card keyword: first word of the first product in season, with a two-letter state', () => {
+  assert.equal(textKeyword(['Wildflower honey', 'Comb honey'], 'la'), 'WILDFLOWER LA');
+  assert.equal(textKeyword(['  Okra  '], 'MS'), 'OKRA MS');
+  assert.equal(textKeyword(['Scotch bonnet peppers'], 'Florida'), 'SCOTCH');
+  assert.equal(textKeyword(['Ok'], ''), 'OK');
+  assert.equal(textKeyword([], 'LA'), '');
+  assert.equal(textKeyword(['!!', 'a'], 'LA'), '');
+  assert.equal(textKeyword(['Gulf shrimp; drop <script>'], 'TX'), 'GULF TX');
+});
+
+test('farm card link only exists once the site address is set, and trims slashes', () => {
+  assert.equal(farmProfileUrl('f1', ''), null);
+  assert.equal(farmProfileUrl('f1', 'https://index.example.org/'), 'https://index.example.org/farm/f1');
+  assert.equal(farmProfileUrl('a b/c', 'https://x.example'), 'https://x.example/farm/a%20b%2Fc');
+});
+
+test('farm card QR code is a square grid with the three finder squares in the corners', () => {
+  const m = qrMatrix('https://index.example.org/farm/f1');
+  const n = m.length;
+  assert.ok(n >= 21 && n % 4 === 1, `size ${n}`);
+  assert.ok(m.every((row) => row.length === n));
+  // Each finder pattern: dark outer ring, light ring inside it, dark 3x3 centre.
+  for (const [r0, c0] of [[0, 0], [0, n - 7], [n - 7, 0]]) {
+    assert.equal(m[r0][c0], true);
+    assert.equal(m[r0 + 1][c0 + 1], false);
+    assert.equal(m[r0 + 3][c0 + 3], true);
+  }
+  assert.notDeepEqual(qrMatrix('https://a.example/farm/1'), qrMatrix('https://a.example/farm/2'));
 });
