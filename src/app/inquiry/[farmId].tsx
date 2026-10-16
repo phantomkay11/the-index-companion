@@ -45,6 +45,7 @@ export default function Inquiry() {
     setBusy(false);
     if (error) return Alert.alert('Inquiry not sent', error.message);
     router.dismiss();
+    if (!data) return Alert.alert('Inquiry sent', 'You will find the conversation in Messages.');
     router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
 

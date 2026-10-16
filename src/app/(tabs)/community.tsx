@@ -112,6 +112,7 @@ function PostCard({ post, mine, onChange }: { post: Post; mine: boolean; onChang
     const { data, error } = await supabase.rpc('start_post_conversation', { p_post_id: post.id });
     setBusy(false);
     if (error) return Alert.alert('Could not reply', error.message);
+    if (!data) return Alert.alert('Could not reply', 'We could not open a conversation. Please try again.');
     router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
 

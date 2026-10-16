@@ -163,12 +163,13 @@ function Report({ checkinId }: { checkinId: string }) {
   const report = useQuery(async () => {
     const { data, error } = await supabase.rpc('checkin_report', { p_checkin: checkinId });
     if (error) throw new Error(error.message);
-    return data as CheckinReport;
+    // No report comes back when the check-in is gone or the person isn't staff. Show zeros, not a crash.
+    return (data ?? { reached: 0, ok: 0, need_help: 0, needs: [] }) as CheckinReport;
   }, [checkinId]);
 
   if (report.loading && !report.data) return <Loading />;
   if (report.error) return <ErrorNote message={report.error} onRetry={report.reload} />;
-  const r = report.data!;
+  const r = report.data ?? { reached: 0, ok: 0, need_help: 0, needs: [] };
   const noAnswer = Math.max(0, r.reached - r.ok - r.need_help);
 
   return (

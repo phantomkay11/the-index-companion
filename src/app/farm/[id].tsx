@@ -93,6 +93,7 @@ export default function FarmProfile() {
     });
     setBusy(null);
     if (error) Alert.alert('Message not started', error.message);
+    else if (!data) Alert.alert('Message not started', 'We could not open a conversation. Please try again.');
     else router.push({ pathname: '/thread/[id]', params: { id: data as string } });
   };
 

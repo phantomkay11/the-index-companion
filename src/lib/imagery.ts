@@ -87,28 +87,47 @@ const EDITORIAL: Partial<Record<Section, Picture>> = {
 export const ABOUT_PHOTO: Picture = photo(PHOTOS.handsInSoil, 'A farmer kneeling in a field at sunset, holding a handful of soil');
 
 /**
- * Placeholder photos for the invented sample farms (is_sample), by farm id.
+ * Placeholder photos for the invented sample farms (is_sample), by farm name.
  * These replace any linked photos on sample farms; real farms always use their own uploads.
  */
 const SAMPLE_FARM_PHOTOS: Record<string, Picture[]> = {
-  '00000000-0000-4000-a000-000000000003': [photo(PHOTOS.dairyBarn, 'Two farmers checking on a row of cows at the feeding rail in a barn')],
-  '00000000-0000-4000-a000-000000000004': [
+  'Three Sisters Ranch': [photo(PHOTOS.dairyBarn, 'Two farmers checking on a row of cows at the feeding rail in a barn')],
+  'Sweet Pea Acres': [
     photo(PHOTOS.greenhouseHarvestCrate, 'A farmer in a straw hat carrying a crate of fresh greens through a greenhouse'),
     photo(PHOTOS.plantingSeedlings, 'A hand planting young greens in a raised bed with drip irrigation'),
   ],
-  '00000000-0000-4000-a000-000000000005': [photo(PHOTOS.seedlingTrays, 'Two farmers working among lavender and trays of seedlings')],
-  '00000000-0000-4000-a000-000000000006': [photo(PHOTOS.farmerInField, 'A farmer in a wide straw hat crouching in a green field')],
-  '00000000-0000-4000-a000-000000000007': [photo(PHOTOS.cabbageFieldBasket, 'A farmer kneeling in a cabbage field with a basket of harvested heads')],
-  '00000000-0000-4000-a000-000000000008': [photo(PHOTOS.tractorPortrait, 'A farmer in overalls sitting between two tractors in a barn')],
+  'Delta Commons Co-op': [photo(PHOTOS.seedlingTrays, 'Two farmers working among lavender and trays of seedlings')],
+  'Okra Row Farm': [photo(PHOTOS.farmerInField, 'A farmer in a wide straw hat crouching in a green field')],
+  'Kreyòl Garden': [photo(PHOTOS.cabbageFieldBasket, 'A farmer kneeling in a cabbage field with a basket of harvested heads')],
+  'Pine & Pasture Farm': [photo(PHOTOS.tractorPortrait, 'A farmer in overalls sitting between two tractors in a barn')],
 };
 
 export function sectionImage(section: Section): Picture {
   return EDITORIAL[section] ?? { source: SECTION_ART[section], alt: '', art: true };
 }
 
+/**
+ * Real photography for each grower type. These are the owner's PLACEHOLDER photos: the match
+ * between a type and a photo is only a stand-in. Replace with BFI's own photos before launch.
+ * The illustrated landscapes stay as the fallback for any type not listed here.
+ */
+const CATEGORY_PHOTOS: Partial<Record<keyof typeof LANDSCAPES, number>> = {
+  'Row crops': PHOTOS.plantingSeedlings,
+  Ranchers: PHOTOS.dairyBarn,
+  'Vegetables & fruit': PHOTOS.cabbageFieldBasket,
+  Beekeepers: PHOTOS.farmerInField,
+  Fisherfolk: PHOTOS.greenhouseHarvestCrate,
+  Foragers: PHOTOS.handsInSoil,
+  Vintners: PHOTOS.tractorPortrait,
+  Organic: PHOTOS.lettuceSeedlingHands,
+};
+
 export function categoryImage(category: string): Picture {
-  const source = LANDSCAPES[category as keyof typeof LANDSCAPES] ?? SECTION_ART.discover;
-  return { source, alt: '', art: true };
+  const key = category as keyof typeof LANDSCAPES;
+  const photo = CATEGORY_PHOTOS[key];
+  const landscape = LANDSCAPES[key] ?? SECTION_ART.discover;
+  if (photo) return { source: photo, alt: '', fallback: landscape };
+  return { source: landscape, alt: '', art: true };
 }
 
 function fromPhoto(p: FarmPhoto, category?: string): Picture {
@@ -123,7 +142,7 @@ function fromPhoto(p: FarmPhoto, category?: string): Picture {
 
 /** The farm's cover: its first photo, or the art for its grower type. */
 export function farmCover(farm: Farm): Picture {
-  const sample = farm.is_sample ? SAMPLE_FARM_PHOTOS[farm.id] : undefined;
+  const sample = farm.is_sample ? SAMPLE_FARM_PHOTOS[farm.name] : undefined;
   if (sample?.length) return sample[0];
   const first = [...(farm.farm_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order)[0];
   if (first) return fromPhoto(first, farm.categories[0]);
@@ -131,7 +150,7 @@ export function farmCover(farm: Farm): Picture {
 }
 
 export function farmPhotos(farm: Farm): Picture[] {
-  const sample = farm.is_sample ? SAMPLE_FARM_PHOTOS[farm.id] : undefined;
+  const sample = farm.is_sample ? SAMPLE_FARM_PHOTOS[farm.name] : undefined;
   if (sample?.length) return sample;
   return [...(farm.farm_photos ?? [])].sort((a, b) => a.sort_order - b.sort_order).map((p) => fromPhoto(p, farm.categories[0]));
 }
